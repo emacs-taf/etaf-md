@@ -186,11 +186,6 @@
       "purpose": "An unknown dialect name is reported instead of guessed."
     },
     {
-      "name": "etaf-md-preview-tests-outline-keys-live-on-the-prefix",
-      "file": "tests/etaf-md-preview-tests.el",
-      "purpose": "大纲键是根 Host 键，但页面接受打字，所以它们在 C-c C-m 这个模式前缀下：C-c C-m n / p 走标题、C-c C-m q 关闭预览，不遮蔽用户已有的 C-c 加字母绑定。"
-    },
-    {
       "name": "etaf-md-preview-tests-palette-paints-the-canvas",
       "file": "tests/etaf-md-preview-tests.el",
       "purpose": "Choosing each palette paints the cells the page does not cover with that palette's page background."
@@ -199,21 +194,6 @@
       "name": "etaf-md-preview-tests-one-edit-repaints-one-block",
       "file": "tests/etaf-md-preview-tests.el",
       "purpose": "An unsaved edit in the source buffer repaints the block it changed: the published buffer patch covers that block's lines while the rest of a long document keeps its text, because every top-level block is published as its own Component."
-    },
-    {
-      "name": "etaf-md-preview-tests-a-file-preview-accepts-typing-at-once",
-      "file": "tests/etaf-md-preview-tests.el",
-      "purpose": "打开文件预览即可打字：每条入口命令都走同一个挂载路径，没有要先进入的编辑态；按键写进 markdown 源，页面只显示重画后的渲染。"
-    },
-    {
-      "name": "etaf-md-preview-tests-view-keys-stay-reachable-while-typing",
-      "file": "tests/etaf-md-preview-tests.el",
-      "purpose": "编辑中的预览仍能用 C-c C-m n / p 走标题，且不把字母打进文件；裸字母仍归文档。"
-    },
-    {
-      "name": "etaf-md-preview-tests-line-end-follows-the-source-line",
-      "file": "tests/etaf-md-preview-tests.el",
-      "purpose": "C-e on the painted page runs the source's own command, so the caret stops at the end of the line the document holds instead of at the end of a padded screen row."
     },
     {
       "name": "etaf-md-preview-tests-empty-block-paints-its-source-skeleton",
@@ -226,59 +206,9 @@
       "purpose": "A table that still holds text paints its cells rather than its skeleton."
     },
     {
-      "name": "etaf-md-preview-tests-structural-keys-match-the-buffer",
-      "file": "tests/etaf-md-preview-tests.el",
-      "purpose": "页面上按 RET、TAB、DEL、C-k、C-y、撤销、M-DEL 等编辑键，得到的文本与同起点、同内容的原生 markdown buffer 完全一致。"
-    },
-    {
-      "name": "etaf-md-preview-tests-typing-on-a-new-line-paints-that-line",
-      "file": "tests/etaf-md-preview-tests.el",
-      "purpose": "RET in the rendered page gives a row to type on and the typed text lands there; the page afterwards holds exactly the rows a fresh render of the same markdown paints."
-    },
-    {
-      "name": "etaf-md-preview-tests-typing-in-a-gap-keeps-the-page-shape",
-      "file": "tests/etaf-md-preview-tests.el",
-      "purpose": "Typing on the second of two blank rows shrinks the blank stretch while a block appears in the same repaint, and the page still matches a fresh render instead of keeping a stale copy of the text below."
-    },
-    {
-      "name": "etaf-md-preview-tests-an-empty-document-accepts-typing",
-      "file": "tests/etaf-md-preview-tests.el",
-      "purpose": "An empty file paints the row its first character goes on, so the first key of a new document reaches the source."
-    },
-    {
-      "name": "etaf-md-preview-tests-undo-reverts-a-run-of-typed-characters",
-      "file": "tests/etaf-md-preview-tests.el",
-      "purpose": "C-/ on the page runs the source's undo, so a run of typed characters reverts in one step exactly as it does in the buffer itself."
-    },
-    {
-      "name": "etaf-md-preview-tests-selection-covers-the-source",
-      "file": "tests/etaf-md-preview-tests.el",
-      "purpose": "A mark set on the page selects the document: C-x h marks the whole source and C-w kills that region, so the page never holds a region of its own."
-    },
-    {
       "name": "etaf-md-preview-tests-front-matter-is-not-painted-as-blank-rows",
       "file": "tests/etaf-md-preview-tests.el",
       "purpose": "Front matter is shown as the document's title and subtitle, not as lines, so the page does not open with blank rows standing for it."
-    },
-    {
-      "name": "etaf-md-preview-tests-editing-a-block-repaints-only-that-block",
-      "file": "tests/etaf-md-preview-tests.el",
-      "purpose": "A keystroke in one block leaves the page equal to a fresh render while the repaint covers only that block, because the document is parsed and repainted around the edit instead of as a whole."
-    },
-    {
-      "name": "etaf-md-preview-tests-a-merged-paragraph-paints-as-one",
-      "file": "tests/etaf-md-preview-tests.el",
-      "purpose": "Deleting the blank line between two paragraphs joins them into one block on the page, and the page equals a fresh render of the joined file."
-    },
-    {
-      "name": "etaf-md-preview-tests-a-fence-typed-in-reparses-the-whole-file",
-      "file": "tests/etaf-md-preview-tests.el",
-      "purpose": "Typing a code fence, whose block can end far from the edit, still leaves the page equal to a fresh render of the file."
-    },
-    {
-      "name": "etaf-md-preview-tests-caret-lands-where-the-whole-page-maps-it",
-      "file": "tests/etaf-md-preview-tests.el",
-      "purpose": "A caret move reads only the block it lands in, and every source offset still lands on the cell the complete projection maps it to."
     }
   ]
 }

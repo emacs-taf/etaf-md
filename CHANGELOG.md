@@ -4,159 +4,22 @@
 
 ### Added
 
-- Opening a preview of a file accepts typing at once: there is no mode to
-  enter and no key that starts editing, and a key typed on the page edits the
-  markdown source and the page repaints the block that changed.  The file is
-  written after a pause in the typing and again when the preview's buffer is
-  killed, so nothing is lost by closing the window, and a file changed by
-  another program is left alone and reported instead of overwritten.
-- The preview's own keys moved to `C-c C-m`, the namespace a major mode takes
-  for itself, because a page that types cannot give a bare letter to
-  navigation and `C-c` with one letter belongs to the reader's own bindings.
-  `C-c C-m n`, `C-c C-m p`, `C-c C-m j`, `C-c C-m r`, `C-c C-m t`,
-  `C-c C-m [`, `C-c C-m ]`, `C-c C-m h` and `C-c C-m q` do what `n`, `p`,
-  `C-c j`, `r`, `t`, `[`, `]`, `C-c h` and `q` did.
+- The preview follows the markdown file while it is edited: a change in the
+  source buffer repaints the page on the next frame, block by block, so typing
+  in the source costs the block under the caret instead of the whole document
+  (measured: one new, one updated and one retired instance per keystroke on a
+  703-line file).  A save, or a change made by another program, repaints the
+  same way.
+- The preview's own keys are `n`, `p`, `C-c j`, `r`, `t`, `[`, `]`, `C-c h` and
+  `q`: outline navigation, reload, theme, reading width, help and close.  The
+  page is a rendering, so native scrolling, isearch and link activation stay
+  available as they are.
 
 ### Changed
 
-- Editing a block by showing its markdown source is gone.  The page is the
-  editing surface: `e`, `etaf-md-preview-edit-block` and the block's raw-source
-  view no longer exist, so a document is typed on its rendering only.
-- A preview that accepts typing no longer repaints the same text twice: the
-  page repaints the block a key changed, and the change follower skips a
-  repaint whose text the page already shows.  A change made outside the page
-  still repaints it.
-- A preview also follows unsaved edits of its source buffer: typing repaints
-  the document on the next frame, so a paragraph and its render can be
-  compared while the keys are still moving, and saving or an outside write
-  still repaints as before.  Closing the preview removes the buffer's change
-  hook.
-- `etaf-md-preview` opens the preview in a window beside the
-  source and keeps the point in the source text, so one command from a
-  Markdown buffer sets up editing with a live preview.
-- A preview opened from a file follows that file: saving the source, or
-  changing it on disk from another program, repaints the document after the
-  write settles, so an editor buffer and its preview sit side by side.  `r` still reloads on
-  demand.  A preview closed with `q` or killed stops following, so a watch and
-  a repaint never outlive the buffer that shows them.
-
-### Changed
-
-- Following an edit repaints one block instead of the document.  A publish
-  keeps each unchanged block's published entry and Component call, so typing
-  in a paragraph renders that paragraph alone: in an 800-block document a
-  one-paragraph edit dropped from 27 ms to 16 ms, and its non-parsing part
-  dropped from 14 ms to 1.4 ms.
-
-- `etaf-md-preview-close` frees the preview's window when the frame has another
-  window, so a preview opened beside its source closes back onto the source
-  instead of leaving a second window on the same file.
-
-- The preview opens as an ETAF application: its keys are declared on the
-  root Host, so `n`, `p` and `q` reach heading navigation and closing
-  instead of the renderer's line scrolling and `quit-window`, and the page
-  background follows a palette change without a separate repaint.
-  `etaf-md-preview-mode-map` is gone; the keys are listed in `?` help.
-  Requires ETAF 0.3.0 and ETAF UI 0.2.0.
-
-### Fixed
-
-- Headings keep a color in a theme that paints its own heading color as its
-  body color (`outline-1` within 12% contrast of the body ink), which several
-  dark themes do: the palette then derives the heading color from the accent,
-  mixed toward the page background, so headings stay distinguishable without
-  competing with links.
-- The default reading measure is 96 cells instead of 110. At 110 a paragraph of
-  Chinese runs past fifty characters per line, which is a long way back for the
-  eye; the measure stays adjustable with `[` and `]`.
-- The face-derived palette follows an Emacs theme switch. It is derived from the
-  faces of the frame that shows the preview and reads `etaf-appearance' inside
-  the derivation, so switching from a dark to a light theme repaints the
-  document instead of leaving the old theme's ink on the new page.
-- A window that fills the reading measure keeps a two-cell gutter on each side,
-  so text no longer starts on the window edge. The column also clips at that
-  gutter, which stops a table's right border from being extended across the
-  window's last column as a thick bar. A window narrower than the minimum
-  measure plus the gutters keeps its margins and clips a block too wide to
-  shrink, such as a table that must keep its words whole.
-- Selecting the palette the `auto` theme had already resolved to applies the
-  named palette's surfaces and page background; the palette source is now
-  reactive, so the selection repaints even when the palette name is unchanged.
-- The entry resolves its own `lisp/` directory while byte-compiling as well as at
-  load time. Installing the archive compiled the entry with `load-file-name`
-  unset, so `etaf-md-preview-theme` was not found and `package.el` reported
-  "Cannot open load file".
-
-## Unreleased
-
-### Added
-
-- `etaf-md-preview-doctor` reports the optional ffmpeg capability in the same
-  shape as `etaf-install-doctor`; reading Markdown needs no external program.
-
-All notable user-visible changes to ETAF Markdown Preview. This project follows
-[Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
-[Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-
-## [Unreleased]
-
-### Changed
-
-- `?` and `C-c h` share searchable, themed help inside the preview, with
-  concise labels from the effective bindings. Escape exits one layer at a
-  time; clicking outside closes help and restores the reading focus.
-
-- Local videos play inside the preview through ETAF's native video Component:
-  the card shows a still poster until RET (or a click) mounts the player in
-  place; further presses toggle play/pause. Without ffmpeg the card keeps the
-  poster and opens in the system player as before.
-- Media cards reuse the measured pixel size of an unchanged file instead of
-  re-probing it on every preview. The probe records path, size and
-  modification time, so an updated image or video is still measured from its
-  new bytes. Terminal frames render the media placeholder without attempting
-  a pixel probe that needs a graphic frame.
-
-### Fixed
-
-- Note, tip, important, warning and caution callouts end at their last body
-  line without an extra padded blank row; normal block spacing is unchanged.
-- Heading links override the heading color without duplicate properties, keep
-  the heading typography, and remain inline with surrounding heading text.
-- The video play caption activates the same desktop-player action as its poster;
-  pressing RET on the caption no longer leaves the video unopened.
-
-## [0.1.0] - 2026-10-03
-
-### Added
-
-- Render a local Markdown document as a modern reading view:
-  `M-x etaf-md-preview-open`.
-- CommonMark blocks and inlines: headings (ATX and Setext), paragraphs,
-  emphasis, strong emphasis, strikethrough, inline code, links, autolinks,
-  images, fenced and indented code, blockquotes, nested lists, thematic
-  breaks, character references, backslash escapes and hard line breaks.
-- GitHub extensions: pipe tables drawn as a full grid with an outer frame,
-  task list items, bare URL autolinks and numbered footnotes; GitHub alerts
-  (`> [!NOTE]` and friends) render as titled callout blocks.
-- A `:flavor` argument selects `gfm` (the default), `commonmark`, or a feature
-  plist that toggles individual extensions.
-- YAML front matter is stripped; its `title` becomes the document title and
-  its author, date, version, license and status keys render in a title area
-  with tag chips.
-- Local images render inline through the ETAF image Host; local videos render
-  a poster frame with a play caption; remote and missing media render labeled
-  placeholder cards that open on activation.
-- Dark, light and sepia palettes, published as ETAF UI theme tokens, with
-  `t` cycling and `etaf-md-preview-set-theme` pinning. The default
-  `etaf-md-preview-theme` value `auto` derives the document colors from the
-  active Emacs theme's faces and paints no page background, so panels, tables
-  and code blocks match whatever theme is in use.
-- User options for the initial palette, Markdown dialect and reading-measure
-  bounds (`etaf-md-preview-theme`, `etaf-md-preview-flavor`,
-  `etaf-md-preview-width-min`, `etaf-md-preview-width-max`).
-- Outline navigation (`n`/`p`, `TAB`), imenu integration, reloading, an
-  adjustable maximum reading measure and whole-document native scrolling; a
-  window resize reflows through the renderer's viewport update without
-  rebuilding the view.
-- Headless sessions through `etaf-md-preview-create`/`-view`/`-state` for
-  scripts and tests.
+- A preview no longer accepts typing on the painted page.  The markdown is
+  edited in its own buffer with the reader's own commands, and the page shows
+  the result; the commands that typed through the page
+  (`etaf-md-preview-edit-document`, `etaf-md-preview-insert`,
+  `etaf-md-preview-delete-char`, `etaf-md-preview-editing-p`) are gone with
+  them.

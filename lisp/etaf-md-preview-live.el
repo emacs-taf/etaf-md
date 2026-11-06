@@ -1,17 +1,17 @@
-;;; etaf-md-preview-live.el --- Edit the markdown a preview paints  -*- lexical-binding: t; -*-
+;;; etaf-md-preview-live.el --- Keep a preview in step with its source  -*- lexical-binding: t; -*-
 
 ;;; Commentary:
 
-;; A preview is a rendering of a markdown file, so nothing is typed into it.
-;; This module binds the painted page to the file's buffer through
-;; `etaf-document': a key names a position on the page, the projection turns
-;; that into a markdown offset, the key runs there, and the page repaints from
-;; the edited file.
+;; A preview is a rendering of a markdown file, so it is read-only: the file is
+;; edited in its own buffer, with every Emacs command the reader already has,
+;; and this module keeps the page in step with it.  A change repaints the page
+;; from the edited text on the next frame, block by block: the blocks that did
+;; not change keep their published instance, so typing in the source costs the
+;; block under the caret rather than the whole document.
 ;;
-;; What stays here is what only markdown knows: which range of the file each
-;; painted block came from, and what a block looks like when its text is gone.
-;; Everything about accepting keys, moving the caret and saving is shared with
-;; every other page that renders a document.
+;; What the projection adds is the way back: which range of the file each
+;; painted block came from, so a caller can answer for a position on the page
+;; in terms of the markdown behind it.
 
 ;;; Code:
 
@@ -20,14 +20,6 @@
 (require 'etaf-md-preview-app)
 (require 'etaf-md-preview-model)
 (require 'etaf-md-preview-views)
-
-(defvar etaf-md-preview-live--session nil
-  "Preview session whose page currently accepts typing.")
-
-(defvar etaf-md-preview-live--document nil
-  "Editing session of the page that currently accepts typing.
-The preview session is a reactive value, so it cannot hold this: the editing
-session belongs to the module.")
 
 ;;;; What markdown alone knows
 
@@ -117,22 +109,6 @@ key."
               (text (etaf-md-preview--session-text session)))
     (etaf-projection runtime (etaf-md-preview--projection-entries session) text)))
 
-;;;; Source access
-
-(defun etaf-md-preview--live-source (session)
-  "Return the buffer holding SESSION's markdown, opening its file when needed."
-  (or (let ((buffer (plist-get session :source-buffer)))
-        (and (buffer-live-p buffer) buffer))
-      (when-let* ((file (plist-get session :file)))
-        (when (file-exists-p file)
-          (let ((buffer (find-file-noselect file)))
-            (plist-put session :source-buffer buffer)
-            buffer)))))
-
-(defun etaf-md-preview--live-length (session)
-  "Return the number of characters in SESSION's markdown."
-  (length (or (etaf-md-preview--session-text session) "")))
-
 ;;;; Repainting the page
 
 (defun etaf-md-preview--live-repaint (session)
@@ -152,65 +128,6 @@ key."
   (unless (plist-get session :source-buffer)
     (plist-put session :text text))
   (etaf-md-preview--live-repaint session))
-
-;;;; Session
-
-;;;###autoload
-(defun etaf-md-preview-editing-p ()
-  "Return non-nil when the current preview buffer accepts in-place typing."
-  (and etaf-md-preview-live--session
-       (equal (plist-get etaf-md-preview-live--session :buffer) (current-buffer))
-       t))
-
-;;;###autoload
-(defun etaf-md-preview-insert (text)
-  "Insert TEXT into the markdown at the painted caret and repaint.
-The page keeps its rendered shape; this is the command form of typing, for
-scripts and for keys that arrive outside the page's own input."
-  (interactive "sInsert: ")
-  (etaf-document-insert text))
-
-;;;###autoload
-(defun etaf-md-preview-delete-char (&optional backward)
-  "Delete one markdown character at the painted caret and repaint.
-Interactively it deletes backwards; with BACKWARD nil it deletes forwards."
-  (interactive "P")
-  (etaf-document-delete-char (if backward t (not (called-interactively-p 'any)))))
-
-(defun etaf-md-preview-edit-document ()
-  "Type into the markdown source from the painted page.
-The page stays read-only: a key names a cell, the projection turns it into a
-markdown offset, the key runs in the file's buffer, and the page repaints from
-the edited markdown."
-  (interactive)
-  (let* ((session (etaf-md-preview--current-session))
-         (buffer (plist-get session :buffer))
-         (source (etaf-md-preview--live-source session)))
-    (unless source
-      (user-error "This preview has no source buffer to edit"))
-    (unless (and (buffer-live-p buffer) (etaf-runtime-for-buffer buffer))
-      (user-error "This preview is not mounted"))
-    (setq etaf-md-preview-live--session session)
-    (let ((document (etaf-document-open
-                     buffer
-                     :source source
-                     :entries (lambda (&optional offset)
-                                (etaf-md-preview--projection-entries session offset))
-                     :republish (lambda (text)
-                                  (etaf-md-preview--live-refresh session text))
-                     ;; The view keys stay reachable while the page types: a
-                     ;; sequence the markdown source has no command for is the
-                     ;; application's, and this is where it is looked up.
-                     :keymap (mapcar (lambda (entry) (cons (car entry) (nth 1 entry)))
-                                     etaf-md-preview--keys))))
-      (setq etaf-md-preview-live--document document)
-      ;; A reader who is already somewhere on the page keeps that place; only a
-      ;; page that has not been pointed at yet starts at the top of the file.
-      (when (<= (with-current-buffer buffer (point)) (point-min))
-        (etaf-document-goto
-         document
-         (or (plist-get session :live-offset) 0)))
-      document)))
 
 (provide 'etaf-md-preview-live)
 

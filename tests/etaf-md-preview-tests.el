@@ -932,7 +932,7 @@ absolute one made the prompt show that directory twice."
           (with-current-buffer buffer
             (let ((windows (window-list))
                   (before (etaf-md-preview-state session)))
-              (dolist (key '("?" "C-c C-m h"))
+              (dolist (key '("?" "C-c h"))
                 (execute-kbd-macro (kbd key))
                 (let* ((data (etaf-help-data runtime))
                        (entries (apply #'append (mapcar (lambda (group) (plist-get group :entries))
@@ -962,25 +962,6 @@ absolute one made the prompt show that directory twice."
 
 ;; The outline keys are root Host keys and sit on the `C-c' prefix: a page
 ;; that accepts typing cannot give a bare letter to navigation.
-(ert-deftest etaf-md-preview-tests-outline-keys-live-on-the-prefix ()
-  "`C-c n' and `C-c p' walk headings and `C-c q' closes through the command loop."
-  (save-window-excursion
-    (let* ((session (etaf-md-preview-create
-                     :text "# Alpha\n\nbody\n\n## Beta\n\nmore\n"))
-           (buffer (etaf-md-preview-open session)))
-      (unwind-protect
-          (with-current-buffer buffer
-            (should (etaf-md-preview-locate session 0))
-            (execute-kbd-macro (kbd "C-c C-m n"))
-            (should (looking-at-p "Beta"))
-            (execute-kbd-macro (kbd "C-c C-m p"))
-            (should (looking-at-p "Alpha"))
-            (execute-kbd-macro (kbd "C-c C-m q"))
-            (should-not (buffer-live-p buffer))
-            (should-not (plist-get session :buffer)))
-        (when (buffer-live-p buffer)
-          (with-current-buffer buffer (etaf-md-preview-close)))))))
-
 (ert-deftest etaf-md-preview-tests-palette-paints-the-canvas ()
   "Choosing a palette paints unpainted cells with its page background."
   (let* ((session (etaf-md-preview-create :text "# Canvas\n"))
@@ -1033,175 +1014,26 @@ visiting buffer and the file are removed afterwards."
     (error "Rendered text is missing %S" needle))
   (beginning-of-line))
 
+(defun etaf-md-preview-tests--page-rows (buffer)
+  "Return BUFFER's painted rows, keeping every one of them.
+The page repaints on the next frame, so the rows are read after a flush."
+  (with-current-buffer buffer
+    (etaf-runtime-flush (etaf-runtime-for-buffer buffer))
+    (let ((rows nil))
+      (goto-char (point-min))
+      (while (not (eobp))
+        (push (string-trim-right
+               (buffer-substring-no-properties (line-beginning-position)
+                                               (line-end-position)))
+              rows)
+        (forward-line 1))
+      (nreverse rows))))
+
 (defun etaf-md-preview-tests--lines (buffer)
   "Return BUFFER's text without properties."
   (with-current-buffer buffer
     (buffer-substring-no-properties (point-min) (point-max))))
 
-
-(ert-deftest etaf-md-preview-tests-structural-keys-match-the-buffer ()
-  "Every editing key produces the same text on the page as in the buffer.
-The page is a front end to the markdown source, so a key must not have a
-different effect there: the acceptance is the text, compared with the same key
-sequence sent to a plain markdown buffer that started from the same contents at
-the same offset."
-  (let ((contents "# Title\n\nA paragraph with words here.\n\n- one\n- two\n\n## Section\n\nLast line.\n")
-        (different nil))
-    (dolist (keys '("RET" "TAB" "DEL" "C-k" "C-y" "C-/"
-                    "C-e RET" "C-a DEL" "TAB TAB" "DEL DEL"
-                    "C-k C-k C-y" "C-e C-k" "C-a C-k"
-                    "M-f M-f M-DEL" "C-o" "C-t" "C-t C-/"
-                    "RET RET" "C-a TAB" "C-e C-j" "M-DEL"
-                    "C-d" "M-<"))
-      (let ((want (etaf-md-preview-tests--native-keys contents keys))
-            (got (etaf-md-preview-tests--page-keys contents keys)))
-        (unless (equal want got)
-          (push (list keys want got) different))))
-    ;; One assertion over the whole table: a failing key names itself in the
-    ;; report instead of stopping the run at the first mismatch.
-    (should-not (nreverse different))))
-
-(defun etaf-md-preview-tests--send-keys (keys)
-  "Send the space-separated key names in KEYS one at a time.
-A reader presses one key after another, so each one is a separate command
-here: `C-k C-k C-y' is three presses, not one macro event sequence."
-  (dolist (one (split-string keys " " t))
-    (execute-kbd-macro (kbd one))))
-
-(defun etaf-md-preview-tests--native-keys (contents keys)
-  "Return the text of a markdown buffer holding CONTENTS after KEYS."
-  (let ((buffer (generate-new-buffer " *etaf-md-preview-native*")))
-    (unwind-protect
-        (with-current-buffer buffer
-          (insert contents)
-          ;; The source of a markdown file is in `markdown-mode', so the
-          ;; reference text is too; without it a key such as `TAB' would mean
-          ;; something else and the comparison would be between two editors.
-          (if (fboundp 'markdown-mode)
-              (delay-mode-hooks (markdown-mode))
-            (fundamental-mode))
-          ;; Setting the mode can leave undo recording off in a scratch
-          ;; buffer; the source of a file records it, so this reference does
-          ;; too, or `C-/' would be comparing an editor without history.
-          (setq buffer-undo-list nil)
-          (set-window-buffer (selected-window) buffer)
-          (goto-char (1+ (string-match "words" contents)))
-          ;; The same priming edit on both sides, so undo has something to undo.
-          (execute-kbd-macro "ab")
-          (etaf-md-preview-tests--send-keys keys)
-          (buffer-substring-no-properties (point-min) (point-max)))
-      (kill-buffer buffer))))
-
-(defun etaf-md-preview-tests--page-keys (contents keys)
-  "Return the source text a fresh page over CONTENTS has after KEYS."
-  (let* ((file (make-temp-file "etaf-md-preview-keys-" nil ".md"))
-         (source nil)
-         (preview nil))
-    (unwind-protect
-        (progn
-          (with-temp-file file (insert contents))
-          (setq source (find-file-noselect file))
-          (setq preview (etaf-md-preview-open file))
-          (with-current-buffer preview
-            (etaf-runtime-flush (etaf-runtime-for-buffer preview))
-            (set-window-buffer (selected-window) preview)
-            ;; The page's own point is where the reader is: the caret follows
-            ;; it, so the keys start from the same word on both sides.
-            (goto-char (point-min))
-            (search-forward "words")
-            (backward-char 5)
-            (execute-kbd-macro "ab")
-            (etaf-md-preview-tests--send-keys keys)
-            (etaf-document-settle preview)
-            (etaf-md-preview-tests--lines source)))
-      (when (buffer-live-p preview) (kill-buffer preview))
-      (when (buffer-live-p source)
-        (with-current-buffer source (set-buffer-modified-p nil))
-        (kill-buffer source))
-      (delete-file file))))
-
-(ert-deftest etaf-md-preview-tests-typing-on-a-new-line-paints-that-line ()
-  "A newline in the source reaches the page as a row the reader can type on.
-Press RET at the end of a paragraph and the page must show the line, not fold
-it into the paragraph above: a rendering that swallowed it would take the
-characters typed there into the wrong place.  A blank stretch of source is a
-row of its own for the same reason, and the page keeps exactly the lines a
-fresh render of the same markdown has."
-  (etaf-md-preview-tests--with-preview-source "alpha beta\n\ntail\n"
-    (with-current-buffer preview
-      (etaf-md-preview-edit-document)
-      (goto-char (point-min))
-      (search-forward "alpha beta")
-      (execute-kbd-macro (kbd "RET"))
-      (execute-kbd-macro "one")
-      (etaf-runtime-flush (etaf-runtime-for-buffer preview))
-      (should (equal "alpha beta\none\n\ntail\n"
-                     (etaf-md-preview-tests--lines source)))
-      (should (equal (etaf-md-preview-tests--fresh-rows "alpha beta\none\n\ntail\n")
-                     (etaf-md-preview-tests--page-rows preview)))
-      ;; Two RETs give two blank rows and put the caret on the second of them.
-      ;; Typing there must leave the page equal to what a fresh render paints,
-      ;; not one row longer: a page that grew a stale row would keep showing a
-      ;; copy of the text below.
-      (execute-kbd-macro (kbd "RET RET"))
-      (execute-kbd-macro "two")
-      (etaf-runtime-flush (etaf-runtime-for-buffer preview))
-      (should (equal "alpha beta\none\n\ntwo\n\ntail\n"
-                     (etaf-md-preview-tests--lines source)))
-      (should (equal (etaf-md-preview-tests--fresh-rows
-                      "alpha beta\none\n\ntwo\n\ntail\n")
-                     (etaf-md-preview-tests--page-rows preview))))))
-
-(ert-deftest etaf-md-preview-tests-typing-in-a-gap-keeps-the-page-shape ()
-  "Typing on the second of two blank rows leaves the page a fresh render paints.
-The row becomes a paragraph, so the blank stretch shrinks while a block
-appears in the same repaint; a page written from that change row by row would
-keep a stale copy of the text below it."
-  (etaf-md-preview-tests--with-preview-source "alpha beta\n\ntail\n"
-    (with-current-buffer preview
-      (etaf-md-preview-edit-document)
-      (goto-char (point-min))
-      (search-forward "alpha beta")
-      (execute-kbd-macro (kbd "RET RET"))
-      (execute-kbd-macro "Y")
-      (etaf-runtime-flush (etaf-runtime-for-buffer preview))
-      (should (equal "alpha beta\n\nY\n\ntail\n"
-                     (etaf-md-preview-tests--lines source)))
-      (should (equal (etaf-md-preview-tests--fresh-rows "alpha beta\n\nY\n\ntail\n")
-                     (etaf-md-preview-tests--page-rows preview))))))
-
-(ert-deftest etaf-md-preview-tests-undo-reverts-a-run-of-typed-characters ()
-  "`C-/' undoes the run of characters a reader typed, as it does in the buffer.
-The page does not give the key a meaning of its own: the source runs `undo',
-and because the same command ran three times on the source, Emacs folds the
-three insertions into the one undo step they are."
-  (etaf-md-preview-tests--with-preview-source "alpha beta\n"
-    (with-current-buffer preview
-      (etaf-md-preview-edit-document)
-      (goto-char (point-min))
-      (search-forward "alpha")
-      (execute-kbd-macro "xyz")
-      (should (equal "alphaxyz beta\n" (etaf-md-preview-tests--lines source)))
-      (execute-kbd-macro (kbd "C-/"))
-      (should (equal "alpha beta\n" (etaf-md-preview-tests--lines source)))
-      (etaf-runtime-flush (etaf-runtime-for-buffer preview))
-      (should (equal (etaf-md-preview-tests--fresh-rows "alpha beta\n")
-                     (etaf-md-preview-tests--page-rows preview))))))
-
-(ert-deftest etaf-md-preview-tests-selection-covers-the-source ()
-  "A mark set on the page selects the document, so killing removes it all.
-`C-x h' marks the whole buffer in the source and `C-w' kills the region there;
-the page only shows the result.  A page that kept its own idea of the region
-would cut a different range from the one the reader saw marked."
-  (etaf-md-preview-tests--with-preview-source "alpha beta\n\ntail\n"
-    (with-current-buffer preview
-      (etaf-md-preview-edit-document)
-      (execute-kbd-macro (kbd "C-x h"))
-      (execute-kbd-macro (kbd "C-w"))
-      (should (equal "" (etaf-md-preview-tests--lines source)))
-      (etaf-runtime-flush (etaf-runtime-for-buffer preview))
-      (should (equal (etaf-md-preview-tests--fresh-rows "")
-                     (etaf-md-preview-tests--page-rows preview))))))
 
 (ert-deftest etaf-md-preview-tests-front-matter-is-not-painted-as-blank-rows ()
   "Metadata at the head of the file does not open the page with empty rows.
@@ -1221,94 +1053,6 @@ the rows the file spends on it must not be painted as blank ones."
               (should (<= leading 2))
               (should-not (cl-some (lambda (row) (string-match-p "title:" row)) rows))))
         (kill-buffer buffer)))))
-
-(ert-deftest etaf-md-preview-tests-editing-a-block-repaints-only-that-block ()
-  "A keystroke in one block leaves the page equal to a fresh render of the file.
-The other blocks are the same text at the same offset, so the repaint touches
-the edited block instead of the document."
-  (etaf-md-preview-tests--with-preview-source
-      "第一段 alpha。\n\n第二段 beta。\n\n第三段 gamma。\n"
-    (with-current-buffer preview
-      (etaf-md-preview-edit-document)
-      (goto-char (point-min))
-      (search-forward "alpha")
-      (execute-kbd-macro "XY")
-      (etaf-runtime-flush (etaf-runtime-for-buffer preview))
-      (let ((text (etaf-md-preview-tests--lines source)))
-        (should (equal "第一段 alphaXY。\n\n第二段 beta。\n\n第三段 gamma。\n" text))
-        (should (equal (etaf-md-preview-tests--fresh-rows text)
-                       (etaf-md-preview-tests--page-rows preview)))
-        (let ((report (etaf-runtime-update-report)))
-          (should (eq 'lines (plist-get report :strategy)))
-          (should (< (plist-get report :lines) 6)))))))
-
-(ert-deftest etaf-md-preview-tests-a-merged-paragraph-paints-as-one ()
-  "Deleting the blank line between two paragraphs joins them on the page.
-The edit changes the shape of two blocks at once, and the page must still equal
-a fresh render of the joined file."
-  (etaf-md-preview-tests--with-preview-source "第一段。\n\n第二段。\n"
-    (with-current-buffer preview
-      (etaf-md-preview-edit-document)
-      (goto-char (point-min))
-      (search-forward "第二段")
-      (goto-char (match-beginning 0))
-      (execute-kbd-macro (kbd "DEL"))
-      (etaf-runtime-flush (etaf-runtime-for-buffer preview))
-      (let ((text (etaf-md-preview-tests--lines source)))
-        (should (equal "第一段。\n第二段。\n" text))
-        (should (equal (etaf-md-preview-tests--fresh-rows text)
-                       (etaf-md-preview-tests--page-rows preview)))
-        (should (equal 1 (plist-get (etaf-md-preview-state (etaf-app-state)) :blocks)))))))
-
-(ert-deftest etaf-md-preview-tests-a-fence-typed-in-reparses-the-whole-file ()
-  "Typing a code fence leaves the page equal to a fresh render.
-A fence opens a block that can end far from the edit, so the file is parsed
-again as a whole instead of patching the region around the cursor."
-  (etaf-md-preview-tests--with-preview-source "第一段。\n\ncode line\n\n最后一段。\n"
-    (with-current-buffer preview
-      (etaf-md-preview-edit-document)
-      (goto-char (point-min))
-      (search-forward "code line")
-      (goto-char (match-beginning 0))
-      (execute-kbd-macro "```")
-      (etaf-runtime-flush (etaf-runtime-for-buffer preview))
-      (let ((text (etaf-md-preview-tests--lines source)))
-        (should (equal "第一段。\n\n```code line\n\n最后一段。\n" text))
-        (should (equal (etaf-md-preview-tests--fresh-rows text)
-                       (etaf-md-preview-tests--page-rows preview)))))))
-
-(ert-deftest etaf-md-preview-tests-caret-lands-where-the-whole-page-maps-it ()
-  "Every source offset puts the caret on the cell the whole page maps it to.
-A caret move reads only the block it lands in, so this compares that answer
-with the one the complete projection gives, offset by offset, across a heading,
-paragraphs, a list, a fenced block and the blank lines between them."
-  (etaf-md-preview-tests--with-preview-source
-      "# 标题\n\n第一段 alpha beta。\n\n- 列表一\n- 列表二 gamma\n\n```\ncode\n```\n\n尾段。\n"
-    (with-current-buffer preview
-      (let* ((document (etaf-md-preview-edit-document))
-             (text (etaf-md-preview-tests--lines source))
-             (whole (etaf-md-preview-projection (etaf-app-state)))
-             (mismatch nil))
-        (dotimes (offset (1+ (length text)))
-          (etaf-document-goto document offset)
-          (unless (= (point) (etaf-projection-position whole offset))
-            (push offset mismatch)))
-        (should-not mismatch)))))
-
-(ert-deftest etaf-md-preview-tests-an-empty-document-accepts-typing ()
-  "An empty file paints the row its first character goes on.
-Nothing else would give the caret a cell, so the page would refuse the very
-first key of a new document."
-  (etaf-md-preview-tests--with-preview-source ""
-    (with-current-buffer preview
-      (etaf-md-preview-edit-document)
-      (execute-kbd-macro "H")
-      (execute-kbd-macro (kbd "RET"))
-      (execute-kbd-macro "I")
-      (etaf-runtime-flush (etaf-runtime-for-buffer preview))
-      (should (equal "H\nI" (etaf-md-preview-tests--lines source)))
-      (should (equal (etaf-md-preview-tests--fresh-rows "H\nI")
-                     (etaf-md-preview-tests--page-rows preview))))))
 
 (ert-deftest etaf-md-preview-tests-empty-block-paints-its-source-skeleton ()
   "A block whose text is gone paints the markup that is still in the source.
@@ -1336,98 +1080,6 @@ a session text that is not published yet would paint a skeleton over its data."
       (should (string-match-p "名称" lines))
       (should (string-match-p "磁盘" lines))
       (should-not (string-match-p "|-----|" lines)))))
-
-(ert-deftest etaf-md-preview-tests-a-file-preview-accepts-typing-at-once ()
-  "Opening a preview of a file is all a reader does to start typing.
-Every entry command ends in the same mount path, so there is no mode to enter
-first and no key that means `start editing'.  Typing edits the source and lets
-the preview repaint, so the page keeps its rendered shape and never receives
-the character itself."
-  (etaf-md-preview-tests--with-preview-source
-      "# Doc\n\nplain [link](https://example.com) text\n"
-    (with-current-buffer preview
-      (should (etaf-md-preview-editing-p))
-      (etaf-md-preview-tests--goto-rendered "plain link text")
-      ;; The character reaches the source, and the page repaints from it: the
-      ;; page holds a rendering of the document, so it shows the character where
-      ;; the render puts it and never the markdown notation around it.
-      (etaf-md-preview-insert "Z")
-      (etaf-runtime-flush (etaf-runtime-for-buffer preview))
-      (should (string-match-p "Z"
-                              (etaf-md-preview-tests--lines source)))
-      (should (string-match-p "Z"
-                              (etaf-md-preview-tests--lines preview)))
-      (should-not (string-match-p "\\[link\\]"
-                                  (etaf-md-preview-tests--lines preview))))))
-
-(defun etaf-md-preview-tests--page-rows (buffer)
-  "Return BUFFER's painted rows, keeping every one of them.
-The page repaints on the next frame after a key, so the rows come from the
-repaint this asks for: a test reads the page as a reader who stopped typing."""
-  (etaf-document-settle buffer)
-  (with-current-buffer buffer
-    (mapcar #'string-trim
-            (split-string (buffer-substring-no-properties
-                           (point-min) (point-max))
-                          "\n"))))
-
-(defun etaf-md-preview-tests--fresh-rows (text)
-  "Return the rows a preview of TEXT paints when it is opened fresh.
-An edited page must hold exactly these rows: the same document rendered from
-scratch is the shape a reader expects back after every keystroke."
-  (let ((buffer (etaf-md-preview-tests--mount
-                 (etaf-md-preview-create :text text :theme 'dark))))
-    (unwind-protect
-        (progn
-          (etaf-runtime-flush (etaf-runtime-for-buffer buffer))
-          (etaf-md-preview-tests--page-rows buffer))
-      (kill-buffer buffer))))
-
-(ert-deftest etaf-md-preview-tests-view-keys-stay-reachable-while-typing ()
-  "The outline key walks headings without typing its letters into the file.
-A page that accepts typing still needs its own commands.  They sit under
-`C-c C-m', which the markdown source has no command for, so the page answers
-the sequence; a bare letter still belongs to the document."
-  (etaf-md-preview-tests--with-preview-source "# Alpha\n\nbody\n\n## Beta\n\nmore\n"
-    (with-current-buffer preview
-      (should (etaf-md-preview-locate (etaf-app-state preview) 0))
-      (let ((source-text (with-current-buffer source
-                           (buffer-substring-no-properties (point-min) (point-max)))))
-        (execute-kbd-macro (kbd "C-c C-m n"))
-        (should (looking-at-p "Beta"))
-        (should (equal source-text
-                       (with-current-buffer source
-                         (buffer-substring-no-properties (point-min) (point-max)))))
-        (execute-kbd-macro (kbd "C-c C-m p"))
-        (should (looking-at-p "Alpha"))
-        ;; A bare letter types, so the prefix did not turn the page read-only.
-        (execute-kbd-macro "z")
-        (should (string-match-p "z# Alpha"
-                                (with-current-buffer source
-                                  (buffer-substring-no-properties (point-min) (point-max)))))))))
-
-(ert-deftest etaf-md-preview-tests-line-end-follows-the-source-line ()
-  "`C-e' on the painted page stops where it does in the source buffer.
-The page does not give the key a meaning of its own: the source's own command
-runs, so the caret lands at the end of the line the document holds -- never at
-the end of a padded screen row, and never one line further on."
-  (etaf-md-preview-tests--with-preview-source
-      "# Doc\n\nalpha beta gamma delta\n\ntail\n"
-    (with-current-buffer preview
-      (goto-char (point-min))
-      (search-forward "alpha beta")
-      (execute-kbd-macro (kbd "C-e"))
-      (should (= (with-current-buffer source
-                   (save-excursion
-                     (goto-char (point-min))
-                     (forward-line 2)
-                     (line-end-position)))
-                 (with-current-buffer source (point)))))))
-
-
-
-
-
 
 (provide 'etaf-md-preview-tests)
 ;;; etaf-md-preview-tests.el ends here

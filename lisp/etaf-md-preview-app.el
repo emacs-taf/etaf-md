@@ -36,25 +36,22 @@
 An in-place edit uses it to put the caret back on the repainted page; the hook
 runs after the publication, so a handler reads the new document.")
 
-(declare-function etaf-md-preview-edit-document "etaf-md-preview-live" ())
 (declare-function etaf-md-preview--live-refresh "etaf-md-preview-live" (session text))
 
 (defconst etaf-md-preview--keys
-  '(("C-c C-m n" etaf-md-preview-next-heading "下一个标题")
-    ("C-c C-m p" etaf-md-preview-previous-heading "上一个标题")
-    ("C-c C-m j" etaf-md-preview-goto-heading "选择标题")
-    ("C-c C-m r" etaf-md-preview-reload "重新加载文档")
-    ("C-c C-m t" etaf-md-preview--cycle-theme-command "切换主题")
-    ("C-c C-m [" etaf-md-preview-narrower "缩窄阅读栏")
-    ("C-c C-m ]" etaf-md-preview-wider "加宽阅读栏")
-    ("C-c C-m h" etaf-help "查看快捷键")
-    ("C-c C-m q" etaf-md-preview-close "关闭预览"))
+  '(("n" etaf-md-preview-next-heading "下一个标题")
+    ("p" etaf-md-preview-previous-heading "上一个标题")
+    ("C-c j" etaf-md-preview-goto-heading "选择标题")
+    ("r" etaf-md-preview-reload "重新加载文档")
+    ("t" etaf-md-preview--cycle-theme-command "切换主题")
+    ("[" etaf-md-preview-narrower "缩窄阅读栏")
+    ("]" etaf-md-preview-wider "加宽阅读栏")
+    ("C-c h" etaf-help "查看快捷键")
+    ("q" etaf-md-preview-close "关闭预览"))
   "Root keys of a preview opened by `etaf-md-preview-open'.
-The page accepts typing as soon as it opens, so a key that only changes the
-view cannot sit on a bare letter.  They live under `C-c C-m' instead, the
-namespace a major mode takes for its own, because `C-c' and one letter belongs
-to the user: a preview must not shadow a binding the reader already has.
-Native scrolling and isearch stay available as they are.")
+The page is a rendering, so the markdown is edited in its own buffer and these
+keys only move around the view.  Native scrolling, isearch and link activation
+stay available as they are.")
 
 (defun etaf-md-preview--current-session ()
   "Return the preview session of the current buffer."
@@ -316,9 +313,8 @@ pending, and that spins instead of settling."
               ((buffer-live-p buffer)))
     (condition-case error
         (let ((text (etaf-md-preview--session-text session)))
-          ;; A page that accepts typing repaints the block it changed as the
-          ;; key goes, and that same write schedules this follow: finding the
-          ;; text it already shows means there is nothing left to draw.
+          ;; A repaint already made from the same text leaves nothing to draw:
+          ;; the page shows what the source now holds.
           (unless (equal text (plist-get session :live-text))
             (etaf-md-preview--live-refresh session text)
             (run-hook-with-args 'etaf-md-preview-after-repaint-functions session)))
@@ -398,25 +394,8 @@ themselves."
            (name (etaf-md-preview--buffer-name file))
            (existing (get-buffer name)))
       (if (and existing (etaf-app-state existing))
-          (progn
-            (switch-to-buffer existing)
-            (etaf-md-preview--edit-on-open existing))
+          (switch-to-buffer existing)
         (etaf-md-preview--display (etaf-md-preview-create :file file) name)))))
-
-(defun etaf-md-preview--edit-on-open (buffer)
-  "Make BUFFER accept typing when it shows a file's markdown.
-Every entry command ends here, so a preview opened from a file is editable
-whichever way it was opened.  A session built from text alone has no source
-to write to and stays read-only."
-  (when (and (buffer-live-p buffer)
-             (plist-get (etaf-app-state buffer) :file))
-    (with-current-buffer buffer
-      (condition-case error
-          (etaf-md-preview-edit-document)
-        (error
-         (message "Preview opened read-only: %s"
-                  (error-message-string error))))))
-  buffer)
 
 ;;;###autoload
 (defun etaf-md-preview (&optional source)
@@ -455,8 +434,7 @@ window layout gives way to those two panes, the point stays in the source, and
 
 (defun etaf-md-preview--display (session name)
   "Open SESSION as the application buffer NAME and return that buffer.
-A preview of a file is a page the reader edits, so it opens ready to type:
-the session starts on the mount path every entry command shares, which is what
+The session starts on the mount path every entry command shares, which is what
 makes opening a preview mean the same thing however it was called.
 The showing window sets the initial reading measure only; later resizes
 reflow the viewport-relative column without changing it, so a width chosen
@@ -494,10 +472,6 @@ session without one lets the Emacs theme show through."
                                       (cdr cell)))
                               (etaf-md-preview--heading-positions session))))))
     (etaf-runtime-flush (etaf-runtime-for-buffer buffer))
-    ;; A preview of a file is a page the reader edits, so it opens ready to
-    ;; type: the caret moves and text goes to the source without a mode to
-    ;; enter first.  A session without a file stays read-only.
-    (etaf-md-preview--edit-on-open buffer)
     buffer))
 
 (provide 'etaf-md-preview-app)

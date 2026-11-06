@@ -60,9 +60,8 @@
 ;; buffer is selected instead of rendered twice.  Opening a session mounts
 ;; that session, so callers can render a document they built themselves.  The
 ;; buffer is an ETAF application (`etaf-app-open') whose root keys add outline
-;; navigation, reloading, theming and closing, on the `C-c' prefix because the
-;; page takes typing as soon as it opens; the reading measure starts from the
-;; showing window and later resizes reflow through the framework's viewport
+;; navigation, reloading, theming and closing; the reading measure starts from
+;; the showing window and later resizes reflow through the framework's viewport
 ;; update, so the document is never rebuilt for a window geometry change.
 ;; A preview opened from a file follows it: an unsaved edit in its buffer
 ;; repaints the document on the next frame, so the render keeps up with the
@@ -70,11 +69,10 @@
 ;; changing it on disk from another program repaints it the same way.  Each
 ;; top-level block is its own Component, published under a key that names the
 ;; block's type and source, so a repaint renders the block that changed and
-;; leaves the others' output and instances alone.  A preview of a file opens
-;; ready to type, through the one mount path every entry command shares, so
-;; opening a preview means the same thing however it was called.  Closing the
-;; buffer releases the session's Runtime, its watch, the buffer's change hook,
-;; so reopening the same file renders a fresh preview.
+;; leaves the others' output and instances alone.  The page is read-only: the
+;; markdown is edited in its own buffer with the reader's own commands.  Closing
+;; the buffer releases the session's Runtime, its watch, the buffer's change
+;; hook, so reopening the same file renders a fresh preview.
 ;;
 ;; Function: etaf-md-preview-close ()
 ;;;###autoload (autoload 'etaf-md-preview-close "etaf-md-preview" nil t)
@@ -83,19 +81,6 @@
 ;; opened beside its source closes back onto the source.  Signals `user-error'
 ;; when the current buffer is not a preview.
 ;;
-;; Function: etaf-md-preview-edit-document ()
-;;;###autoload (autoload 'etaf-md-preview-edit-document "etaf-md-preview" nil t)
-;; Accept typing on the painted page, and write what is typed into its source.
-;; A preview of a file already runs this when it opens, so calling it again
-;; only reports whether the page is editable.  The page stays a rendering:
-;; keys arrive as events below the command loop, edit the markdown source and
-;; let the preview repaint the blocks that changed, so the page never holds
-;; the characters being typed.  The caret is the buffer's own and moves over
-;; the painted cells natively, so arrow keys, Home/End and an input method
-;; behave as they do anywhere.  Editing ends with the buffer: the source is
-;; saved then, and on idle while the page stays open.  Signals `user-error'
-;; when the preview has no source file or is not mounted.
-;;
 ;; Function: etaf-md-preview-projection (session)
 ;;;###autoload (autoload 'etaf-md-preview-projection "etaf-md-preview" nil nil)
 ;; Return SESSION's painted page as a source projection, or nil when unmounted.
@@ -103,23 +88,6 @@
 ;; the markdown range it renders, so `etaf-projection-source-offset' turns a
 ;; caret position into a source offset and `etaf-projection-position' turns a
 ;; source offset back into a painted one.
-;;
-;; Function: etaf-md-preview-editing-p ()
-;;;###autoload (autoload 'etaf-md-preview-editing-p "etaf-md-preview" nil t)
-;; Return non-nil when the current preview buffer accepts in-place typing.
-;;
-;; Function: etaf-md-preview-insert (text)
-;;;###autoload (autoload 'etaf-md-preview-insert "etaf-md-preview" nil t)
-;; Insert TEXT into the source at the painted caret and repaint.
-;; The page keeps its rendered shape; this is the command form of the typing
-;; event, for scripts and for keys that arrive outside the input channel.
-;; Signals `user-error' outside an in-place editing session.
-;;
-;; Function: etaf-md-preview-delete-char (&optional backward)
-;;;###autoload (autoload 'etaf-md-preview-delete-char "etaf-md-preview" nil t)
-;; Delete one source character at the painted caret.
-;; Interactively it deletes backwards; with BACKWARD nil it deletes forwards.
-;; Signals `user-error' outside an in-place editing session.
 ;;
 ;; Function: etaf-md-preview-view (&optional session)
 ;;;###autoload (autoload 'etaf-md-preview-view "etaf-md-preview" nil t)
