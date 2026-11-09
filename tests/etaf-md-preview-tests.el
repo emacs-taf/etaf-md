@@ -107,6 +107,35 @@ counts."
     (should (eq (plist-get state :theme) 'dark))
     (should (> (plist-get state :blocks) 0))))
 
+(ert-deftest etaf-md-preview-tests-a-document-names-its-own-dialect ()
+  "A `flavor:' line in front matter decides how the rest of that file parses.
+The widest preset is the default, so a document that has to parse as GitHub
+Flavored Markdown says so itself; a session's `:flavor' argument still wins."
+  ;; The block has several keys, which is how front matter is written in
+  ;; practice: the `flavor:' line sits among them, not at the block's edge.
+  (let* ((text "---\ntitle: 方言\nflavor: gfm\nauthor: 林隐\n---\n\nH~2~O\n")
+         (gfm (etaf-md-preview-create :text text))
+         (wide (etaf-md-preview-create :text text :flavor 'etaf))
+         (plain (etaf-md-preview-create :text "H~2~O\n")))
+    (unwind-protect
+        (progn
+          (should (eq 'gfm (plist-get (etaf-md-preview-state gfm) :flavor)))
+          (should (eq 'etaf (plist-get (etaf-md-preview-state wide) :flavor)))
+          (should-not (plist-get (etaf-md-preview-state plain) :flavor))
+          ;; The dialect decides the parse too, not only the reported value.
+          (should (string-match-p "H~2~O" (etaf-md-preview-tests--painted gfm)))
+          (should (string-match-p "H₂O" (etaf-md-preview-tests--painted wide)))
+          (should (string-match-p "H₂O" (etaf-md-preview-tests--painted plain))))
+      nil)))
+
+(defun etaf-md-preview-tests--painted (session)
+  "Return the page text SESSION renders, with SESSION mounted."
+  (let ((buffer (etaf-md-preview-tests--mount session)))
+    (unwind-protect
+        (with-current-buffer buffer
+          (buffer-substring-no-properties (point-min) (point-max)))
+      (when (buffer-live-p buffer) (kill-buffer buffer)))))
+
 (ert-deftest etaf-md-preview-tests-render-inline-styles-and-links ()
   "A paragraph renders every run with its style and keeps links clickable."
   (let ((session (etaf-md-preview-create
@@ -614,6 +643,37 @@ following the buffer, so a later edit cannot bring it back."
               (insert "after the preview closed\n"))
             (sit-for 0.3)
             (should-not (get-buffer name))))
+      (when (buffer-live-p preview) (kill-buffer preview))
+      (when (buffer-live-p source)
+        (with-current-buffer source (set-buffer-modified-p nil))
+        (kill-buffer source))
+      (delete-file file))))
+
+(ert-deftest etaf-md-preview-tests-a-file-opened-later-is-followed ()
+  "Opening the markdown after its preview still makes the preview follow it.
+A reader may open the preview first; typing in the file afterwards has to reach
+the page without saving, so the visiting buffer is picked up when it appears
+rather than only when the preview mounts."
+  (let* ((file (make-temp-file "etaf-md-preview-later-" nil ".md"))
+         (source nil)
+         (preview nil))
+    (unwind-protect
+        (progn
+          (with-temp-file file (insert "# Later\n\noriginal text\n"))
+          (setq preview (etaf-md-preview-open file))
+          (should-not (get-file-buffer file))
+          (should (with-current-buffer preview
+                    (string-match-p "original text" (buffer-string))))
+          (setq source (find-file-noselect file))
+          (with-current-buffer source
+            (goto-char (point-max))
+            (insert "typed after the preview opened\n"))
+          (should (buffer-modified-p source))
+          (sit-for 0.5)
+          (etaf-runtime-flush (etaf-runtime-for-buffer preview))
+          (with-current-buffer preview
+            (should (string-match-p "typed after the preview opened"
+                                    (buffer-string)))))
       (when (buffer-live-p preview) (kill-buffer preview))
       (when (buffer-live-p source)
         (with-current-buffer source (set-buffer-modified-p nil))

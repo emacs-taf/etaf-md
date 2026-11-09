@@ -76,6 +76,11 @@
       "purpose": "Creating a session from text exposes title, outline and footnotes."
     },
     {
+      "name": "etaf-md-preview-tests-a-document-names-its-own-dialect",
+      "file": "tests/etaf-md-preview-tests.el",
+      "purpose": "文档 front matter 里的 flavor: 行决定该文件用哪个方言解析；会话的 :flavor 参数优先，缺省用最宽的预设。"
+    },
+    {
       "name": "etaf-md-preview-tests-render-inline-styles-and-links",
       "file": "tests/etaf-md-preview-tests.el",
       "purpose": "A paragraph renders every run with its style and keeps links clickable."
@@ -189,6 +194,11 @@
       "name": "etaf-md-preview-tests-palette-paints-the-canvas",
       "file": "tests/etaf-md-preview-tests.el",
       "purpose": "Choosing each palette paints the cells the page does not cover with that palette's page background."
+    },
+    {
+      "name": "etaf-md-preview-tests-a-file-opened-later-is-followed",
+      "file": "tests/etaf-md-preview-tests.el",
+      "purpose": "先开预览、后打开 markdown 文件时，文件里的编辑（未保存）照样实时重画预览。"
     },
     {
       "name": "etaf-md-preview-tests-one-edit-repaints-one-block",

@@ -212,6 +212,15 @@ session built from text never follows a buffer."
         (remove-hook 'after-change-functions #'etaf-md-preview--live-changed t)))
     (remhash file etaf-md-preview--live-sources)))
 
+(defun etaf-md-preview--follow-visit ()
+  "Start following the file the buffer just opened, when a preview shows it.
+A preview can be opened before its markdown is, and a reader who opens the
+file afterwards expects the preview to follow that buffer as they type.  The
+hook is buffer-local where it lands, so closing the file takes it away."
+  (when-let* ((file (and buffer-file-name (expand-file-name buffer-file-name)))
+              (session (gethash file etaf-md-preview--follow-sessions)))
+    (etaf-md-preview--live-start session)))
+
 (defconst etaf-md-preview--follow-attempts 3
   "Times to retry a watch while its file is missing.
 An editor that saves atomically deletes the old file before it renames the
@@ -273,7 +282,8 @@ A session created from text has no file, so it never follows anything."
       ;; The mount already published this text, so a follow that finds it
       ;; unchanged has nothing to repaint.
       (plist-put session :live-text (etaf-md-preview--session-text session))
-      (add-hook 'after-save-hook #'etaf-md-preview--follow-saved t))))
+      (add-hook 'after-save-hook #'etaf-md-preview--follow-saved t)
+      (add-hook 'find-file-hook #'etaf-md-preview--follow-visit))))
 
 (defun etaf-md-preview--follow-unregister (file)
   "Stop following FILE: drop its watch, pending repaint and session."
@@ -287,7 +297,8 @@ A session created from text has no file, so it never follows anything."
       (remhash file etaf-md-preview--follow-timers))
     (remhash file etaf-md-preview--follow-sessions)
     (when (zerop (hash-table-count etaf-md-preview--follow-sessions))
-      (remove-hook 'after-save-hook #'etaf-md-preview--follow-saved))))
+      (remove-hook 'after-save-hook #'etaf-md-preview--follow-saved)
+      (remove-hook 'find-file-hook #'etaf-md-preview--follow-visit))))
 
 (defun etaf-md-preview--follow-schedule (file)
   "Repaint FILE's preview on the next frame.

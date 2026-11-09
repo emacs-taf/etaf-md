@@ -15,6 +15,18 @@
   page is a rendering, so native scrolling, isearch and link activation stay
   available as they are.
 
+### Added
+
+- A markdown file may name its own dialect with a `flavor:' line in its front
+  matter, and the preview parses that file with it: one document can stay
+  CommonMark while the rest read with everything the renderer supports.  A
+  session's `:flavor' argument still wins, and the default now follows
+  `etaf-ui-markdown-flavor' (the widest preset) instead of `gfm'.
+- Definition lists, sub- and superscript, abbreviations and `$' math render in
+  a preview, because the shared renderer enables them: `H~2~O' paints `H₂O',
+  `Term' with a `:' line under it paints a term with its definitions, and a
+  formula paints as text rather than an image.
+
 ### Changed
 
 - A preview no longer accepts typing on the painted page.  The markdown is

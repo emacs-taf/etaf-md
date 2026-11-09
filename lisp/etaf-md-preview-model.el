@@ -38,15 +38,46 @@ cells a paragraph of Chinese holds more than fifty characters per line."
   :type 'integer
   :group 'etaf-md-preview)
 
-(defcustom etaf-md-preview-flavor 'gfm
+(defcustom etaf-md-preview-flavor nil
   "Default Markdown dialect of `etaf-md-preview-create'.
-The session's `:flavor' argument overrides it.  `gfm' enables the GitHub
-extensions and front matter, `commonmark' parses the core specification only,
-and a feature plist toggles individual extensions."
-  :type '(choice (const :tag "GitHub Flavored Markdown" gfm)
+Nil defers to `etaf-ui-markdown-flavor', which is the widest preset and the one
+a reader expects to open a document.  A document may name its own dialect in
+its front matter (`flavor: gfm'), and a session's `:flavor' argument overrides
+both: the argument, then the document, then this variable."
+  :type '(choice (const :tag "The renderer's default" nil)
+                 (const :tag "ETAF dialect" etaf)
+                 (const :tag "GitHub Flavored Markdown" gfm)
                  (const :tag "CommonMark only" commonmark)
                  (sexp :tag "Feature plist"))
   :group 'etaf-md-preview)
+
+(defconst etaf-md-preview--flavor-line
+  "^flavor:[ \t]*\\([a-z][a-z0-9-]*\\)[ \t]*$"
+  "Front matter line that names the document's dialect.
+Anchors are line anchors: the line sits among the block's other keys.")
+
+(defun etaf-md-preview--document-flavor (text)
+  "Return the dialect TEXT's front matter names, or nil.
+Only the front matter block is read, so a `flavor:' line further down a
+document is body text and cannot change how the rest of it parses."
+  (when (and (stringp text)
+             ;; `.` stops at a newline, so the block is matched with an
+             ;; explicit alternation: a front matter block is several lines.
+             (string-match "\\`---[ \t]*\n\\(\\(?:.\\|\n\\)*?\\)\n---" text))
+    (let* ((block (match-string 1 text))
+           (found (when (string-match etaf-md-preview--flavor-line block)
+                    (match-string 1 block))))
+      (and found (intern found)))))
+
+(defun etaf-md-preview--flavor-for (session text)
+  "Return the dialect SESSION parses TEXT with.
+A session's own `:flavor' wins, then the document's front matter, then
+`etaf-md-preview-flavor'; nil leaves the choice to `etaf-ui-markdown-parse',
+whose default is the widest preset.  One file of a directory can therefore stay
+CommonMark while the rest read with everything the renderer knows."
+  (or (plist-get session :flavor)
+      (etaf-md-preview--document-flavor text)
+      etaf-md-preview-flavor))
 
 ;;; ---------------------------------------------------------------------------
 ;;; Refs
@@ -374,7 +405,9 @@ plist may toggle individual extensions."
                          (file (etaf-md-preview--read-source file))
                          (t (signal 'etaf-md-preview-error
                                     '("etaf-md-preview-create needs :file or :text")))))
-         (flavor (or flavor etaf-md-preview-flavor))
+         (decided (or flavor
+                      (etaf-md-preview--document-flavor contents)
+                      etaf-md-preview-flavor))
          (requested (or theme etaf-md-preview-theme))
          (auto (eq requested 'auto))
          (palette (if auto (etaf-md-preview-auto-theme) requested))
@@ -383,7 +416,7 @@ plist may toggle individual extensions."
          ;; place rather than build a second plist.
          (session (list :file file
                         :text (unless file contents)
-                        :flavor flavor
+                        :flavor decided
                         :features nil
                         :dir (if file (file-name-directory file)
                                default-directory)
@@ -577,7 +610,7 @@ region, and only the whole text tells where."
   "Return the document CONTENTS describes, parsing only what changed.
 A preview republishes after every keystroke and parsing is the largest part of
 that cost, so the blocks the edit left alone keep the parse they already have."
-  (let* ((flavor (plist-get session :flavor))
+  (let* ((flavor (etaf-md-preview--flavor-for session contents))
          (cached (plist-get session :parsed))
          (document (cond ((null cached) (etaf-md-preview--parse contents flavor))
                          ((equal (car cached) contents) (cdr cached))

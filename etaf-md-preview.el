@@ -171,9 +171,13 @@
 ;; open preview keeps a live theme cell that a panel's title-bar switch also
 ;; writes, so a host can pin a fixed page or return to the face-derived one.
 ;;
-;; Variable: etaf-md-preview-flavor (default `gfm')
+;; Variable: etaf-md-preview-flavor (default nil)
 ;; Default Markdown dialect of `etaf-md-preview-create' when it is not given a
-;; `:flavor': `gfm', `commonmark', or a feature plist.
+;; `:flavor': nil to take the renderer's default, a dialect name such as
+;; `etaf' or `gfm', or a feature plist.  A markdown file may name its own
+;; dialect with a `flavor:' line in its front matter, which is how one document
+;; stays CommonMark while the rest of a directory read with every syntax the
+;; renderer knows; a session's `:flavor' argument overrides the document.
 ;;
 ;; Variable: etaf-md-preview-width-min (default 40)
 ;; Narrowest reading measure in character cells.
