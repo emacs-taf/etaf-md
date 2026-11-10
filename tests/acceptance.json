@@ -219,6 +219,11 @@
       "name": "etaf-md-preview-tests-front-matter-is-not-painted-as-blank-rows",
       "file": "tests/etaf-md-preview-tests.el",
       "purpose": "Front matter is shown as the document's title and subtitle, not as lines, so the page does not open with blank rows standing for it."
+    },
+    {
+      "name": "etaf-md-preview-tests-a-metadata-line-keeps-the-blank-rows-around-it",
+      "file": "tests/etaf-md-preview-tests.el",
+      "purpose": "A line the parser consumes without a block, such as a link reference or abbreviation definition, still leaves the blank rows the file puts around it, so the next block is not pulled up against the previous one."
     }
   ]
 }

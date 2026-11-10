@@ -259,11 +259,13 @@ paragraph has no row to type on and no cell to stand the caret on.  Painting
 one empty row per blank line is what keeps a source offset and the cell it is
 painted on in step, which is what lets the caret stay where the reader put it.
 
-A block's range ends after its own final newline, so every stretch the blocks
-leave uncovered is blank -- between two blocks, before the first, after the
-last.  A file that ends with a newline ends on an empty line, which is where
-RET at the end of the document puts the caret, so that position gets a row
-standing for the text past its last character.  An empty file gets that row."
+A block's range ends after its own final newline, so what the blocks leave
+uncovered between them is blank lines and the lines the parser consumes
+without a block -- a link reference definition, an abbreviation definition.
+Only the blank lines paint, one row each, so the page still shows the file's
+own spacing.  A file that ends with a newline ends on an empty line, so that
+position gets a row standing for the text past its last character.  An empty
+file gets that row."
   (let* ((size (length text))
          (blocks (or blocks nil))
          (cursor 0)
@@ -271,15 +273,37 @@ standing for the text past its last character.  An empty file gets that row."
     (dolist (block blocks)
       (let ((begin (or (plist-get block :begin) size))
             (end (or (plist-get block :end) cursor)))
-        (when (etaf-md-preview--blank-range-p text cursor begin)
-          (push (etaf-md-preview--blank-block begin cursor text) result))
+        (dolist (row (etaf-md-preview--gap-rows text cursor begin (zerop cursor)))
+          (push row result))
         (setq cursor (max cursor end))))
     (cond ((< cursor size)
-           (when (etaf-md-preview--blank-range-p text cursor size)
-             (push (etaf-md-preview--blank-block size cursor text) result)))
+           (dolist (row (etaf-md-preview--gap-rows text cursor size nil))
+             (push row result)))
           ((or (= size 0) (eq (aref text (1- size)) ?\n))
            (push (list :type 'blank :begin size :end (1+ size) :lines 1) result)))
     (nreverse result)))
+
+(defun etaf-md-preview--gap-rows (text begin end leading)
+  "Return the rows TEXT's gap from BEGIN to END contributes.
+A gap holds the lines the parser consumed without a block as well as blank
+lines, so each blank line paints one empty row and a metadata line paints
+nothing: the page keeps the file's own spacing instead of pulling the next
+block up against the last one.  A leading gap holds the front matter, which
+the page shows as its title rather than as lines, so it paints rows only when
+it is entirely blank."
+  (if leading
+      (when (etaf-md-preview--blank-range-p text begin end)
+        (list (etaf-md-preview--blank-block end begin text)))
+    (let ((rows nil)
+          (position begin))
+      (while (< position end)
+        (let* ((newline (string-match "\n" text position))
+               (line-end (if (and newline (< newline end)) newline end)))
+          (when (string-blank-p (substring text position line-end))
+            (push (list :type 'blank :begin position :end (1+ line-end) :lines 1)
+                  rows))
+          (setq position (1+ line-end))))
+      (nreverse rows))))
 
 (defun etaf-md-preview--blank-range-p (text begin end)
   "Return non-nil when TEXT holds only blank space between BEGIN and END.

@@ -1114,6 +1114,31 @@ the rows the file spends on it must not be painted as blank ones."
               (should-not (cl-some (lambda (row) (string-match-p "title:" row)) rows))))
         (kill-buffer buffer)))))
 
+(ert-deftest etaf-md-preview-tests-a-metadata-line-keeps-the-blank-rows-around-it ()
+  "A line the parser consumes without a block keeps its surrounding blank rows.
+A link reference definition and an abbreviation definition paint nothing, but
+the blank lines next to them are lines the page must still show; dropping them
+pulled the next block up against the one before."
+  (let ((text (concat "术语\n: 定义\n\n"
+                      "*[HTML]: HyperText Markup Language\n\n"
+                      "## 下一节\n\n正文。\n")))
+    (let ((buffer (etaf-md-preview-tests--mount
+                   (etaf-md-preview-create :text text :theme 'dark))))
+      (unwind-protect
+          (let* ((rows (etaf-md-preview-tests--page-rows buffer))
+                 (definition (cl-position-if (lambda (row) (string-match-p "定义" row)) rows))
+                 (heading (cl-position-if (lambda (row) (string-match-p "下一节" row)) rows)))
+            (should definition)
+            (should heading)
+            (should (< definition heading))
+            ;; One blank row between them, and the abbreviation definition
+            ;; itself never paints.
+            (should (string-empty-p (nth (1+ definition) rows)))
+            (should (nth (1+ definition) rows))
+            (should-not (cl-some (lambda (row) (string-match-p "HyperText" row)) rows))
+            (should (string-empty-p (nth (1- heading) rows))))
+        (kill-buffer buffer)))))
+
 (ert-deftest etaf-md-preview-tests-empty-block-paints-its-source-skeleton ()
   "A block whose text is gone paints the markup that is still in the source.
 Without it the page shows a gap where the block sits, and the caret has nowhere
