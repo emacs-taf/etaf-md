@@ -236,7 +236,19 @@ never a program launch."
                                        (gethash key etaf-md-preview-typeset--running))
                              (etaf-md-preview--typeset-start
                               key kind source env
-                              (lambda () (etaf-md-preview--typeset-repaint session))))))))))))
+                              (lambda () (etaf-md-preview--typeset-changed session))))))))))))
+
+(defun etaf-md-preview--typeset-changed (session)
+  "Repaint SESSION once, however many pictures arrive together.
+Two diagrams of one page finish within a frame of each other, and one paint
+after both is what a reader sees; a pending flag keeps the second arrival from
+starting a publish the first already asked for."
+  (unless (plist-get session :typeset-pending)
+    (plist-put session :typeset-pending t)
+    (run-at-time 0 nil
+                 (lambda ()
+                   (plist-put session :typeset-pending nil)
+                   (etaf-md-preview--typeset-repaint session)))))
 
 (defun etaf-md-preview--typeset-repaint (session)
   "Publish SESSION's document again so the page paints its new pictures.
