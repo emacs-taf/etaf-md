@@ -68,12 +68,19 @@ document with front matter opens on a page-like header instead of raw text."
   (let* ((meta (plist-get document :meta))
          (title (cdr (assoc "title" meta)))
          (tags (etaf-md-preview--meta-tags meta))
+         ;; A key the document leaves out must not leave its separator behind:
+         ;; the header reads as one run of labels, not a row of floating dots.
          (labels (mapconcat
-                  (lambda (key)
-                    (let ((value (cdr (assoc key meta))))
-                      (when (and value (not (string-empty-p value)))
-                        (format "%s %s" (cdr (assoc key etaf-md-preview--meta-labels)) value))))
-                  '("author" "date" "version" "license" "status")
+                  #'identity
+                  (delq nil
+                        (mapcar
+                         (lambda (key)
+                           (let ((value (cdr (assoc key meta))))
+                             (when (and value (not (string-empty-p value)))
+                               (format "%s %s"
+                                       (cdr (assoc key etaf-md-preview--meta-labels))
+                                       value))))
+                         '("author" "date" "version" "license" "status")))
                   "  ·  "))
          (base (etaf-md-preview--base-pixels)))
     (when title

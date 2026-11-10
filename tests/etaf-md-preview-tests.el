@@ -1095,6 +1095,22 @@ The page repaints on the next frame, so the rows are read after a flush."
     (buffer-substring-no-properties (point-min) (point-max))))
 
 
+(ert-deftest etaf-md-preview-tests-front-matter-labels-join-without-gaps ()
+  "A key the front matter omits leaves no separator in the metadata line.
+The line is one run of labels; printing a separator for a missing value shows
+a row of floating dots between the labels a document did write."
+  (let ((text (concat "---\ntitle: 手记\nauthor: 林隐\nstatus: 稳定\n---\n\n"
+                      "正文。\n")))
+    (let ((buffer (etaf-md-preview-tests--mount
+                   (etaf-md-preview-create :text text :theme 'dark))))
+      (unwind-protect
+          (let ((page (etaf-md-preview-tests--lines buffer)))
+            (should (string-match-p "作者 林隐" page))
+            (should (string-match-p "状态 稳定" page))
+            (should (string-match-p (regexp-quote "作者 林隐  ·  状态 稳定") page))
+            (should-not (string-match-p "·  ·" page)))
+        (kill-buffer buffer)))))
+
 (ert-deftest etaf-md-preview-tests-front-matter-is-not-painted-as-blank-rows ()
   "Metadata at the head of the file does not open the page with empty rows.
 Front matter is shown as the document's title and subtitle, not as lines, so

@@ -234,6 +234,11 @@
       "name": "etaf-md-preview-tests-a-thematic-break-paints-a-rule",
       "file": "tests/etaf-md-preview-tests.el",
       "purpose": "A thematic break paints its horizontal rule instead of the dashes that wrote it, because a rule carries no text and must not be treated as an empty block."
+    },
+    {
+      "name": "etaf-md-preview-tests-front-matter-labels-join-without-gaps",
+      "file": "tests/etaf-md-preview-tests.el",
+      "purpose": "A document whose front matter omits version and license shows its labels joined by one separator each, with no separator left standing for the missing value."
     }
   ]
 }
