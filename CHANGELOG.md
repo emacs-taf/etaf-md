@@ -14,9 +14,6 @@
   `q`: outline navigation, reload, theme, reading width, help and close.  The
   page is a rendering, so native scrolling, isearch and link activation stay
   available as they are.
-
-### Added
-
 - A markdown file may name its own dialect with a `flavor:' line in its front
   matter, and the preview parses that file with it: one document can stay
   CommonMark while the rest read with everything the renderer supports.  A
@@ -26,6 +23,13 @@
   a preview, because the shared renderer enables them: `H~2~O' paints `H₂O',
   `Term' with a `:' line under it paints a term with its definitions, and a
   formula paints as text rather than an image.
+
+### Fixed
+
+- A blank line next to a line the parser consumes without painting one, such
+  as a link reference definition or an abbreviation definition, is painted
+  again: the preview kept the file's own spacing instead of pulling the next
+  block up against the previous one.
 
 ### Changed
 
