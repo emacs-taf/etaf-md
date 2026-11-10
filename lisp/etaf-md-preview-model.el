@@ -167,7 +167,6 @@ reader see what is left and type it back."
                     (format "%s. " start)
                   "- "))
     ('blockquote "> ")
-    ('thematic-break "---")
     ('code-block (let ((info (or (plist-get block :info)
                                  (plist-get block :lang) "")))
                    (if (string-empty-p info) "```" (concat "```" info))))

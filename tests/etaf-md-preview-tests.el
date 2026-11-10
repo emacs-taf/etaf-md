@@ -1154,6 +1154,18 @@ pulled the next block up against the one before."
             (should (string-empty-p (nth (1- heading) rows))))
         (kill-buffer buffer)))))
 
+(ert-deftest etaf-md-preview-tests-a-thematic-break-paints-a-rule ()
+  "A horizontal rule paints the rule, not the dashes that wrote it.
+A rule carries no text, so judging it by its content would call it empty and
+paint `---' where the page should open a gap in the prose."
+  (etaf-md-preview-tests--with-preview-source "above\n\n---\n\nbelow\n"
+    (etaf-runtime-flush (etaf-runtime-for-buffer preview))
+    (let ((lines (etaf-md-preview-tests--lines preview)))
+      (should (string-match-p "below" lines))
+      ;; The rule itself is paint, not glyphs: what must not appear is the
+      ;; source dashes standing in for it.
+      (should-not (string-match-p "---" lines)))))
+
 (ert-deftest etaf-md-preview-tests-empty-block-paints-its-source-skeleton ()
   "A block whose text is gone paints the markup that is still in the source.
 Without it the page shows a gap where the block sits, and the caret has nowhere
