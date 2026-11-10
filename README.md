@@ -20,6 +20,11 @@ scrolling, isearch and window splitting keep working.
 - GitHub extensions: pipe tables with alignment, task list items, bare URL
   autolinks and numbered footnotes.
 - GitHub alerts (`> [!NOTE]` and friends) render as titled callout blocks.
+- With [mermaid-cli](https://github.com/mermaid-js/mermaid-cli) installed, a
+  `mermaid` fence is drawn as a diagram and a `$$` display formula is typeset
+  by KaTeX in the same Chromium.  Pictures render in the background and are
+  cached by source and colours; without the program both keep their source,
+  and an inline `$...$` formula always stays text.
 - A `:flavor` argument selects `gfm` (default), `commonmark`, or a feature
   plist that toggles individual extensions.
 - YAML front matter is stripped from the body and feeds the document title.
@@ -59,6 +64,7 @@ scrolling, isearch and window splitting keep working.
 | Emacs 29.1 or newer | the ETAF runtime and Ebox | `emacs --version` |
 | ETAF, ETAF UI, Ebox and ECSS on `load-path` | rendering and the component catalog | see Installation |
 | ffmpeg (optional) | video playback and terminal image conversion | `ffmpeg -version` |
+| mermaid-cli (optional) | mermaid diagrams and typeset display formulas | `mmdc --version` |
 
 ## Installation
 

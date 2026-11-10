@@ -224,6 +224,11 @@
       "name": "etaf-md-preview-tests-a-metadata-line-keeps-the-blank-rows-around-it",
       "file": "tests/etaf-md-preview-tests.el",
       "purpose": "A line the parser consumes without a block, such as a link reference or abbreviation definition, still leaves the blank rows the file puts around it, so the next block is not pulled up against the previous one."
+    },
+    {
+      "name": "etaf-md-preview-tests-pictures-fall-back-to-their-source",
+      "file": "tests/etaf-md-preview-tests.el",
+      "purpose": "With the drawing program turned off, a mermaid fence and a display formula still paint their source, so a page never depends on an external program."
     }
   ]
 }

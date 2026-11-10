@@ -1114,6 +1114,21 @@ the rows the file spends on it must not be painted as blank ones."
               (should-not (cl-some (lambda (row) (string-match-p "title:" row)) rows))))
         (kill-buffer buffer)))))
 
+(ert-deftest etaf-md-preview-tests-pictures-fall-back-to-their-source ()
+  "Without the drawing program a diagram and a formula keep their source.
+The page is readable as text: the fence paints as a code block, and the
+formula paints the plain-text rendering, so nothing depends on a program."
+  (let ((etaf-md-preview-typeset nil)
+        (text (concat "```mermaid\ngraph TD; A-->B\n```\n\n"
+                      "$$\n\\frac{a}{b}\n$$\n")))
+    (let ((buffer (etaf-md-preview-tests--mount
+                   (etaf-md-preview-create :text text :theme 'dark))))
+      (unwind-protect
+          (let ((page (etaf-md-preview-tests--lines buffer)))
+            (should (string-match-p "graph TD; A-->B" page))
+            (should (string-match-p "a/b" page)))
+        (kill-buffer buffer)))))
+
 (ert-deftest etaf-md-preview-tests-a-metadata-line-keeps-the-blank-rows-around-it ()
   "A line the parser consumes without a block keeps its surrounding blank rows.
 A link reference definition and an abbreviation definition paint nothing, but

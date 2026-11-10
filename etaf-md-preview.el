@@ -189,6 +189,23 @@
 ;; than the minimum measure plus those gutters clips a block that cannot shrink
 ;; to the measure instead of painting over the gutter.
 ;;
+;; Variable: etaf-md-preview-typeset (default t)
+;; Whether a mermaid fence and a `$$' display formula are drawn by a program.
+;; Both are source in the markdown and pictures on the page when mermaid-cli is
+;; installed: the diagram is drawn by `mmdc', the formula by KaTeX in the
+;; Chromium that package brings.  A render runs in the background and is cached
+;; by its source and the page's colours, so a page paints its source at once
+;; and swaps in the picture when it arrives; a block edited again draws again.
+;; With this nil, or without the program, the fence stays a code block and the
+;; formula keeps `etaf-ui-markdown-math-text'', which is also what an inline
+;; formula always keeps, because a picture inside a line would change the line
+;; height.
+;;
+;; Function: etaf-md-preview-typeset-available-p ()
+;; Return non-nil when this system can draw diagrams and formulas.
+;; Both go through mermaid-cli, so this answers that one program's presence;
+;; the answer is remembered until the next Emacs session.
+;;
 ;; Error: etaf-md-preview-error
 ;; Invalid markdown preview session or document input
 ;; Catch this condition with condition-case; failed calls do not return a value.
@@ -214,6 +231,7 @@
 (require 'etaf-md-preview-views)
 (require 'etaf-md-preview-app)
 (require 'etaf-md-preview-live)
+(require 'etaf-md-preview-typeset)
 
 (defun etaf-md-preview-doctor ()
   "Return capability facts for reading Markdown in ETAF.
@@ -222,7 +240,9 @@ The shape matches `etaf-install-doctor': :required and :optional lists of
   (list :required nil
         :optional
         (list (list "ffmpeg" (and (executable-find "ffmpeg") t)
-                    "Optional: install ffmpeg to play video cards and convert terminal images."))))
+                    "Optional: install ffmpeg to play video cards and convert terminal images.")
+              (list "mmdc" (etaf-md-preview-typeset-available-p)
+                    "Optional: install mermaid-cli to draw mermaid diagrams and display formulas."))))
 
 
 (provide 'etaf-md-preview)

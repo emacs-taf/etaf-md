@@ -14,6 +14,14 @@
   `q`: outline navigation, reload, theme, reading width, help and close.  The
   page is a rendering, so native scrolling, isearch and link activation stay
   available as they are.
+- A `mermaid' fence and a `$$' display formula are drawn by mermaid-cli when
+  it is installed: the diagram through `mmdc', the formula through KaTeX in the
+  Chromium that package brings.  A render runs in the background and is cached
+  by its source and the page's colours, so a page paints the source at once and
+  swaps in the picture when it arrives, and a block edited again draws again.
+  Without the program the fence stays a code block and the formula keeps its
+  plain-text rendering; an inline formula always keeps the text, because a
+  picture inside a line would change the line height.
 - A markdown file may name its own dialect with a `flavor:' line in its front
   matter, and the preview parses that file with it: one document can stay
   CommonMark while the rest read with everything the renderer supports.  A

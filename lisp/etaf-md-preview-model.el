@@ -353,9 +353,13 @@ included, so its instance keeps its Scope, Hosts and video handles, and the
 list costs one comparison for it instead of a new call."
   (let ((counts (make-hash-table :test #'equal))
         (blank-index 0)
-        (entries nil))
+        (entries nil)
+        (env (when (fboundp 'etaf-md-preview-typeset-attach)
+               (etaf-md-preview--env session))))
     (dolist (block (etaf-md-preview--paintable-blocks
                     (plist-get document :children) text))
+      (when env
+        (setq block (etaf-md-preview-typeset-attach block env)))
       (let* ((blank (eq (plist-get block :type) 'blank))
              (source (or (etaf-md-preview--block-source block text) ""))
              (digest (unless blank
@@ -669,6 +673,8 @@ itself and every other block keeps its instance."
       (etaf-set-value (etaf-md-preview--ref session :error) nil))
     (plist-put session :features (plist-get document :features))
     (plist-put session :published (cdr keyed))
+    (when (fboundp 'etaf-md-preview-typeset-request)
+      (etaf-md-preview-typeset-request session))
     document))
 
 (defun etaf-md-preview--publish (session contents)
@@ -935,6 +941,11 @@ re-render after a theme switch instead of keeping the faces it first read."
           :dir (plist-get session :dir)
           :features (plist-get session :features))))
 
+(declare-function etaf-md-preview--render-code-block "etaf-md-preview-typeset" (block env))
+(declare-function etaf-md-preview--render-math "etaf-md-preview-typeset" (block env))
+(declare-function etaf-md-preview-typeset-request "etaf-md-preview-typeset" (session))
+(declare-function etaf-md-preview-typeset-attach "etaf-md-preview-typeset" (block env))
+
 (defun etaf-md-preview--build-env (session)
   "Build SESSION's rendering environment from its current inputs."
   (list :theme (etaf-md-preview--read session :theme)
@@ -956,7 +967,11 @@ re-render after a theme switch instead of keeping the faces it first read."
           (etaf-set-value
            (etaf-md-preview--ref session :video-active)
            (cons key (etaf-md-preview--read session :video-active))))
-        :footnote-jump (lambda (label) (etaf-md-preview--jump-footnote session label))))
+        :footnote-jump (lambda (label) (etaf-md-preview--jump-footnote session label))
+        ;; A picture costs a program, so only a session with a file may start
+        ;; one: the finished render repaints that file's page.
+        :render-code-block #'etaf-md-preview--render-code-block
+        :render-math #'etaf-md-preview--render-math))
 
 (defun etaf-md-preview--env (session)
   "Return SESSION's rendering environment, reused until one of its inputs changes.
