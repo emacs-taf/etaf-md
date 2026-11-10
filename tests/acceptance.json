@@ -126,6 +126,11 @@
       "purpose": "Editing the source buffer repaints the preview before it is saved, and closing the preview stops following the buffer."
     },
     {
+      "name": "etaf-md-preview-tests-editing-beside-a-definition-list-repaints",
+      "file": "tests/etaf-md-preview-tests.el",
+      "purpose": "An unsaved edit repaints a document holding a definition list, where one paragraph and the list share a parse clause."
+    },
+    {
       "name": "etaf-md-preview-tests-entry-command-keeps-the-source-window",
       "file": "tests/etaf-md-preview-tests.el",
       "purpose": "The side-by-side command opens the preview in a neighbouring window, keeps the source buffer selected, and closing the preview gives the window back."

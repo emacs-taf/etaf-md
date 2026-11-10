@@ -680,6 +680,38 @@ rather than only when the preview mounts."
         (kill-buffer source))
       (delete-file file))))
 
+(ert-deftest etaf-md-preview-tests-editing-beside-a-definition-list-repaints ()
+  "An unsaved edit repaints a document that holds a definition list.
+The paragraph above a definition list and the list itself are two blocks read
+by one clause, so the parse keeps a range for each.  An edit elsewhere in the
+document is spliced against those ranges, and a missing one stopped the follow
+repaint before the page could show the new text."
+  (let* ((file (make-temp-file "etaf-md-preview-definition-" nil ".md"))
+         (source nil)
+         (preview nil))
+    (unwind-protect
+        (progn
+          (with-temp-file file
+            (insert "# 术语\n\n前言一行\n术语行\n: 定义一行\n\n旧段落\n"))
+          (setq source (find-file-noselect file))
+          (setq preview (etaf-md-preview-open file))
+          (should (with-current-buffer preview
+                    (string-match-p "旧段落" (buffer-string))))
+          (with-current-buffer source
+            (goto-char (point-max))
+            (delete-region (line-beginning-position) (point))
+            (insert "新段落，刚改过\n"))
+          (sit-for 0.5)
+          (etaf-runtime-flush (etaf-runtime-for-buffer preview))
+          (with-current-buffer preview
+            (should (string-match-p "新段落，刚改过" (buffer-string)))
+            (should (string-match-p "术语行" (buffer-string)))))
+      (when (buffer-live-p preview) (kill-buffer preview))
+      (when (buffer-live-p source)
+        (with-current-buffer source (set-buffer-modified-p nil))
+        (kill-buffer source))
+      (delete-file file))))
+
 (ert-deftest etaf-md-preview-tests-one-edit-repaints-one-block ()
   "One edited paragraph repaints that paragraph, not the document.
 Every top-level block is its own Component, so a publish hands the runtime the

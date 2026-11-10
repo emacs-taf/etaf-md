@@ -584,7 +584,14 @@ region, and only the whole text tells where."
                (delta (- (length contents) (length old-text)))
                (children (plist-get old-document :children))
                (count (length children)))
-    (when children
+    (when (and children
+               ;; A document parsed before blocks carried ranges, or by a
+               ;; clause that forgot one, cannot be spliced: a whole parse
+               ;; gives the block ranges back.
+               (seq-every-p (lambda (block)
+                              (and (integerp (plist-get block :begin))
+                                   (integerp (plist-get block :end))))
+                            children))
       (let* ((first (or (cl-position-if (lambda (block)
                                           (>= (or (plist-get block :end) 0) old-start))
                                         children)

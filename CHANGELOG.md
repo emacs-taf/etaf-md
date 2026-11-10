@@ -34,6 +34,10 @@
 
 ### Fixed
 
+- An edit repaints a document that holds a definition list: the parse keeps a
+  range for the paragraph above the list as well as for the list, and an edit
+  whose document has a block without one falls back to a whole parse instead
+  of stopping the follow timer with an error.
 - A blank line next to a line the parser consumes without painting one, such
   as a link reference definition or an abbreviation definition, is painted
   again: the preview kept the file's own spacing instead of pulling the next
