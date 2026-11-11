@@ -108,7 +108,7 @@ async function drawDiagram(page, request) {
       return String(error?.message ?? error).split('\n')[0].slice(0, 300)
     }
   }, request.source)
-  if (problem) return problem
+  if (problem) return { error: problem, fatal: true }
   await page.evaluate(
     async ({ source, config, id, widest }) => {
       window.mermaid.initialize({ startOnLoad: false, ...JSON.parse(config) })
@@ -174,21 +174,31 @@ async function drawFormula(request) {
   return null
 }
 
+// A diagram that does not parse is the author's text: drawing it again cannot
+// succeed, and the answer says so.  Anything else - a browser that crashed, a
+// picture that took too long - may work next time, so the block stays a
+// candidate instead of being given up on.
 async function draw(request) {
   try {
     if (request.kind === 'math') {
       const problem = await drawFormula(request)
-      return problem ? { ok: false, error: problem } : { ok: true }
+      return problem ? { ok: false, error: problem, fatal: false } : { ok: true }
     }
     const page = await takePage()
     try {
       const problem = await drawDiagram(page, request)
-      return problem ? { ok: false, error: problem } : { ok: true }
+      return problem
+        ? { ok: false, error: problem.error, fatal: problem.fatal }
+        : { ok: true }
     } finally {
       givePage(page)
     }
   } catch (error) {
-    return { ok: false, error: String(error?.message ?? error).split('\n')[0].slice(0, 300) }
+    return {
+      ok: false,
+      fatal: false,
+      error: String(error?.message ?? error).split('\n')[0].slice(0, 300),
+    }
   }
 }
 

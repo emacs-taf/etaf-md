@@ -138,7 +138,7 @@ their own."
          (dark (> (etaf-ui-color-contrast background "#ffffff")
                   (etaf-ui-color-contrast background "#000000"))))
     (cons (if dark 'dark 'light)
-          (etaf-md-preview--env-color env :ink))))
+          (etaf-md-preview--hex-color (etaf-md-preview--env-color env :ink)))))
 
 (defconst etaf-md-preview-typeset--picture-version 2
   "Version of the drawing a cache key stands for.
@@ -310,47 +310,58 @@ reaches both keeps the mix that comes closest."
         (setq weight (+ weight 0.05)))
       best)))
 
-(defun etaf-md-preview--mermaid-tint (env weight)
-  "Return ENV's page moved toward its ink by WEIGHT.
+(defun etaf-md-preview--page-colors (env)
+  "Return ENV's page colours, keyed by role, as #rrggbb.
+A theme may name a colour the way X11 does (`grey70'), and neither the
+renderer's browser nor mermaid reads that name.  The page's colours are turned
+into hex once here rather than at each place that draws with them, so no field
+of the configuration can carry a name the renderer cannot parse."
+  (let ((role (lambda (key)
+                (etaf-md-preview--hex-color (etaf-md-preview--env-color env key)))))
+    (list :ink (funcall role :ink)
+          :panel (funcall role :panel)
+          :panel2 (funcall role :panel2)
+          :border (funcall role :border)
+          :muted (funcall role :muted)
+          :quote (funcall role :quote-bg)
+          ;; A page in the face-derived appearance has no background of its
+          ;; own; its palette still names the surface it paints.
+          :page (etaf-md-preview--hex-color
+                 (or (plist-get env :background)
+                     (etaf-md-preview--env-color env :bg))))))
+
+(defun etaf-md-preview--mermaid-tint (page ink weight)
+  "Return PAGE moved toward INK by WEIGHT.
 A diagram needs surfaces one step away from the page - a cluster, a gantt's
 section band, its grid - and a page whose panels are nearly its own color gives
 no such step.  A tint of the page toward its ink is a step in the direction the
 page is built in, so it stays a page surface in every palette."
-  (etaf-md-preview--mix-color
-   (or (plist-get env :background) (etaf-md-preview--env-color env :bg))
-   (etaf-md-preview--env-color env :ink)
-   weight))
+  (etaf-md-preview--mix-color page ink weight))
 
-(defun etaf-md-preview--mermaid-states (env)
+(defun etaf-md-preview--mermaid-states (env page ink)
   "Return the surfaces a gantt paints a task's state with.
 A gantt separates a finished task from a running one from a late one by
 background: mermaid fills them with light grey, white and red, the colors of a
 light page on any page.  The page already has a colour for each of those ideas,
-so the state takes it, mixed into the page far enough for the task's own label."
-  (let* ((page (or (plist-get env :background)
-                   (etaf-md-preview--env-color env :bg)))
-         (ink (etaf-md-preview--env-color env :ink))
-         (surface (lambda (key prefix)
-                    (let* ((hue (etaf-md-preview--hex-color
-                                 (etaf-md-preview--env-color env key)))
-                           (fill (etaf-md-preview--mermaid-fill page ink hue)))
-                      (list (cons (intern (concat prefix "BkgColor")) fill)
-                            (cons (intern (concat prefix "BorderColor")) hue))))))
+so the state takes it, mixed into PAGE far enough for the task's own label."
+  (let ((surface (lambda (key prefix)
+                   (let* ((hue (etaf-md-preview--hex-color
+                                (etaf-md-preview--env-color env key)))
+                          (fill (etaf-md-preview--mermaid-fill page ink hue)))
+                     (list (cons (intern (concat prefix "BkgColor")) fill)
+                           (cons (intern (concat prefix "BorderColor")) hue))))))
     (append (funcall surface :ok "doneTask")
             (funcall surface :accent "activeTask")
             (funcall surface :danger "crit"))))
 
-(defun etaf-md-preview--mermaid-categorical (env)
+(defun etaf-md-preview--mermaid-categorical (env page ink)
   "Return the theme variables that colour ENV's diagram categories.
 Mermaid derives those colours by darkening the box color of the page, which on
 a dark page leaves every slice, branch and period black, and it cannot tell a
 dark page from a light one.  So the page's callout colors supply the hues, each
-mixed into the page background for the fill and kept as it is for the lines and
-borders that carry the same category."
-  (let* ((page (or (plist-get env :background)
-                   (etaf-md-preview--env-color env :bg)))
-         (ink (etaf-md-preview--env-color env :ink))
-         (series (mapcar (lambda (key)
+mixed into PAGE for the fill and kept as it is for the lines and borders that
+carry the same category."
+  (let* ((series (mapcar (lambda (key)
                            (let ((hue (etaf-md-preview--hex-color
                                        (etaf-md-preview--env-color env key))))
                              (cons hue (etaf-md-preview--mermaid-fill page ink hue))))
@@ -380,14 +391,14 @@ The diagram is built from the page's own colours instead of mermaid's fixed
 `default' and `dark' palettes, so a light page carries light boxes with its own
 ink, and the margins keep the drawing off the card's edges: without them a
 sequence diagram starts at the very first pixel."
-  (let ((ink (etaf-md-preview--env-color env :ink))
-        (panel (etaf-md-preview--env-color env :panel))
-        (panel2 (etaf-md-preview--env-color env :panel2))
-        (border (etaf-md-preview--env-color env :border))
-        (muted (etaf-md-preview--env-color env :muted))
-        (quote (etaf-md-preview--env-color env :quote-bg))
-        (page (or (plist-get env :background)
-                  (etaf-md-preview--env-color env :bg)))
+  (let* ((colors (etaf-md-preview--page-colors env))
+         (ink (plist-get colors :ink))
+         (panel (plist-get colors :panel))
+         (panel2 (plist-get colors :panel2))
+         (border (plist-get colors :border))
+         (muted (plist-get colors :muted))
+         (quote (plist-get colors :quote))
+         (page (plist-get colors :page))
         ;; A frame supplies the body size; a batch run has none, and rounding
         ;; its answer would size every diagram at one pixel.
         (base (max 8 (round (etaf-md-preview--base-pixels)))))
@@ -410,12 +421,12 @@ sequence diagram starts at the very first pixel."
            ;; A cluster is a surface the nodes sit on, so it is a step from
            ;; the page rather than the page's quote colour, which is darker
            ;; than the page on a dark theme and swallowed the grouping.
-           (clusterBkg . ,(etaf-md-preview--mermaid-tint env 0.06))
+           (clusterBkg . ,(etaf-md-preview--mermaid-tint page ink 0.06))
            (clusterBorder . ,border)
            ;; An edge label sits on a solid chip so the line does not cross it.
            ;; The chip is the same step from the page as a cluster, so a label
            ;; inside a cluster does not cut a darker hole in it.
-           (edgeLabelBackground . ,(etaf-md-preview--mermaid-tint env 0.06))
+           (edgeLabelBackground . ,(etaf-md-preview--mermaid-tint page ink 0.06))
            (actorBkg . ,panel)
            (actorBorder . ,border)
            (actorTextColor . ,ink)
@@ -440,11 +451,11 @@ sequence diagram starts at the very first pixel."
            (rowEven . ,quote)
            ;; A gantt's band, its grid and its today line are the light
            ;; page's greys and red on any page.
-           (sectionBkgColor . ,(etaf-md-preview--mermaid-tint env 0.04))
-           (sectionBkgColor2 . ,(etaf-md-preview--mermaid-tint env 0.04))
+           (sectionBkgColor . ,(etaf-md-preview--mermaid-tint page ink 0.04))
+           (sectionBkgColor2 . ,(etaf-md-preview--mermaid-tint page ink 0.04))
            (altSectionBkgColor . ,page)
-           (gridColor . ,(etaf-md-preview--mermaid-tint env 0.14))
-           (vertLineColor . ,(etaf-md-preview--mermaid-tint env 0.14))
+           (gridColor . ,(etaf-md-preview--mermaid-tint page ink 0.14))
+           (vertLineColor . ,(etaf-md-preview--mermaid-tint page ink 0.14))
            (todayLineColor . ,(etaf-md-preview--hex-color
                                (etaf-md-preview--env-color env :danger)))
            (taskBkgColor . ,panel)
@@ -488,8 +499,8 @@ sequence diagram starts at the very first pixel."
            ;; desktop has as the last resort.
            (fontFamily . ,(etaf-md-preview--mermaid-font-family))
            (fontSize . ,(format "%dpx" base))
-           ,@(etaf-md-preview--mermaid-categorical env)
-           ,@(etaf-md-preview--mermaid-states env)))
+           ,@(etaf-md-preview--mermaid-categorical env page ink)
+           ,@(etaf-md-preview--mermaid-states env page ink)))
        ;; A node hugs its label.  Mermaid measures the text, adds this padding
        ;; and a minimum width of its own, and a diamond inscribes its label, so
        ;; its box grows to about twice the text's.  The wider padding inflated
@@ -597,7 +608,8 @@ reader who stopped opening diagrams should not keep a browser around."
     (remhash (plist-get request :key) etaf-md-preview-typeset--running)
     (if (eq (plist-get reply :ok) t)
         (etaf-md-preview--typeset-arrived request)
-      (etaf-md-preview--typeset-failed request (plist-get reply :error)))
+      (etaf-md-preview--typeset-failed request (plist-get reply :error)
+                                        (eq (plist-get reply :fatal) t)))
     (etaf-md-preview--renderer-reset-idle)))
 
 (defun etaf-md-preview--typeset-arrived (request)
@@ -609,16 +621,18 @@ painted, so nothing repaints then."
              (plist-get request :done))
     (run-at-time 0 nil (plist-get request :done))))
 
-(defun etaf-md-preview--typeset-failed (request message)
+(defun etaf-md-preview--typeset-failed (request message fatal)
   "Record that REQUEST cannot be drawn, and keep its block as its source.
-A diagram that does not parse is the author's text, not a picture: the block
-shows it, and the renderer's own message names the line to look at.  The key
-holds the source and every setting the picture depends on, so the block stays
-unrendered until one of them changes."
-  (puthash (plist-get request :key) (or message "the renderer gave no reason")
-           etaf-md-preview-typeset--failed)
+A diagram that does not parse is the author's text, not a picture, and draw it
+again would fail the same way: FATAAL says so, and the block is remembered until
+its source or the page changes.  Any other failure may pass, so the block is
+left a candidate and the next repaint tries again.  Either way the renderer's
+own message says what happened."
+  (when fatal
+    (puthash (plist-get request :key) (or message "the renderer gave no reason")
+             etaf-md-preview-typeset--failed))
   (message "Preview kept a %s block's source: %s"
-           (plist-get request :kind)
+           (or (plist-get request :kind) 'drawing)
            (truncate-string-to-width (or message "no reason given") 160)))
 
 (defun etaf-md-preview--renderer-fail-pending (reason)
@@ -629,7 +643,7 @@ unrendered until one of them changes."
     (clrhash etaf-md-preview-typeset--requests)
     (dolist (request requests)
       (remhash (plist-get request :key) etaf-md-preview-typeset--running)
-      (etaf-md-preview--typeset-failed request reason))))
+      (etaf-md-preview--typeset-failed request reason nil))))
 
 (defun etaf-md-preview--renderer-sentinel (process _event)
   "Report a drawing program that died while it had work."
@@ -675,7 +689,7 @@ block the renderer cannot draw keeps its source and is remembered in
                                 :source source
                                 :out (etaf-md-preview--typeset-path key))
                           (etaf-md-preview--typeset-options kind env))))
-    (puthash id (list :key key :done done)
+    (puthash id (list :key key :kind kind :done done)
              etaf-md-preview-typeset--requests)
     (puthash key id etaf-md-preview-typeset--running)
     (if (etaf-md-preview--renderer-send request)
@@ -683,7 +697,7 @@ block the renderer cannot draw keeps its source and is remembered in
       (remhash id etaf-md-preview-typeset--requests)
       (remhash key etaf-md-preview-typeset--running)
       (etaf-md-preview--typeset-failed
-       (list :key key :kind kind) "the drawing program did not start")
+       (list :key key :kind kind) "the drawing program did not start" nil)
       nil)))
 
 (defun etaf-md-preview-typeset-request (session)
