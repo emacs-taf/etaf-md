@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### Fixed
+
+- A diagram's Chinese labels are drawn in the reader's WenKai face instead of
+  whatever CJK face the system picks.  The font stack named `LXGWWenKai', which
+  is the font's file name rather than its family: the renderer found no such
+  family and silently fell back to PingFang SC, so the diagram kept a face the
+  page does not use no matter how the stack was configured.
+
 ### Added
 
 - `etaf-md-preview-follow-scroll` makes the page move with the source window:

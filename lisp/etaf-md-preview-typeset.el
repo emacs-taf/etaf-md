@@ -196,17 +196,24 @@ clipped by the page."
                          (etaf-md-preview--caption-view "▲ mermaid" env)))))))
 
 (defconst etaf-md-preview-mermaid-fonts
-  '("LXGWWenKai" "PingFang SC" "Hiragino Sans GB" "Helvetica Neue" "Arial")
+  '("LXGW WenKai" "LXGW WenKai Mono" "PingFang SC" "Hiragino Sans GB"
+    "Helvetica Neue" "Arial" "sans-serif")
   "Families a diagram falls back to when the reader's own font lacks a glyph.
-The first three carry the CJK shapes a diagram label needs; the last two are
-the families every desktop has, so the renderer can always measure a label.")
+The WenKai faces carry the CJK shapes a diagram label needs, spelled the way the
+font names itself: `LXGWWenKai' is the file's name, not its family, and a family
+the renderer cannot find falls back to whatever CJK face the system picks.
+The rest are families every desktop has, so a label is always measurable.")
 
 (defun etaf-md-preview--mermaid-font-family ()
   "Return the font stack a diagram is drawn and measured with.
 The reader's default face comes first, so a diagram uses the type they read
 the page in; the names after it cover the glyphs that face may lack."
   (let* ((family (ignore-errors (face-attribute 'default :family nil t)))
-         (names (if (and (stringp family) (not (string-empty-p family)))
+         (names (if (and (stringp family)
+                         (not (string-empty-p family))
+                         ;; A face may name the symbol `default', which is not a
+                         ;; family the renderer can find.
+                         (not (string= family "default")))
                     (cons family etaf-md-preview-mermaid-fonts)
                   etaf-md-preview-mermaid-fonts)))
     (mapconcat #'identity (delete-dups names) ", ")))
