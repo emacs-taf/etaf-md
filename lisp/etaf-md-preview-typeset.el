@@ -65,22 +65,52 @@ changes their font size gets a formula that still matches the text."
 (defvar etaf-md-preview-typeset--missing nil
   "Non-nil once the programs were looked for and not found.")
 
-(defun etaf-md-preview-typeset--script ()
-  "Return the formula renderer's path, or nil when this checkout lacks it."
+(defconst etaf-md-preview-typeset--renderer-idle 45
+  "Seconds the drawing program may idle before it is stopped.
+Chromium costs memory while it runs and a page draws its pictures once, so an
+editor that stopped reading diagrams should not keep a browser around.")
+
+(defvar etaf-md-preview-typeset--renderer nil
+  "The drawing program's process, or nil before the first picture.")
+
+(defvar etaf-md-preview-typeset--renderer-text ""
+  "Answers received from the renderer that do not make a whole line yet.")
+
+(defvar etaf-md-preview-typeset--requests (make-hash-table)
+  "Render in flight by request id.
+Each entry is a plist of `:key', `:kind', `:path' and `:done'.")
+
+(defvar etaf-md-preview-typeset--serial 0
+  "Number of the last request handed to the renderer.")
+
+(defvar etaf-md-preview-typeset--idle-timer nil
+  "Timer that stops the renderer when it has nothing left to draw.")
+
+(defvar etaf-md-preview-typeset--failed (make-hash-table :test #'equal)
+  "Renderer's message by block key of a block that cannot be drawn.
+A key holds the source and every setting the picture depends on, so a block
+stays unrendered until its source or the page changes, and one bad diagram is
+not retried on every keystroke that republishes the page.")
+
+(defun etaf-md-preview-typeset--renderer-script ()
+  "Return the drawing program's path, or nil when this checkout lacks it."
   (when-let* ((entry (locate-library "etaf-md-preview"))
               ((not (string-suffix-p ".eln" entry)))
-              (script (expand-file-name "scripts/typeset-math.mjs"
+              (script (expand-file-name "scripts/mermaid-render.mjs"
                                         (file-name-directory entry)))
               ((file-exists-p script)))
     script))
 
 (defun etaf-md-preview-typeset-available-p ()
   "Return non-nil when this system can draw diagrams and formulas.
-Both need mermaid-cli: the diagram calls `mmdc', and the formula uses the
-Chromium and KaTeX that package installs."
+Both are drawn by `scripts/mermaid-render.mjs', which needs Node and the
+mermaid-cli package beside `mmdc': the diagram is mermaid's own renderer and
+the formula is KaTeX on the Chromium mmdc brings."
   (and etaf-md-preview-typeset
        (not etaf-md-preview-typeset--missing)
-       (or (executable-find "mmdc")
+       (or (and (executable-find "mmdc")
+                (executable-find "node")
+                (etaf-md-preview-typeset--renderer-script))
            (setq etaf-md-preview-typeset--missing t))))
 
 (defun etaf-md-preview--typeset-colors (env)
@@ -110,13 +140,19 @@ their own."
     (cons (if dark 'dark 'light)
           (etaf-md-preview--env-color env :ink))))
 
+(defconst etaf-md-preview-typeset--picture-version 2
+  "Version of the drawing a cache key stands for.
+Raised when the renderer's own output changes - the size a picture is drawn
+at, or the part of the drawing it is cut from - so a picture drawn the old way
+is drawn again instead of being reused as if it were the new one.")
+
 (defun etaf-md-preview--typeset-key (kind source env)
   "Return the cache key of KIND drawn from SOURCE for ENV's surface.
 The key holds what the picture depends on, so a theme switch draws a new one
 instead of reusing the colours of the old surface."
   (secure-hash 'sha1
-               (format "%s\n%s\n%s\n%s\n%s"
-                       kind source
+               (format "%s\n%d\n%s\n%s\n%s\n%s"
+                       kind etaf-md-preview-typeset--picture-version source
                        (car (etaf-md-preview--typeset-colors env))
                        (cdr (etaf-md-preview--typeset-colors env))
                        ;; A formula drawn for another body size is another
@@ -243,24 +279,66 @@ A category fill is mixed from the page background and a hue.  A pale hue on a
 dark page, or a mid one on a light page, would otherwise put the page's ink on
 a surface it cannot read against, so the amount of hue answers to the label.")
 
+(defconst etaf-md-preview--mermaid-fill-separation 1.5
+  "Contrast ratio a category fill keeps against the page it is drawn on.
+A fill the colour of the page is not a fill, and mermaid paints a mind map's
+branch and a timeline's rule in this same colour: a fill that only just stands
+off the page leaves those lines too faint to follow.")
+
 (defun etaf-md-preview--mermaid-fill (page ink hue)
-  "Return HUE mixed into PAGE so INK still reads on the result.
-The hue is added in small steps until the mix carries INK at
-`etaf-md-preview--mermaid-fill-contrast', which keeps as much of the page as
-the label allows; a hue that never gets there keeps the mix that reads best."
-  (let ((best (etaf-md-preview--mix-color page hue 0.25))
-        (best-ratio 0)
-        (weight 0.25))
+  "Return HUE mixed into PAGE as far as a filled area needs.
+The mix is the palest that carries INK at
+`etaf-md-preview--mermaid-fill-contrast' and still stands
+`etaf-md-preview--mermaid-fill-separation' away from PAGE.  A hue that never
+reaches both keeps the mix that comes closest."
+  (let ((best (etaf-md-preview--mix-color page hue 0.2))
+        (best-score 0)
+        (weight 0.2))
     (catch 'done
-      (while (<= weight 0.9)
+      (while (<= weight 0.95)
         (let* ((fill (etaf-md-preview--mix-color page hue weight))
-               (ratio (etaf-md-preview--contrast-ratio ink fill)))
-          (when (and ratio (> ratio best-ratio))
-            (setq best fill best-ratio ratio))
-          (when (and ratio (>= ratio etaf-md-preview--mermaid-fill-contrast))
+               (ink-ratio (etaf-md-preview--contrast-ratio ink fill))
+               (page-ratio (etaf-md-preview--contrast-ratio fill page))
+               (score (min (/ (or ink-ratio 0)
+                              etaf-md-preview--mermaid-fill-contrast)
+                           (/ (or page-ratio 0)
+                              etaf-md-preview--mermaid-fill-separation))))
+          (when (> score best-score)
+            (setq best fill best-score score))
+          (when (>= score 1.0)
             (throw 'done fill)))
         (setq weight (+ weight 0.05)))
       best)))
+
+(defun etaf-md-preview--mermaid-tint (env weight)
+  "Return ENV's page moved toward its ink by WEIGHT.
+A diagram needs surfaces one step away from the page - a cluster, a gantt's
+section band, its grid - and a page whose panels are nearly its own color gives
+no such step.  A tint of the page toward its ink is a step in the direction the
+page is built in, so it stays a page surface in every palette."
+  (etaf-md-preview--mix-color
+   (or (plist-get env :background) (etaf-md-preview--env-color env :bg))
+   (etaf-md-preview--env-color env :ink)
+   weight))
+
+(defun etaf-md-preview--mermaid-states (env)
+  "Return the surfaces a gantt paints a task's state with.
+A gantt separates a finished task from a running one from a late one by
+background: mermaid fills them with light grey, white and red, the colors of a
+light page on any page.  The page already has a colour for each of those ideas,
+so the state takes it, mixed into the page far enough for the task's own label."
+  (let* ((page (or (plist-get env :background)
+                   (etaf-md-preview--env-color env :bg)))
+         (ink (etaf-md-preview--env-color env :ink))
+         (surface (lambda (key prefix)
+                    (let* ((hue (etaf-md-preview--hex-color
+                                 (etaf-md-preview--env-color env key)))
+                           (fill (etaf-md-preview--mermaid-fill page ink hue)))
+                      (list (cons (intern (concat prefix "BkgColor")) fill)
+                            (cons (intern (concat prefix "BorderColor")) hue))))))
+    (append (funcall surface :ok "doneTask")
+            (funcall surface :accent "activeTask")
+            (funcall surface :danger "crit"))))
 
 (defun etaf-md-preview--mermaid-categorical (env)
   "Return the theme variables that colour ENV's diagram categories.
@@ -290,7 +368,11 @@ borders that carry the same category."
               for (hue . fill) = (funcall pick i)
               append (list (cons (intern (format "git%d" i)) fill)
                            (cons (intern (format "gitInv%d" i)) hue)
-                           (cons (intern (format "gitBranchLabel%d" i)) ink))))))
+                           (cons (intern (format "gitBranchLabel%d" i)) ink)
+                           ;; A journey paints a period's band and its tasks by
+                           ;; the same series, and its actors beside them.
+                           (cons (intern (format "fillType%d" i)) fill)
+                           (cons (intern (format "actor%d" i)) hue))))))
 
 (defun etaf-md-preview--mermaid-config (env)
   "Return the mermaid configuration JSON drawn for ENV's page.
@@ -325,9 +407,15 @@ sequence diagram starts at the very first pixel."
            (textColor . ,ink)
            (mainBkg . ,panel)
            (nodeBorder . ,border)
-           (clusterBkg . ,quote)
+           ;; A cluster is a surface the nodes sit on, so it is a step from
+           ;; the page rather than the page's quote colour, which is darker
+           ;; than the page on a dark theme and swallowed the grouping.
+           (clusterBkg . ,(etaf-md-preview--mermaid-tint env 0.06))
            (clusterBorder . ,border)
-           (edgeLabelBackground . ,page)
+           ;; An edge label sits on a solid chip so the line does not cross it.
+           ;; The chip is the same step from the page as a cluster, so a label
+           ;; inside a cluster does not cut a darker hole in it.
+           (edgeLabelBackground . ,(etaf-md-preview--mermaid-tint env 0.06))
            (actorBkg . ,panel)
            (actorBorder . ,border)
            (actorTextColor . ,ink)
@@ -344,10 +432,54 @@ sequence diagram starts at the very first pixel."
            ;; one drawing instead of sections inside a black wheel.
            (pieStrokeColor . ,page)
            (pieOuterStrokeColor . ,border)
+           ;; An entity's attribute rows take their fill from `rowOdd' and
+           ;; `rowEven', which mermaid derives by lightening the box colour; on
+           ;; a dark page that put the page's ink on a white row.  The page's own
+           ;; row surfaces keep the ink readable.
+           (rowOdd . ,panel2)
+           (rowEven . ,quote)
+           ;; A gantt's band, its grid and its today line are the light
+           ;; page's greys and red on any page.
+           (sectionBkgColor . ,(etaf-md-preview--mermaid-tint env 0.04))
+           (sectionBkgColor2 . ,(etaf-md-preview--mermaid-tint env 0.04))
+           (altSectionBkgColor . ,page)
+           (gridColor . ,(etaf-md-preview--mermaid-tint env 0.14))
+           (vertLineColor . ,(etaf-md-preview--mermaid-tint env 0.14))
+           (todayLineColor . ,(etaf-md-preview--hex-color
+                               (etaf-md-preview--env-color env :danger)))
+           (taskBkgColor . ,panel)
+           (taskBorderColor . ,border)
+           (taskTextColor . ,ink)
+           (taskTextOutsideColor . ,ink)
+           (taskTextDarkColor . ,ink)
+           (taskTextClickableColor . ,ink)
+           ;; A journey's title and its actors' faces are its own colours too.
+           (titleColor . ,ink)
+           (faceColor . ,panel)
+           ;; A quadrant's points are drawn in a fill mermaid derives by
+           ;; lightening a box colour, which on a dark page hides them; the
+           ;; four quadrants stay page-coloured so the grid does the dividing.
+           (quadrant1Fill . ,page)
+           (quadrant2Fill . ,page)
+           (quadrant3Fill . ,page)
+           (quadrant4Fill . ,page)
+           (quadrantPointFill . ,ink)
+           ;; A point's label is drawn on the page, beside the dot, not on it.
+           (quadrantPointTextFill . ,ink)
+           (quadrantXAxisTextFill . ,muted)
+           (quadrantYAxisTextFill . ,muted)
+           (quadrantInternalBorderStrokeFill . ,border)
+           (quadrantExternalBorderStrokeFill . ,border)
            ;; A commit's label is what the commit says, not a footnote: mermaid
            ;; sets it at ten pixels, a size the page never uses.
            (commitLabelFontSize . ,(format "%dpx" base))
+           (commitLabelColor . ,ink)
+           (commitLabelBackground . ,page)
+           (commitLabelBorderColor . ,border)
            (tagLabelFontSize . ,(format "%dpx" base))
+           (tagLabelColor . ,ink)
+           (tagLabelBackground . ,panel2)
+           (tagLabelBorder . ,border)
            ;; The diagram is measured with this font as well as drawn with it:
            ;; a family the renderer's Chromium lacks makes it measure the label
            ;; narrower than the glyphs, and a CJK edge label comes out cut off.
@@ -356,7 +488,8 @@ sequence diagram starts at the very first pixel."
            ;; desktop has as the last resort.
            (fontFamily . ,(etaf-md-preview--mermaid-font-family))
            (fontSize . ,(format "%dpx" base))
-           ,@(etaf-md-preview--mermaid-categorical env)))
+           ,@(etaf-md-preview--mermaid-categorical env)
+           ,@(etaf-md-preview--mermaid-states env)))
        ;; A node hugs its label.  Mermaid measures the text, adds this padding
        ;; and a minimum width of its own, and a diamond inscribes its label, so
        ;; its box grows to about twice the text's.  The wider padding inflated
@@ -380,69 +513,178 @@ sequence diagram starts at the very first pixel."
        ;; wide, an entity 100 by 75, a requirement 200 wide.  A short label in
        ;; one of them leaves a frame with room to spare, so the floors come down
        ;; to a size the label fills.
+       ;; A commit's id is set at the angle mermaid turns it to, which a short
+       ;; Latin id survives and a Chinese one does not: it is laid flat, where a
+       ;; reader can read it like every other label on the page.
+       (gitGraph . ((rotateCommitLabel . :json-false)))
        (gantt . ((fontSize . ,base) (sectionFontSize . ,base)))
        (er . ((fontSize . ,base) (minEntityWidth . 60) (minEntityHeight . 40)))
        (requirement . ((fontSize . ,base) (rect_min_width . 120)))
        (state . ((fontSize . ,base) (minNodeWidth . 60)))))))
 
-(defun etaf-md-preview--typeset-start (key kind source env done)
-  "Start rendering SOURCE of KIND for KEY, and return the process.
-The program writes the picture; the process sentinel calls DONE, which
-republishes the page so the next paint finds the file."
-  (let ((directory etaf-md-preview-typeset--cache-directory)
-        (path (etaf-md-preview--typeset-path key))
-        (colors (etaf-md-preview--typeset-colors env))
-        (inhibit-message t))
-    (make-directory directory t)
-    (condition-case error
-        (let ((input (expand-file-name (concat key (if (eq kind 'math) ".tex" ".mmd"))
-                                       directory))
-              (arguments nil))
-          (with-temp-file input (insert source))
-          (setq arguments
-                (pcase kind
-                  ('math
-                   (let ((script (etaf-md-preview-typeset--script)))
-                     (unless script (error "No formula renderer in this checkout"))
-                     (list "node" script input path (cdr colors)
-                           (number-to-string (etaf-md-preview--typeset-pixels))
-                           (number-to-string (max 1 (or (ignore-errors (frame-char-height)) 16))))))
-                  (_ (let ((config (expand-file-name (concat key ".json") directory)))
-                       (with-temp-file config
-                         (insert (etaf-md-preview--mermaid-config env)))
-                       (list "mmdc" "-i" input "-o" path
-                             "-c" config
-                             "-b" "transparent"
-                             "-s" (number-to-string etaf-md-preview-typeset--scale)
-                             "-q")))))
-          (let ((process (funcall #'make-process
-                                :name (format "etaf-md-preview-%s" kind)
-                                :command arguments
-                                :connection-type 'pipe
-                                :noquery t
-                                :filter #'ignore
-                                :sentinel
-                                (lambda (process _event)
-                                  (when (memq (process-status process) '(exit signal))
-                                    (remhash key etaf-md-preview-typeset--running)
-                                    (when (and (eq (process-status process) 'exit)
-                                               (zerop (process-exit-status process)))
-                                      (etaf-md-preview--typeset-finished
-                                       key path done)))))))
-            (puthash key process etaf-md-preview-typeset--running)
-            (ignore input)
-            process))
-      (error
-       (message "Preview kept the source of a %s block: %s"
-                kind (error-message-string error))
-       nil))))
+;;; ---------------------------------------------------------------------------
+;;; The drawing program
+;;; ---------------------------------------------------------------------------
 
-(defun etaf-md-preview--typeset-finished (_key path done)
-  "Call DONE after a render left PATH.
+(defun etaf-md-preview--renderer-start (script)
+  "Return the drawing program's process, starting it when there is none.
+SCRIPT is its path.  One process draws every picture a session shows: starting
+Chromium is what a render costs, and it is started once."
+  (unless (process-live-p etaf-md-preview-typeset--renderer)
+    (let ((errors (generate-new-buffer " *etaf-md-preview-renderer-errors*")))
+      (setq etaf-md-preview-typeset--renderer-text "")
+      (setq etaf-md-preview-typeset--renderer
+            (make-process
+             :name "etaf-md-preview-renderer"
+             ;; The filter reads the answers as they arrive, so nothing has to
+             ;; be kept: a buffer would grow with every picture drawn.
+             :buffer nil
+             :command (list "node" script)
+             :connection-type 'pipe
+             :coding 'utf-8-unix
+             :noquery t
+             :stderr errors
+             :filter #'etaf-md-preview--renderer-filter
+             :sentinel #'etaf-md-preview--renderer-sentinel))
+      (process-put etaf-md-preview-typeset--renderer :errors errors)))
+  etaf-md-preview-typeset--renderer)
+
+(defun etaf-md-preview--renderer-send (request)
+  "Write REQUEST to the drawing program, or return nil when it cannot start."
+  (when-let* ((script (etaf-md-preview-typeset--renderer-script))
+              (process (ignore-errors (etaf-md-preview--renderer-start script)))
+              ((process-live-p process)))
+    (process-send-string process (concat (json-encode request) "\n"))
+    (etaf-md-preview--renderer-reset-idle)
+    process))
+
+(defun etaf-md-preview--renderer-reset-idle ()
+  "Restart the countdown that stops an idle drawing program."
+  (when (timerp etaf-md-preview-typeset--idle-timer)
+    (cancel-timer etaf-md-preview-typeset--idle-timer))
+  (setq etaf-md-preview-typeset--idle-timer
+        (run-at-time etaf-md-preview-typeset--renderer-idle nil
+                     #'etaf-md-preview--renderer-stop)))
+
+(defun etaf-md-preview--renderer-stop ()
+  "Stop the drawing program when it has nothing left to draw.
+Chromium costs memory while it runs and a page draws its pictures once, so a
+reader who stopped opening diagrams should not keep a browser around."
+  (setq etaf-md-preview-typeset--idle-timer nil)
+  (when (and (process-live-p etaf-md-preview-typeset--renderer)
+             (zerop (hash-table-count etaf-md-preview-typeset--requests)))
+    (delete-process etaf-md-preview-typeset--renderer)))
+
+(defun etaf-md-preview--renderer-filter (_process text)
+  "Read TEXT as the renderer's answers, one JSON object per line."
+  (setq etaf-md-preview-typeset--renderer-text
+        (concat etaf-md-preview-typeset--renderer-text text))
+  (let ((received etaf-md-preview-typeset--renderer-text))
+    (while (string-match "\n" received)
+      (let ((line (substring received 0 (match-beginning 0))))
+        (setq received (substring received (match-end 0)))
+        (unless (string-blank-p line)
+          (etaf-md-preview--renderer-answer line))))
+    (setq etaf-md-preview-typeset--renderer-text received)))
+
+(defun etaf-md-preview--renderer-answer (line)
+  "Act on one LINE of the renderer's answers."
+  (when-let* ((reply (ignore-errors (json-parse-string line :object-type 'plist)))
+              (id (plist-get reply :id))
+              ((integerp id))
+              (request (gethash id etaf-md-preview-typeset--requests)))
+    (remhash id etaf-md-preview-typeset--requests)
+    (remhash (plist-get request :key) etaf-md-preview-typeset--running)
+    (if (eq (plist-get reply :ok) t)
+        (etaf-md-preview--typeset-arrived request)
+      (etaf-md-preview--typeset-failed request (plist-get reply :error)))
+    (etaf-md-preview--renderer-reset-idle)))
+
+(defun etaf-md-preview--typeset-arrived (request)
+  "Call REQUEST's continuation once its picture is on disk.
 A render that left no file is a failure the caller sees as the source still
 painted, so nothing repaints then."
-  (when (and (file-exists-p path) done)
-    (run-at-time 0 nil done)))
+  (when (and (file-exists-p
+              (etaf-md-preview--typeset-path (plist-get request :key)))
+             (plist-get request :done))
+    (run-at-time 0 nil (plist-get request :done))))
+
+(defun etaf-md-preview--typeset-failed (request message)
+  "Record that REQUEST cannot be drawn, and keep its block as its source.
+A diagram that does not parse is the author's text, not a picture: the block
+shows it, and the renderer's own message names the line to look at.  The key
+holds the source and every setting the picture depends on, so the block stays
+unrendered until one of them changes."
+  (puthash (plist-get request :key) (or message "the renderer gave no reason")
+           etaf-md-preview-typeset--failed)
+  (message "Preview kept a %s block's source: %s"
+           (plist-get request :kind)
+           (truncate-string-to-width (or message "no reason given") 160)))
+
+(defun etaf-md-preview--renderer-fail-pending (reason)
+  "Record REASON for every render in flight and let the blocks keep their source."
+  (let ((requests nil))
+    (maphash (lambda (_id request) (push request requests))
+             etaf-md-preview-typeset--requests)
+    (clrhash etaf-md-preview-typeset--requests)
+    (dolist (request requests)
+      (remhash (plist-get request :key) etaf-md-preview-typeset--running)
+      (etaf-md-preview--typeset-failed request reason))))
+
+(defun etaf-md-preview--renderer-sentinel (process _event)
+  "Report a drawing program that died while it had work."
+  (when (memq (process-status process) '(exit signal))
+    (setq etaf-md-preview-typeset--renderer nil)
+    (when (timerp etaf-md-preview-typeset--idle-timer)
+      (cancel-timer etaf-md-preview-typeset--idle-timer)
+      (setq etaf-md-preview-typeset--idle-timer nil))
+    (let* ((errors (process-get process :errors))
+           (text (when (buffer-live-p errors)
+                   (with-current-buffer errors
+                     (let ((pipe (get-buffer-process (current-buffer))))
+                       (while (and pipe (accept-process-output pipe 0))))
+                     (prog1 (string-trim
+                             (buffer-substring-no-properties (point-min) (point-max)))
+                       (kill-buffer errors))))))
+      (etaf-md-preview--renderer-fail-pending
+       (if (string-empty-p (or text ""))
+           (format "the renderer exited with status %s"
+                   (process-exit-status process))
+         (car (split-string text "\n")))))))
+
+(defun etaf-md-preview--typeset-options (kind env)
+  "Return the renderer's settings for KIND on ENV's page."
+  (if (eq kind 'math)
+      (list :ink (cdr (etaf-md-preview--typeset-colors env))
+            :pixels (etaf-md-preview--typeset-pixels)
+            :cell (max 1 (or (ignore-errors (frame-char-height)) 16)))
+    ;; The configuration is JSON already.  Parsing it to a plist and encoding
+    ;; it again would turn every `false' into the string "false", which the
+    ;; renderer reads as true.
+    (list :config (etaf-md-preview--mermaid-config env))))
+
+(defun etaf-md-preview--typeset-start (key kind source env done)
+  "Ask the drawing program for SOURCE's picture as KIND, and call DONE later.
+The picture is drawn on the page's own palette at two device pixels per
+point, which is the size `etaf-md-preview-typeset--scale' places it at.  A
+block the renderer cannot draw keeps its source and is remembered in
+`etaf-md-preview-typeset--failed'."
+  (make-directory etaf-md-preview-typeset--cache-directory t)
+  (let* ((id (cl-incf etaf-md-preview-typeset--serial))
+         (request (append (list :id id :kind (symbol-name kind)
+                                :source source
+                                :out (etaf-md-preview--typeset-path key))
+                          (etaf-md-preview--typeset-options kind env))))
+    (puthash id (list :key key :done done)
+             etaf-md-preview-typeset--requests)
+    (puthash key id etaf-md-preview-typeset--running)
+    (if (etaf-md-preview--renderer-send request)
+        t
+      (remhash id etaf-md-preview-typeset--requests)
+      (remhash key etaf-md-preview-typeset--running)
+      (etaf-md-preview--typeset-failed
+       (list :key key :kind kind) "the drawing program did not start")
+      nil)))
 
 (defun etaf-md-preview-typeset-request (session)
   "Start the renders SESSION's page needs and does not show yet.
@@ -462,7 +704,8 @@ never a program launch."
                       ((not (string-blank-p source)))
                       (key (etaf-md-preview--typeset-key kind source env))
                       ((not (file-exists-p (etaf-md-preview--typeset-path key))))
-                      ((not (gethash key etaf-md-preview-typeset--running))))
+                      ((not (gethash key etaf-md-preview-typeset--running)))
+                      ((not (gethash key etaf-md-preview-typeset--failed))))
             (push (list kind source key) wanted))))
       (when wanted
         (run-at-time 0 nil
@@ -472,19 +715,21 @@ never a program launch."
                                (source (nth 1 entry))
                                (key (nth 2 entry)))
                            (unless (or (file-exists-p (etaf-md-preview--typeset-path key))
-                                       (gethash key etaf-md-preview-typeset--running))
+                                       (gethash key etaf-md-preview-typeset--running)
+                                       (gethash key etaf-md-preview-typeset--failed))
                              (etaf-md-preview--typeset-start
                               key kind source env
                               (lambda () (etaf-md-preview--typeset-changed session))))))))))))
 
 (defun etaf-md-preview--typeset-changed (session)
   "Repaint SESSION once, however many pictures arrive together.
-Two diagrams of one page finish within a frame of each other, and one paint
-after both is what a reader sees; a pending flag keeps the second arrival from
-starting a publish the first already asked for."
+Pictures land one after another as the renderer gets to them, and a page that
+repainted on each arrival would reflow its reader's place a dozen times.  One
+paint per burst is what a reader sees, so the first arrival schedules the paint
+and the rest join it."
   (unless (plist-get session :typeset-pending)
     (plist-put session :typeset-pending t)
-    (run-at-time 0 nil
+    (run-at-time 0.15 nil
                  (lambda ()
                    (plist-put session :typeset-pending nil)
                    (etaf-md-preview--typeset-repaint session)))))

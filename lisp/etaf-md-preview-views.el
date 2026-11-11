@@ -254,21 +254,20 @@ one."
 (defun etaf-md-preview--media-grid-cells (pixels max-columns)
   "Return the (COLUMNS . ROWS) grid for measured PIXELS inside MAX-COLUMNS.
 A picture is drawn at its own size and scaled down as a whole only when it is
-wider than the reading measure, so one number, the scale, decides both sides:
-the rows follow from the scaled height, then the columns from that same scale.
-Rounding each side on its own let a picture come out a few percent too wide for
-its own height, which stretches the drawing."
+wider than the reading measure.  The width decides first, because that is the
+side a page cannot grow: a picture that is whole cells wide, and a height that
+follows from those columns, keeps the drawing inside the column it starts in.
+Choosing the rows first and the columns from them rounded the height up to a
+whole cell and handed back a picture up to a few percent wider than the
+measure, which the window then cut off on the right."
   (let* ((cell-width (max 1 (or (ignore-errors (frame-char-width)) 8)))
          (cell-height (max 1 (or (ignore-errors (frame-char-height)) 16)))
          (natural-width (float (car pixels)))
          (natural-height (float (cdr pixels)))
          (fitted (min natural-width (* max-columns cell-width)))
-         (fitted-height (* natural-height (/ fitted natural-width)))
-         (rows (max 1 (round (/ fitted-height cell-height))))
-         ;; One scale keeps the aspect: the rows are whole cells, and the
-         ;; columns are chosen for that height.
-         (scale (min 1.0 (/ (* rows cell-height) natural-height)))
-         (columns (max 1 (round (/ (* natural-width scale) cell-width)))))
+         (columns (max 1 (min max-columns (round (/ fitted cell-width)))))
+         (fitted-height (* natural-height (/ (* columns cell-width) natural-width)))
+         (rows (max 1 (round (/ fitted-height cell-height)))))
     (cons columns rows)))
 
 (defun etaf-md-preview--media-grid (path kind max-columns)

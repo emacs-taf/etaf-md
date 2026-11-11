@@ -78,38 +78,61 @@ wraps the image in an interactive Box for opening. Missing files and remote
 URLs never reach the Host; they become labeled placeholder cards.
 
 **A typeset block is a file the page points at.** A `$$` display formula and a
-`mermaid` fence are drawn by an external program (`scripts/typeset-math.mjs`
-through Node, `mmdc` through mermaid-cli) into the cache directory, and the
-block names the picture. The cache key hashes the source, the page's palette
-and the frame's type size, so a document that did not change keeps its pictures
-across reloads and a theme or size change draws them again; the render runs
+`mermaid` fence are drawn by `scripts/mermaid-render.mjs` into the cache
+directory, and the block names the picture. The cache key hashes the source,
+the page's palette, the frame's type size and the version of the drawing
+pipeline, so a document that did not change keeps its pictures across reloads,
+while a theme, size or renderer change draws them again. The render runs
 asynchronously and republishes the page when its picture lands, so a slow
 diagram never blocks the first paint. While it runs, or when the program fails,
 the block stays its source text: a diagram that cannot be parsed shows its
-fence, not a broken picture.
+fence and the parser's message, not a broken picture.
+
+The renderer is one process for the session, not one per block. Starting
+Chromium costs seconds and drawing into a running one costs a fraction of that,
+so the process starts once, keeps a few pages that draw in parallel, and stops
+itself after a while without work. It answers requests by number, which is what
+lets the page take pictures in whatever order they finish.
 
 The configuration is generated from the page rather than taken from mermaid's
-fixed themes, so a diagram is drawn in the page's ink, boxes and borders. Two
-parts of that configuration answer to mermaid's quirks:
+fixed themes, so a diagram is drawn in the page's ink, boxes and borders. It
+travels to the renderer as the JSON text the preview generated, because a
+round trip through an Emacs plist turns every `false` into the string
+`"false"`, which mermaid reads as true. Three parts of it answer to mermaid's
+quirks:
 
 - Mermaid sizes each kind of diagram on its own and gives several of them a
   minimum box (a state node 120 pixels wide, an entity 100 by 75, a requirement
   200), which left a short Chinese label in a frame with room to spare; the
   configuration lowers those floors and tells every kind the page's size.
 - Mermaid colours everything that separates items by hue - pie slices, git
-  branches, timeline periods, mind-map children - from scales it derives by
-  darkening the page's box colour. On a dark page that derivation ends at
-  black, and mermaid has no way to know the page is dark. The scales therefore
-  come from the page's callout colours, each mixed into the page background far
-  enough that the ink still reads on it; a label on a fill keeps the contrast
-  the rest of the page has.
+  branches, timeline periods, journey sections, mind-map children - from scales
+  it derives by darkening the page's box colour. On a dark page that derivation
+  ends at black, and mermaid has no way to know the page is dark. The scales
+  therefore come from the page's callout colours, mixed into the page
+  background just far enough that the page's ink reads on the fill and the fill
+  still stands off the page.
+- A few surfaces are fixed light-page colours whatever the page is: a gantt's
+  finished, running and late tasks are light grey, white and red, its section
+  bands and grid are greys, an entity's attribute rows lighten the box towards
+  white, and a cluster, an edge label and a journey's title take colours that
+  vanish on a dark page. Each takes the page's own colour for the same idea -
+  finished is its success colour, running its accent, late its danger, and the
+  remaining surfaces a tint of the page towards its ink.
+
+A picture is the diagram's own canvas: the viewBox mermaid sized the drawing
+to, at the size of the page's type. An explicit height is dropped because
+several kinds declare one that does not match their drawing, which is what left
+a band of empty picture under a journey. A picture wider than the reading
+measure is narrowed in whole cells, and the width decides the height, so the
+right edge of a wide diagram is never cut off by its column.
 
 The document keeps the last word: a `%%{init: ...}%%` directive or a YAML front
 matter `config` block in the block's own source overrides the generated
 configuration, which is mermaid's own precedence. `make mermaid-check` renders
 a fixture of every kind through this configuration in each page palette and
-asserts the geometry, the fill contrast and that a document's own colour still
-wins.
+asserts the geometry, the label and fill contrast, and that a document's own
+colour still wins.
 
 **Typing edits the source, never the page.** In-place editing is driven by
 `etaf-md-preview-projection`, which turns the published blocks into

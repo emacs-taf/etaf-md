@@ -4,6 +4,46 @@
 
 ### Fixed
 
+- A diagram's pictures arrive in about a second instead of several.  Every
+  fence and formula started its own Chromium through `mmdc`, so a page with a
+  dozen diagrams paid a dozen launches and several ran at once; one renderer now
+  serves the session, keeps a few pages drawing in parallel and stops itself
+  when the page has been read for a while.
+- A diagram that cannot be parsed keeps its source and says why, instead of
+  drawing mermaid's error picture and leaving the reader to guess.  The block
+  stays its fence and the renderer's own message names the line to look at, and
+  the message is not repeated on every repaint.
+- A diagram that separates its items by hue stays readable on any page.  A pie,
+  a timeline, a git graph, a journey and a mind map take their colours from
+  mermaid's own scales, which it derives by darkening the page's box colour: on
+  a dark page every slice, branch, period and mind-map node came out black, a
+  pie's slices were indistinguishable, and a journey's periods and title were
+  the page colour.  The scales now come from the page's callout colours, mixed
+  into the page far enough that the ink still reads on the fill and the fill
+  still stands off the page - which also keeps a mind map's branches, painted in
+  that same fill, visible on a light page.
+- A gantt's finished, running and late tasks, its section bands, its grid and
+  its today line are the page's own colours instead of a light page's grey,
+  white and red.  A white bar with white text on a dark page read as a blank
+  block.  An entity's attribute rows, a cluster, an edge label and a journey's
+  faces take the same treatment, and a git commit's label is laid flat instead
+  of at forty-five degrees, where a Chinese id could not be read.
+- A picture keeps the diagram's own canvas.  Several kinds declare a height
+  that does not match their drawing, which left a band of empty picture under a
+  journey; the picture is taken from the viewBox the drawing was sized to.
+- A picture wider than the reading measure is narrowed in whole cells.  The
+  rows were rounded up to a cell and the columns taken from them, which made
+  the grid a few percent wider than the measure, and the window cut off the
+  right edge of a wide diagram.
+- A derived colour is read from the colour itself instead of asking the frame.
+  A batch session has no frame, so `color-values' answered from the terminal's
+  palette and turned `#b3541e' into pure red; a heading colour, a mixed surface
+  or a diagram fill now comes out the same in a headless run as in a window.
+- The renderer's configuration reaches it as the JSON text the preview
+  generated.  A round trip through an Emacs plist turned every `false` into the
+  string "false", which mermaid reads as true, so a setting that asked for
+  something to be off was silently on.
+
 - A flow chart's nodes hug their labels: the padding is mermaid's own eight
   pixels rather than twelve, which had added four pixels an axis to every box,
   and the node and rank spacing drop to forty, so a wide flow chart is scaled

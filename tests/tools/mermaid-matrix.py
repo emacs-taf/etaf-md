@@ -33,11 +33,12 @@ PROVIDERS = ("etaf", "etaf-ui", "ebox", "ecss")
 PALETTES = ("dark", "light", "sepia")
 PAGES = {"dark": "#191a1c", "light": "#ffffff", "sepia": "#f5ecd9"}
 
-# A category fill has to carry the page's ink, and to be visible on the page at
-# all: mermaid derives both from the box colour by darkening it, which turns
-# every slice, branch and period black on a dark page.
+# A category fill has to carry the page's ink, and to stand off the page itself:
+# mermaid derives both from the box colour by darkening it, which turns every
+# slice, branch and period black on a dark page.  A line mermaid paints in the
+# same fill - a mind map's branch, a timeline's rule - needs the second number.
 LABEL_CONTRAST = 4.5
-FILL_CONTRAST = 1.25
+FILL_CONTRAST = 1.5
 
 CONFIG_PROGRAM = """
 (progn
@@ -119,7 +120,8 @@ def check_colours(palette, config, page):
             problems.append("%s: cScale%d label reads %.1f:1 on its fill"
                             % (palette, index, contrast(label, fill)))
         if contrast(fill, rgb(page)) < FILL_CONTRAST:
-            problems.append("%s: cScale%d fill is the page" % (palette, index))
+            problems.append("%s: cScale%d fill is the page (%.2f:1)"
+                            % (palette, index, contrast(fill, rgb(page))))
         if contrast(hue, rgb(page)) < FILL_CONTRAST:
             problems.append("%s: cScaleInv%d line is the page" % (palette, index))
         for other in ("pie%d" % (index + 1), "git%d" % index):
