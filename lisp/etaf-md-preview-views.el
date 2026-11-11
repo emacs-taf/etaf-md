@@ -254,21 +254,22 @@ diagram 40 columns past the measure, where it was cut off at the window."
     (etaf-md-preview--media-grid-cells pixels max-columns)))
 
 (defun etaf-md-preview--media-grid-cells (pixels max-columns)
-  "Return the (COLUMNS . ROWS) grid for measured PIXELS inside MAX-COLUMNS."
+  "Return the (COLUMNS . ROWS) grid for measured PIXELS inside MAX-COLUMNS.
+Only the width is capped: a picture wider than the reading measure is scaled
+down to fit it, and every other picture is drawn at the size it was made.  A
+height cap shrank a tall diagram that already fitted, so two diagrams on one
+page carried different text sizes."
   (let* ((cell-width (max 1 (or (ignore-errors (frame-char-width)) 8)))
          (cell-height (max 1 (or (ignore-errors (frame-char-height)) 16)))
-         (max-rows (max 6 (round (* (or (ignore-errors (window-body-height)) 40)
-                                    0.45))))
          (pixel-width (float (car pixels)))
          (pixel-height (float (cdr pixels)))
          (limit (* max-columns cell-width))
          (width (max 1 (min pixel-width limit)))
          (height (max 1 (* pixel-height (/ width pixel-width))))
-         (rows (min max-rows (max 1 (round (/ height cell-height)))))
-         ;; The widest picture the rows can hold, kept inside the measure and
-         ;; rounded down so the drawing never overflows the box.
-         (fits (* rows cell-height (/ pixel-width pixel-height)))
-         (columns (max 1 (floor (/ (min width fits) cell-width)))))
+         (rows (max 1 (round (/ height cell-height))))
+         ;; Round the columns down so the drawing never overflows its rows.
+         (columns (max 1 (floor (/ (* rows cell-height pixel-width)
+                                   (* pixel-height cell-width))))))
     (cons columns rows)))
 
 (defun etaf-md-preview--media-grid (path kind max-columns)

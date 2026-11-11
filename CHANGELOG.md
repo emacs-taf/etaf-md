@@ -61,6 +61,10 @@
   gone, so a drawing sits on the page with only its caption under it.
 - A display formula takes half a line of air above and below: without it the
   formulas stacked on the paragraph's last line and read as one cramped lump.
+- Every diagram on a page is drawn at its own size: only a picture wider than
+  the reading measure is scaled down to fit it.  A height cap used to shrink a
+  diagram that already fitted, so one page showed diagrams with different text
+  sizes.
 ### Fixed
 
 - A soft line break folds into a space, as CommonMark reads it: the paragraph
