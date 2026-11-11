@@ -30,9 +30,14 @@ const css = fs.readFileSync(path.join(katexDir, 'dist/katex.min.css'), 'utf8')
 const html = `<!doctype html><html><head><meta charset="utf-8">
 <base href="file://${path.join(katexDir, 'dist')}/">
 <style>${css}</style><style>
+  /* KaTeX sets its own base at 1.21em and a display block carries 1em margins
+     above and below; both are meant for a page of running text.  A formula
+     here is one line of the sentence, so the size is divided back out and the
+     margins are dropped: the picture is the formula and nothing else. */
   html, body { margin: 0; background: transparent; }
-  #formula { display: inline-block; padding: 6px 8px; color: ${ink};
-             font-size: ${pixels}px; }
+  #formula { display: inline-block; padding: 1px 2px; color: ${ink};
+             font-size: ${pixels / 1.21}px; }
+  #formula .katex-display { margin: 0; }
 </style></head><body><div id="formula">${markup}</div></body></html>`
 
 const browser = await puppeteer.launch({

@@ -19,6 +19,7 @@
 (require 'cl-lib)
 (require 'subr-x)
 
+(require 'json)
 (require 'etaf-md-preview-model)
 (require 'etaf-md-preview-views)
 
@@ -45,11 +46,11 @@ cached yet appears on the repaint that follows its render."
 (defconst etaf-md-preview-typeset--scale 2
   "Pixels per point a picture is drawn at, so it stays sharp when it is placed.")
 
-(defconst etaf-md-preview-typeset--formula-scale 1.15
-  "A display formula is set this much larger than the page's body text.
-A formula is a line of the sentence above it, so it takes the reader's own body
-size with a little air; typesetting it at a heading's size made one equation
-claim half the page.")
+(defconst etaf-md-preview-typeset--formula-scale 1.0
+  "A display formula is set at the page's body size.
+A formula is part of the text around it, so it takes the reader's own body
+size; KaTeX adds the air a fraction, a sum or an integral needs above and
+below the line on its own.")
 
 (defun etaf-md-preview--typeset-pixels ()
   "Return the pixel size to typeset a formula at.
@@ -83,7 +84,7 @@ Chromium and KaTeX that package installs."
            (setq etaf-md-preview-typeset--missing t))))
 
 (defun etaf-md-preview--typeset-colors (env)
-  "Return (DIAGRAM-THEME . INK) drawn for ENV's page.
+  "Return (PALETTE . INK) drawn for ENV's page.
 The diagram theme follows the page it is placed on, which a named palette sets
 even when the frame is the other way round: a light page keeps light diagrams.
 A page with no background of its own is read in the frame's appearance.  A
@@ -95,7 +96,7 @@ the page paints instead of carrying a palette of their own."
                    ;; black, since the ratio against white would be large.
                    (<= (etaf-ui-color-contrast background "#000000") 1.5)
                  (eq (etaf-appearance) 'dark))))
-    (cons (if dark 'dark 'default)
+    (cons (if dark 'dark 'light)
           (etaf-md-preview--env-color env :ink))))
 
 (defun etaf-md-preview--typeset-key (kind source env)
@@ -177,6 +178,59 @@ sentence above it."
                                (list image))
                     (etaf-md-preview--caption-view "▲ mermaid" env)))))))
 
+(defun etaf-md-preview--mermaid-config (env)
+  "Return the mermaid configuration JSON drawn for ENV's page.
+The diagram is built from the page's own colours instead of mermaid's fixed
+`default' and `dark' palettes, so a light page carries light boxes with its own
+ink, and the margins keep the drawing off the card's edges: without them a
+sequence diagram starts at the very first pixel."
+  (let ((ink (etaf-md-preview--env-color env :ink))
+        (panel (etaf-md-preview--env-color env :panel))
+        (panel2 (etaf-md-preview--env-color env :panel2))
+        (border (etaf-md-preview--env-color env :border))
+        (muted (etaf-md-preview--env-color env :muted))
+        (quote (etaf-md-preview--env-color env :quote-bg))
+        (page (or (plist-get env :background)
+                  (if (eq (etaf-appearance) 'dark) "#0d1117" "#ffffff"))))
+    (json-encode
+     `((theme . "base")
+       (themeVariables
+        . ((background . "transparent")
+           (primaryColor . ,panel)
+           (primaryTextColor . ,ink)
+           (primaryBorderColor . ,border)
+           (secondaryColor . ,panel2)
+           (secondaryTextColor . ,ink)
+           (tertiaryColor . ,quote)
+           (tertiaryTextColor . ,ink)
+           (lineColor . ,muted)
+           (textColor . ,ink)
+           (mainBkg . ,panel)
+           (nodeBorder . ,border)
+           (clusterBkg . ,quote)
+           (clusterBorder . ,border)
+           (edgeLabelBackground . ,page)
+           (actorBkg . ,panel)
+           (actorBorder . ,border)
+           (actorTextColor . ,ink)
+           (signalColor . ,muted)
+           (signalTextColor . ,ink)
+           (labelBoxBkgColor . ,panel)
+           (labelBoxBorderColor . ,border)
+           (labelTextColor . ,ink)
+           (noteBkgColor . ,quote)
+           (noteTextColor . ,ink)
+           (noteBorderColor . ,border)
+           ;; The diagram is measured with this font as well as drawn with
+           ;; it: a family the renderer's Chromium lacks makes it measure the
+           ;; label narrower than the glyphs, and a CJK edge label comes out
+           ;; cut off.  These are the families every desktop has.
+           (fontFamily . "Helvetica Neue, Helvetica, Arial, sans-serif")
+           (fontSize . ,(format "%dpx" (round (etaf-md-preview--base-pixels))))))
+       (flowchart . ((padding . 12) (useMaxWidth . t) (htmlLabels . t)))
+       (sequence . ((diagramMarginX . 16) (diagramMarginY . 12)
+                    (actorMargin . 40) (boxMargin . 10)))))))
+
 (defun etaf-md-preview--typeset-start (key kind source env done)
   "Start rendering SOURCE of KIND for KEY, and return the process.
 The program writes the picture; the process sentinel calls DONE, which
@@ -198,11 +252,14 @@ republishes the page so the next paint finds the file."
                      (unless script (error "No formula renderer in this checkout"))
                      (list "node" script input path (cdr colors)
                            (number-to-string (etaf-md-preview--typeset-pixels)))))
-                  (_ (list "mmdc" "-i" input "-o" path
-                           "-t" (symbol-name (car colors))
-                           "-b" "transparent"
-                           "-s" (number-to-string etaf-md-preview-typeset--scale)
-                           "-q"))))
+                  (_ (let ((config (expand-file-name (concat key ".json") directory)))
+                       (with-temp-file config
+                         (insert (etaf-md-preview--mermaid-config env)))
+                       (list "mmdc" "-i" input "-o" path
+                             "-c" config
+                             "-b" "transparent"
+                             "-s" (number-to-string etaf-md-preview-typeset--scale)
+                             "-q")))))
           (let ((process (funcall #'make-process
                                 :name (format "etaf-md-preview-%s" kind)
                                 :command arguments

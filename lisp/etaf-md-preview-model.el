@@ -368,12 +368,17 @@ list costs one comparison for it instead of a new call."
         (setq block (etaf-md-preview-typeset-attach block env)))
       (let* ((blank (eq (plist-get block :type) 'blank))
              (source (or (etaf-md-preview--block-source block text) ""))
+             ;; The picture is part of the block: it is drawn for one palette,
+             ;; so a block whose picture changed is a different block and must
+             ;; not reuse the entry that still holds the old drawing.
              (digest (unless blank
                        (concat (or (and (plist-get block :type)
                                         (symbol-name (plist-get block :type)))
                                    "block")
                                ":"
-                               (secure-hash 'sha1 source))))
+                               (secure-hash 'sha1
+                                            (concat source "\0"
+                                                    (or (plist-get block :picture) ""))))))
              ;; A blank row paints no source text, so the only thing that tells
              ;; one from another is where it sits among the blank rows.
              (digest (or digest (format "blank:%d" (cl-incf blank-index))))

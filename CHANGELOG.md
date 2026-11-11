@@ -37,6 +37,18 @@
   `Term' with a `:' line under it paints a term with its definitions, and a
   formula paints as text rather than an image.
 
+- A formula is typeset at the page's body size and no larger: KaTeX's own
+  1.21em base and the margins of its display block were both in the picture, so
+  the same formula took twice the height it should and looked blurry after the
+  page scaled it down.
+- A diagram takes the page's colours: mermaid is configured with the page's
+  own surfaces, ink and body size instead of its fixed `default` and `dark`
+  palettes, so a light page carries light boxes.  The margins that keep a
+  drawing off the card's edge and a font the renderer can measure with are set
+  too, which is what stopped a CJK edge label from coming out cut off.
+- A block whose picture changed is a different block.  The published entry's
+  key holds the picture path, so a palette change publishes the pictures drawn
+  for it instead of keeping the ones the previous page had drawn.
 ### Fixed
 
 - A soft line break folds into a space, as CommonMark reads it: the paragraph
