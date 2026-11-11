@@ -267,56 +267,54 @@ position gets a row standing for the text past its last character.  An empty
 file gets that row."
   (let* ((size (length text))
          (blocks (or blocks nil))
+         (front (etaf-md-preview--front-matter-end text))
          (cursor 0)
          (result nil))
     (dolist (block blocks)
       (let ((begin (or (plist-get block :begin) size))
             (end (or (plist-get block :end) cursor)))
-        (dolist (row (etaf-md-preview--gap-rows text cursor begin (zerop cursor)))
+        (dolist (row (etaf-md-preview--gap-rows
+                      text (if (zerop cursor) (max cursor front) cursor) begin))
           (push row result))
         (setq cursor (max cursor end))))
     (cond ((< cursor size)
-           (dolist (row (etaf-md-preview--gap-rows text cursor size nil))
+           (dolist (row (etaf-md-preview--gap-rows text cursor size))
              (push row result)))
           ((or (= size 0) (eq (aref text (1- size)) ?\n))
            (push (list :type 'blank :begin size :end (1+ size) :lines 1) result)))
     (nreverse result)))
 
-(defun etaf-md-preview--gap-rows (text begin end leading)
+(defun etaf-md-preview--front-matter-end (text)
+  "Return the offset past TEXT's front matter, or 0 when it has none.
+The parser reads a first line of `---' and a closing `---' or `...' as front
+matter; the page shows that as its title, so it paints no rows for those
+lines but still paints the blank lines that follow them."
+  (let* ((lines (split-string text "\n"))
+         (close (and (equal (string-trim (car lines)) "---")
+                     (cl-position-if (lambda (line)
+                                       (member (string-trim line) '("---" "...")))
+                                     (cdr lines)))))
+    (if close
+        (1+ (length (mapconcat #'identity (cl-subseq lines 0 (+ close 2)) "\n")))
+      0)))
+
+(defun etaf-md-preview--gap-rows (text begin end)
   "Return the rows TEXT's gap from BEGIN to END contributes.
 A gap holds the lines the parser consumed without a block as well as blank
 lines, so each blank line paints one empty row and a metadata line paints
 nothing: the page keeps the file's own spacing instead of pulling the next
-block up against the last one.  A leading gap holds the front matter, which
-the page shows as its title rather than as lines, so it paints rows only when
-it is entirely blank."
-  (if leading
-      (when (etaf-md-preview--blank-range-p text begin end)
-        (list (etaf-md-preview--blank-block end begin text)))
-    (let ((rows nil)
-          (position begin))
-      (while (< position end)
-        (let* ((newline (string-match "\n" text position))
-               (line-end (if (and newline (< newline end)) newline end)))
-          (when (string-blank-p (substring text position line-end))
-            (push (list :type 'blank :begin position :end (1+ line-end) :lines 1)
-                  rows))
-          (setq position (1+ line-end))))
-      (nreverse rows))))
-
-(defun etaf-md-preview--blank-range-p (text begin end)
-  "Return non-nil when TEXT holds only blank space between BEGIN and END.
-What the blocks leave out is not necessarily blank: front matter is metadata
-the page shows as its title and subtitle rather than as lines, and painting a
-row for it would open the page with the rows the file spends on it."
-  (and (> end begin) (string-blank-p (substring text begin end))))
-
-(defun etaf-md-preview--blank-block (end begin text)
-  "Return a blank block covering TEXT between BEGIN and END, one row per line.
-An empty line is a newline, so the stretch holds as many lines as it holds
-newlines; the page paints exactly that many empty rows."
-  (list :type 'blank :begin begin :end end
-        :lines (max 1 (cl-count ?\n text :start begin :end end))))
+block up against the last one.  The front matter is the one stretch a caller
+leaves out, because the page shows it as its title rather than as lines."
+  (let ((rows nil)
+        (position begin))
+    (while (< position end)
+      (let* ((newline (string-match "\n" text position))
+             (line-end (if (and newline (< newline end)) newline end)))
+        (when (string-blank-p (substring text position line-end))
+          (push (list :type 'blank :begin position :end (1+ line-end) :lines 1)
+                rows))
+        (setq position (1+ line-end))))
+    (nreverse rows)))
 
 (defun etaf-md-preview--paintable-blocks (blocks text)
   "Return BLOCKS in source order with their blank stretches filled in as rows.

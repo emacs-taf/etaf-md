@@ -528,7 +528,9 @@ keeps the Emacs theme's own background."
          (background (plist-get env :background))
          (hero (etaf-md-preview--meta-node document env))
          (body (append
-                (when hero (list hero (etaf-md-preview--spacer)))
+                ;; The blank lines after the front matter are the page's own:
+                ;; the header replaces those lines, not the gap under them.
+                (when hero (list hero))
                 (list (etaf-md-preview--view-blocks
                        (plist-get document :children)))
                 (when-let* ((footnotes (plist-get document :footnotes)))

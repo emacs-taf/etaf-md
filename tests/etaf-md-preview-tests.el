@@ -658,6 +658,53 @@ Turning it off leaves the page where the reader put it."
         (kill-buffer source))
       (delete-file file))))
 
+(defun etaf-md-preview-tests--rows (text)
+  "Return TEXT's painted rows, one string per row, without properties."
+  (let* ((session (etaf-md-preview-create :text text))
+         (buffer (generate-new-buffer " *etaf-md-preview rows*"))
+         (name (buffer-name buffer)))
+    (unwind-protect
+        (progn
+          (etaf-mount name (etaf-md-preview-view session))
+          (sit-for 0.05)
+          (with-current-buffer name
+            (split-string (substring-no-properties (buffer-string)) "\n")))
+      (when-let* ((runtime (etaf-runtime-for-buffer name)))
+        (etaf-unmount runtime))
+      (when (get-buffer name) (kill-buffer name)))))
+
+(defun etaf-md-preview-tests--gap (text from to)
+  "Return how many blank rows sit between the rows holding FROM and TO."
+  (let* ((rows (etaf-md-preview-tests--rows text))
+         (start (cl-position-if (lambda (row) (string-match-p (regexp-quote from) row)) rows))
+         (end (cl-position-if (lambda (row) (string-match-p (regexp-quote to) row)) rows)))
+    (cl-count-if #'string-blank-p (cl-subseq rows (1+ start) end))))
+
+(defun etaf-md-preview-tests--blank-rows-above (text needle)
+  "Return the blank rows a page of TEXT paints above NEEDLE, less its top row."
+  (let* ((rows (etaf-md-preview-tests--rows text))
+         (end (cl-position-if (lambda (row) (string-match-p (regexp-quote needle) row)) rows)))
+    (1- (cl-count-if #'string-blank-p (cl-subseq rows 0 end)))))
+
+(ert-deftest etaf-md-preview-tests-blank-lines-follow-the-source ()
+  "The page paints one row per blank source line wherever the blank sits.
+A blank line between blocks, inside a loose list item and after a line the
+parser consumes without painting one all become rows the reader can type on,
+and two blank lines become two rows instead of collapsing into one."
+  (should (= 1 (etaf-md-preview-tests--gap "a\n\nb\n" "a" "b")))
+  (should (= 2 (etaf-md-preview-tests--gap "a\n\n\nb\n" "a" "b")))
+  (should (= 1 (etaf-md-preview-tests--gap "- a\n\n  b\n" "a" "b")))
+  (should (= 1 (etaf-md-preview-tests--gap "1. a\n\n   b\n" "a" "b")))
+  ;; The definition line paints nothing, so the blank after it is the gap the
+  ;; page keeps; before the fix the whole leading stretch was skipped.
+  (should (= 1 (etaf-md-preview-tests--blank-rows-above
+                "*[HTML]: HyperText Markup Language\n\nHTML 是标记\n" "HTML 是标记")))
+  (should (= 1 (etaf-md-preview-tests--blank-rows-above
+                "[r]: https://example.com\n\nuse [r]\n" "use")))
+  ;; The front matter becomes the header, and its blank line stays.
+  (should (= 1 (etaf-md-preview-tests--gap
+                "---\ntitle: T\n---\n\nbody\n" "T" "body"))))
+
 (ert-deftest etaf-md-preview-tests-saving-the-source-repaints-the-preview ()
   "Saving a source file republishes its open preview without a manual reload."
   (let* ((file (make-temp-file "etaf-md-preview-follow-" nil ".md"))

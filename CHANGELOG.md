@@ -39,6 +39,11 @@
 
 ### Fixed
 
+- The blank lines after a leading definition line are painted again: a
+  document that opens with a link reference or an abbreviation definition used
+  to lose the gap after it, because the whole leading stretch was skipped as
+  front matter.  The front matter alone is skipped now, and the blank lines
+  around it keep their rows.
 - The page title takes the size of a level-one heading, which is the rank a
   front matter title has.  It used to be a notch smaller than that rank, so a
   document whose sections start at level 2 read as if the title and the

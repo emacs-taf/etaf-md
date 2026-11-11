@@ -141,6 +141,11 @@
       "purpose": "The scroll follow puts the block at the source window's top at the top of the page, and turning it off leaves the page alone."
     },
     {
+      "name": "etaf-md-preview-tests-blank-lines-follow-the-source",
+      "file": "tests/etaf-md-preview-tests.el",
+      "purpose": "One blank source line paints one row between blocks, inside a loose list item, after a metadata line and after the front matter."
+    },
+    {
       "name": "etaf-md-preview-tests-saving-the-source-repaints-the-preview",
       "file": "tests/etaf-md-preview-tests.el",
       "purpose": "Saving a source file repaints its open preview without a manual reload and keeps the reader in the section it was reading."
