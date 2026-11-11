@@ -279,13 +279,9 @@ starting a publish the first already asked for."
 
 (defun etaf-md-preview--typeset-repaint (session)
   "Publish SESSION's document again so the page paints its new pictures.
-A session whose file is not being visited has no source text of its own, so it
-reads the file; one that is being edited republishes the buffer's text."
-  (when (buffer-live-p (plist-get session :buffer))
-    (if (and (plist-get session :file)
-             (not (buffer-live-p (plist-get session :source-buffer))))
-        (etaf-md-preview-refresh session)
-      (etaf-md-preview--publish session (etaf-md-preview--session-text session)))))
+The republish reads the same source the page follows, so a picture that lands
+while the file is not being visited publishes the file rather than nothing."
+  (etaf-md-preview--republish session))
 
 (defun etaf-md-preview--render-code-block (block env)
   "Return BLOCK drawn as its picture, or nil to keep its source.

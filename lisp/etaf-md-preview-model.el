@@ -137,12 +137,21 @@ own error type at its boundary."
          (substring text begin end))))
 
 (defun etaf-md-preview--session-text (session)
-  "Return SESSION's current source text, reading its file buffer when it has one."
+  "Return SESSION's current source text.
+The text of the buffer visiting the file when there is one, so an unsaved edit
+is what gets published; then the text the session was created with; then the
+file's own contents.  A session that has none of them has no text, which reads
+as an empty document rather than a failure."
   (let ((source (plist-get session :source-buffer)))
-    (if (buffer-live-p source)
-        (with-current-buffer source
-          (buffer-substring-no-properties (point-min) (point-max)))
-      (or (plist-get session :text) ""))))
+    (cond ((buffer-live-p source)
+           (with-current-buffer source
+             (buffer-substring-no-properties (point-min) (point-max))))
+          ((plist-get session :text))
+          ((plist-get session :file)
+           (or (ignore-errors
+                 (etaf-md-preview--read-source (plist-get session :file)))
+               ""))
+          (t ""))))
 
 (defun etaf-md-preview--table-skeleton (block)
   "Return BLOCK's table as the pipe-and-dashes source that defines it.
@@ -704,9 +713,8 @@ A picture block carries the file drawn for the palette it was published with,
 so a palette change has to publish the document even though its text is the
 same.  The parse is cached, so this costs the block keys, not the text, and the
 publish starts the pictures the new palette needs."
-  (when-let* (((plist-get session :buffer))
-              (contents (car (plist-get session :parsed))))
-    (etaf-md-preview--install session contents))
+  (when (plist-get session :buffer)
+    (etaf-md-preview--install session (etaf-md-preview--session-text session)))
   session)
 
 (defun etaf-md-preview-set-theme (session theme)

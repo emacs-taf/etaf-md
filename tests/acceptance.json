@@ -141,9 +141,14 @@
       "purpose": "The scroll follow puts the block at the source window's top at the top of the page, and turning it off leaves the page alone."
     },
     {
-      "name": "etaf-md-preview-tests-every-source-line-keeps-its-row",
+      "name": "etaf-md-preview-tests-a-theme-switch-keeps-a-closed-source-whole",
       "file": "tests/etaf-md-preview-tests.el",
-      "purpose": "A soft break, a two-space break and a backslash break each keep a row, a fenced blank line stays a row inside the block, and blank lines between blocks keep their count."
+      "purpose": "A palette switch republishes the file when its source buffer is closed, keeping the page whole instead of publishing an empty document."
+    },
+    {
+      "name": "etaf-md-preview-tests-breaks-follow-the-markdown-rules",
+      "file": "tests/etaf-md-preview-tests.el",
+      "purpose": "A soft break folds into one row, a two-space or backslash break and a blank line inside a fence paint their own rows, and blank lines between blocks keep their count."
     },
     {
       "name": "etaf-md-preview-tests-blank-lines-follow-the-source",

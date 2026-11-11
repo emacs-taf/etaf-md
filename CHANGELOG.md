@@ -39,10 +39,13 @@
 
 ### Fixed
 
-- A line break the source wrote keeps its row: the page is read beside the
-  markdown, so a soft break, a two-space break and a backslash break each put
-  the next line on its own row, a blank line inside a fence stays a row inside
-  the block, and blank lines between blocks keep their count.
+- A soft line break folds into a space, as CommonMark reads it: the paragraph
+  flows and wraps at the page's own width.  A two-space or backslash break is
+  the author asking for a line end and still paints its own row, and a blank
+  line inside a fence stays a row inside the block.
+- A republish publishes the file when the buffer visiting it is gone.  A
+  picture that landed after that buffer closed asked the session for its text,
+  got nothing, and published an empty page.
 - A typeset picture is placed at the size it is meant to occupy: the file is
   drawn at two device pixels per point for sharpness, and the grid it is put in
   now comes from half that file size.  Formulas are set at the reader's body

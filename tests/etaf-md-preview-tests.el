@@ -686,29 +686,59 @@ Turning it off leaves the page where the reader put it."
          (end (cl-position-if (lambda (row) (string-match-p (regexp-quote needle) row)) rows)))
     (1- (cl-count-if #'string-blank-p (cl-subseq rows 0 end)))))
 
-(ert-deftest etaf-md-preview-tests-every-source-line-keeps-its-row ()
-  "A line break the source wrote keeps a row on the page.
-The page is read beside the source, so a soft break, a two-space break and a
-backslash break each put the next line on its own row, a code block keeps the
-blank line inside it, and a blank line between a block and the next keeps one
-row of its own."
-  (let ((rows (lambda (text) (etaf-md-preview-tests--rows text)))
-        (row (lambda (text needle)
+(ert-deftest etaf-md-preview-tests-a-theme-switch-keeps-a-closed-source-whole ()
+  "Switching the palette keeps the page whole after its source buffer closed.
+The republish a palette change asks for reads the session's source, and a
+session whose file is no longer visited used to answer with no text at all: the
+page collapsed to an empty document."
+  (let* ((file (make-temp-file "etaf-md-preview-palette-" nil ".md"))
+         (source nil)
+         (preview nil))
+    (unwind-protect
+        (progn
+          (with-temp-file file
+            (insert "# 标题\n\n正文一段，写在源文件里。\n\n第二段。\n"))
+          (setq source (find-file-noselect file))
+          (setq preview (etaf-md-preview-open file))
+          (should (> (with-current-buffer preview (buffer-size)) 40))
+          (kill-buffer source)
+          (setq source nil)
+          (with-current-buffer preview
+            (etaf-md-preview-set-theme (etaf-app-state preview) 'light))
+          (sit-for 0.3)
+          (with-current-buffer preview
+            (should (string-match-p "正文一段" (buffer-string)))
+            (should (string-match-p "第二段" (buffer-string)))))
+      (when (buffer-live-p preview) (kill-buffer preview))
+      (when (buffer-live-p source)
+        (with-current-buffer source (set-buffer-modified-p nil))
+        (kill-buffer source))
+      (delete-file file))))
+
+(ert-deftest etaf-md-preview-tests-breaks-follow-the-markdown-rules ()
+  "A soft break folds into the paragraph; a hard break and a blank line paint rows.
+CommonMark reads a source line end inside a paragraph as a space, so the page
+flows the text at its own width; two trailing spaces or a backslash asks for a
+line end, a blank line inside a fence stays a row inside the block, and blank
+lines between blocks keep their count."
+  (let ((row (lambda (text needle)
                (cl-position-if (lambda (line) (string-match-p (regexp-quote needle) line))
                                (etaf-md-preview-tests--rows text)))))
-    ;; A break of each spelling leaves the two lines one row apart.
-    (dolist (text (list "a\nb\n" "a  \nb\n" "a\\\nb\n"))
-      (let ((first (funcall row text "a")) (second (funcall row text "b")))
-        (should first)
-        (should (= 1 (- second first)))))
+    ;; One folded row holds both words of a soft break.
+    (let ((rows (etaf-md-preview-tests--rows "alpha\nbeta\n")))
+      (should (= 1 (length (cl-remove-if-not
+                            (lambda (line) (string-match-p "alpha" line)) rows))))
+      (should (string-match-p "alpha beta"
+                              (nth (funcall row "alpha\nbeta\n" "alpha") rows))))
+    ;; A hard break of either spelling starts a row of its own.
+    (dolist (text (list "alpha  \nbeta\n" "alpha\\\nbeta\n"))
+      (should (= 1 (- (funcall row text "beta") (funcall row text "alpha")))))
     ;; A blank line inside a fence is a row inside the block.
     (let* ((text "```\nfirst\n\nsecond\n```\n")
            (first (funcall row text "first"))
            (second (funcall row text "second")))
       (should (= 2 (- second first)))
-      ;; The row between them belongs to the block's own margins; what it must
-      ;; not do is hold either line.
-      (let ((between (nth (1+ first) (funcall rows text))))
+      (let ((between (nth (1+ first) (etaf-md-preview-tests--rows text))))
         (should-not (string-match-p "first\\|second" between))))
     ;; Two blank lines between blocks paint two rows, not one and not none.
     (should (= 2 (etaf-md-preview-tests--gap "a\n\n\nb\n" "a" "b")))
