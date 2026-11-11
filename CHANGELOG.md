@@ -73,6 +73,10 @@
   a whole line in the layout, so `(lh 0.5)` added two rows and turned a single
   blank line between two formulas into an 80-pixel gap; the raster's own
   transparent rows and the source's blank lines are the separation now.
+- A diagram is drawn and measured in the reader's own font: the renderer
+  takes the frame's default family first and puts the CJK face behind it, so a
+  label is set in the page's type instead of a fixed family, and a font with no
+  CJK glyph no longer clips a label.
 ### Fixed
 
 - A soft line break folds into a space, as CommonMark reads it: the paragraph

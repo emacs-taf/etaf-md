@@ -144,9 +144,12 @@ keystroke pays for."
 
 (defun etaf-md-preview--typeset-figure (kind path env)
   "Return the View of the picture at PATH for KIND in ENV.
-A diagram keeps a frame and a caption that opens the file, the way an image
-card does; a formula is its own line with no frame, because it belongs to the
-sentence above it."
+A diagram keeps a caption that opens the file, the way an image card does; a
+formula is its own line with no frame, because it belongs to the sentence above
+it.  The figure states the reading measure as its own width instead of filling
+its container: a block is a Component, and a stretch inside one resolves against
+the frame rather than the page, which left a figure centred for the frame and
+clipped by the page."
   (let* ((width (max 24 (or (plist-get env :width) 92)))
          ;; The picture is drawn at `--scale' device pixels per point, so its
          ;; own pixel size is that many times the size it should occupy; the
@@ -171,7 +174,7 @@ sentence above it."
         ;; still takes one, and that turned two formulas one blank line apart
         ;; into an 80-pixel gap.
         (etaf-node 'column
-                   (list :width 'stretch :cross-align 'center)
+                   (list :width (list 'ch width) :cross-align 'center)
                    (list image))
       (let ((open-file (plist-get env :open-file))
             (caption (format "%s（按 RET 打开）" (file-name-nondirectory path))))
@@ -179,12 +182,28 @@ sentence above it."
         ;; under it names the file, so the page reads as one surface instead of
         ;; a card inside a card.
         (etaf-node 'column
-                   (list :width 'stretch :cross-align 'center :item-gap '(lh 0)
+                   (list :width (list 'ch width) :cross-align 'center :item-gap '(lh 0)
                          :on-press (lambda () (when open-file (funcall open-file path)))
                          :role 'button :tab-index 0 :pointer 'hand
                          :help-echo caption)
                    (list image
                          (etaf-md-preview--caption-view "▲ mermaid" env)))))))
+
+(defconst etaf-md-preview-mermaid-fonts
+  '("LXGWWenKai" "PingFang SC" "Hiragino Sans GB" "Helvetica Neue" "Arial")
+  "Families a diagram falls back to when the reader's own font lacks a glyph.
+The first three carry the CJK shapes a diagram label needs; the last two are
+the families every desktop has, so the renderer can always measure a label.")
+
+(defun etaf-md-preview--mermaid-font-family ()
+  "Return the font stack a diagram is drawn and measured with.
+The reader's default face comes first, so a diagram uses the type they read
+the page in; the names after it cover the glyphs that face may lack."
+  (let* ((family (ignore-errors (face-attribute 'default :family nil t)))
+         (names (if (and (stringp family) (not (string-empty-p family)))
+                    (cons family etaf-md-preview-mermaid-fonts)
+                  etaf-md-preview-mermaid-fonts)))
+    (mapconcat #'identity (delete-dups names) ", ")))
 
 (defun etaf-md-preview--mermaid-config (env)
   "Return the mermaid configuration JSON drawn for ENV's page.
@@ -230,11 +249,13 @@ sequence diagram starts at the very first pixel."
            (noteBkgColor . ,quote)
            (noteTextColor . ,ink)
            (noteBorderColor . ,border)
-           ;; The diagram is measured with this font as well as drawn with
-           ;; it: a family the renderer's Chromium lacks makes it measure the
-           ;; label narrower than the glyphs, and a CJK edge label comes out
-           ;; cut off.  These are the families every desktop has.
-           (fontFamily . "Helvetica Neue, Helvetica, Arial, sans-serif")
+           ;; The diagram is measured with this font as well as drawn with it:
+           ;; a family the renderer's Chromium lacks makes it measure the label
+           ;; narrower than the glyphs, and a CJK edge label comes out cut off.
+           ;; The reader's own font comes first, so a diagram carries the same
+           ;; type as the page, with the CJK face behind it and a family every
+           ;; desktop has as the last resort.
+           (fontFamily . ,(etaf-md-preview--mermaid-font-family))
            (fontSize . ,(format "%dpx" (round (etaf-md-preview--base-pixels))))))
        (flowchart . ((padding . 12) (useMaxWidth . t) (htmlLabels . t)))
        (sequence . ((diagramMarginX . 16) (diagramMarginY . 12)
