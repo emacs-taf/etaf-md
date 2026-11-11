@@ -231,11 +231,16 @@ Signal `etaf-md-preview-error' when either is unknown."
       color)))
 
 (defun etaf-md-preview--base-pixels ()
-  "Return the frame's default font size in CSS reference pixels."
-  (let ((height (face-attribute 'default :height nil t)))
-    (if (numberp height)
-        (max 8 (round (/ (* height 4.0) 30.0)))
-      16.0)))
+  "Return the pixel height of the frame's default font.
+A formula or a diagram is placed beside text drawn in that font, so this is the
+size it is typeset at.  Emacs reports the font in points; the pixels a point
+takes belong to the frame, so the frame's own measured height is read.
+A batch session has no window, and the old conversion keeps it working."
+  (or (ignore-errors (window-font-height))
+      (let ((height (face-attribute 'default :height nil t)))
+        (if (numberp height)
+            (max 8 (round (/ (* height 4.0) 30.0)))
+          16.0))))
 
 (defun etaf-md-preview-theme-tokens (theme &optional palette)
   "Return the ETAF UI token plist for palette THEME.

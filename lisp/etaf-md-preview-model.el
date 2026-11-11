@@ -371,13 +371,20 @@ list costs one comparison for it instead of a new call."
              ;; The picture is part of the block: it is drawn for one palette,
              ;; so a block whose picture changed is a different block and must
              ;; not reuse the entry that still holds the old drawing.
+             ;; The palette is part of the block too: a block's view carries
+             ;; the colours it was built with, so a palette change must build
+             ;; it again rather than hand back the previous page's painting.
+             (palette (format "%s|%s|%s"
+                              (plist-get env :theme)
+                              (plist-get env :background)
+                              (plist-get env :ink)))
              (digest (unless blank
                        (concat (or (and (plist-get block :type)
                                         (symbol-name (plist-get block :type)))
                                    "block")
                                ":"
                                (secure-hash 'sha1
-                                            (concat source "\0"
+                                            (concat source "\0" palette "\0"
                                                     (or (plist-get block :picture) ""))))))
              ;; A blank row paints no source text, so the only thing that tells
              ;; one from another is where it sits among the blank rows.
