@@ -110,11 +110,17 @@ instead of reusing the colours of the old surface."
                        (cdr (etaf-md-preview--typeset-colors env))
                        ;; A formula drawn for another body size is another
                        ;; picture, not a cache hit.
+                       ;; A formula depends on the size it is set at, and a
+                       ;; diagram on every setting of the renderer's config:
+                       ;; the font it is measured with, its colours and its
+                       ;; margins.  A key without them hands back a picture
+                       ;; drawn the old way, which is how a font change looked
+                       ;; like it had not been applied.
                        (if (eq kind 'math)
                            (format "%d/%d"
                                    (etaf-md-preview--typeset-pixels)
                                    (max 1 (or (ignore-errors (frame-char-height)) 16)))
-                         0))))
+                         (secure-hash 'sha1 (etaf-md-preview--mermaid-config env))))))
 
 (defun etaf-md-preview--typeset-path (key)
   "Return the PNG path of KEY."

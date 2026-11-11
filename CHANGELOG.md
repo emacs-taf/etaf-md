@@ -77,6 +77,9 @@
   takes the frame's default family first and puts the CJK face behind it, so a
   label is set in the page's type instead of a fixed family, and a font with no
   CJK glyph no longer clips a label.
+- A picture's cache key carries every setting it was drawn with: a diagram
+  keys on the renderer's whole configuration, so changing its font, margins or
+  colours draws a new picture instead of handing back the one drawn before.
 ### Fixed
 
 - A soft line break folds into a space, as CommonMark reads it: the paragraph
