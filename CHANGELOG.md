@@ -4,6 +4,19 @@
 
 ### Fixed
 
+- A formula or a diagram is drawn for the same surface the page paints.  The
+  picture's palette was chosen from the frame's appearance whenever the preview
+  followed the Emacs theme, while the page itself followed the theme's faces: a
+  frame reporting itself dark on a light page produced diagrams with dark boxes
+  and a formula in light ink, invisible until its picture was replaced.  The
+  same test called the palette's slate `#191a1c` light, because it sat 1.6:1
+  from black and the test asked for 1.5, so a dark page could be drawn with the
+  light palette; the surface is now dark when it stands farther from white than
+  from black.
+- Every diagram kind is drawn at the page's size.  Mermaid sizes each kind on
+  its own: sequence messages came out at 12px beside 14px actors, and gantt,
+  er, requirement and state diagrams default to 11, 12, 14 and 24, so one page
+  carried several sizes and a diagram's text did not match its neighbours.
 - A diagram's Chinese labels are drawn in the reader's WenKai face instead of
   whatever CJK face the system picks.  The font stack named `LXGWWenKai', which
   is the font's file name rather than its family: the renderer found no such

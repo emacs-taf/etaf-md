@@ -87,15 +87,26 @@ Chromium and KaTeX that package installs."
   "Return (PALETTE . INK) drawn for ENV's page.
 The diagram theme follows the page it is placed on, which a named palette sets
 even when the frame is the other way round: a light page keeps light diagrams.
-A page with no background of its own is read in the frame's appearance.  A
-formula is inked in the page's own text colour, so both sit on whatever surface
-the page paints instead of carrying a palette of their own."
-  (let* ((background (plist-get env :background))
-         (dark (if (and background (stringp background))
-                   ;; A dark page is the one with little contrast against
-                   ;; black, since the ratio against white would be large.
-                   (<= (etaf-ui-color-contrast background "#000000") 1.5)
-                 (eq (etaf-appearance) 'dark))))
+A page with no background of its own is read from its palette's surface, the
+same value the page paints, so a picture and its page never disagree about
+which way round they are.  A formula is inked in the page's own text colour, so
+both sit on whatever surface the page paints instead of carrying a palette of
+their own."
+  (let* ((background (or (plist-get env :background)
+                         ;; A page in the face-derived appearance has no
+                         ;; background of its own, but its palette still names
+                         ;; the surface it paints: the frame's appearance is a
+                         ;; second opinion, and the two disagree whenever a
+                         ;; theme's faces are lighter than `background-mode'
+                         ;; says.  A picture drawn from the frame's opinion
+                         ;; lands as light ink on a light page.
+                         (etaf-md-preview--env-color env :bg)))
+         ;; The surface is dark when it stands farther from white than from
+         ;; black.  A fixed ratio against black called a slate page light: the
+         ;; palette's #191a1c sits 1.6:1 from black, past the 1.5 the old test
+         ;; asked for, so a dark page was drawn with the light palette.
+         (dark (> (etaf-ui-color-contrast background "#ffffff")
+                  (etaf-ui-color-contrast background "#000000"))))
     (cons (if dark 'dark 'light)
           (etaf-md-preview--env-color env :ink))))
 
@@ -231,7 +242,8 @@ sequence diagram starts at the very first pixel."
         (muted (etaf-md-preview--env-color env :muted))
         (quote (etaf-md-preview--env-color env :quote-bg))
         (page (or (plist-get env :background)
-                  (if (eq (etaf-appearance) 'dark) "#0d1117" "#ffffff"))))
+                  (etaf-md-preview--env-color env :bg)))
+        (base (round (etaf-md-preview--base-pixels))))
     (json-encode
      `((look . "classic")
        (theme . "base")
@@ -269,10 +281,22 @@ sequence diagram starts at the very first pixel."
            ;; type as the page, with the CJK face behind it and a family every
            ;; desktop has as the last resort.
            (fontFamily . ,(etaf-md-preview--mermaid-font-family))
-           (fontSize . ,(format "%dpx" (round (etaf-md-preview--base-pixels))))))
+           (fontSize . ,(format "%dpx" base))))
        (flowchart . ((padding . 12) (useMaxWidth . t) (htmlLabels . t)))
+       ;; Mermaid sizes each kind of diagram on its own: a sequence diagram's
+       ;; messages come out at 12px beside 14px actors, and gantt, er,
+       ;; requirement and state diagrams default to 11, 12, 14 and 24.  One page
+       ;; reads as one typeface, so every kind is told the page's size.  A
+       ;; diagram wider than the column is still scaled to fit, and that is the
+       ;; only change of size a reader sees.
        (sequence . ((diagramMarginX . 16) (diagramMarginY . 12)
-                    (actorMargin . 40) (boxMargin . 10)))))))
+                    (actorMargin . 40) (boxMargin . 10)
+                    (actorFontSize . ,base) (messageFontSize . ,base)
+                    (noteFontSize . ,base)))
+       (gantt . ((fontSize . ,base) (sectionFontSize . ,base)))
+       (er . ((fontSize . ,base)))
+       (requirement . ((fontSize . ,base)))
+       (state . ((fontSize . ,base)))))))
 
 (defun etaf-md-preview--typeset-start (key kind source env done)
   "Start rendering SOURCE of KIND for KEY, and return the process.
