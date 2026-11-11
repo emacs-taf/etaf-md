@@ -686,6 +686,35 @@ Turning it off leaves the page where the reader put it."
          (end (cl-position-if (lambda (row) (string-match-p (regexp-quote needle) row)) rows)))
     (1- (cl-count-if #'string-blank-p (cl-subseq rows 0 end)))))
 
+(ert-deftest etaf-md-preview-tests-every-source-line-keeps-its-row ()
+  "A line break the source wrote keeps a row on the page.
+The page is read beside the source, so a soft break, a two-space break and a
+backslash break each put the next line on its own row, a code block keeps the
+blank line inside it, and a blank line between a block and the next keeps one
+row of its own."
+  (let ((rows (lambda (text) (etaf-md-preview-tests--rows text)))
+        (row (lambda (text needle)
+               (cl-position-if (lambda (line) (string-match-p (regexp-quote needle) line))
+                               (etaf-md-preview-tests--rows text)))))
+    ;; A break of each spelling leaves the two lines one row apart.
+    (dolist (text (list "a\nb\n" "a  \nb\n" "a\\\nb\n"))
+      (let ((first (funcall row text "a")) (second (funcall row text "b")))
+        (should first)
+        (should (= 1 (- second first)))))
+    ;; A blank line inside a fence is a row inside the block.
+    (let* ((text "```\nfirst\n\nsecond\n```\n")
+           (first (funcall row text "first"))
+           (second (funcall row text "second")))
+      (should (= 2 (- second first)))
+      ;; The row between them belongs to the block's own margins; what it must
+      ;; not do is hold either line.
+      (let ((between (nth (1+ first) (funcall rows text))))
+        (should-not (string-match-p "first\\|second" between))))
+    ;; Two blank lines between blocks paint two rows, not one and not none.
+    (should (= 2 (etaf-md-preview-tests--gap "a\n\n\nb\n" "a" "b")))
+    (should (= 1 (etaf-md-preview-tests--gap
+                  "| a |\n| --- |\n| 1 |\n\nbody\n" "1" "body")))))
+
 (ert-deftest etaf-md-preview-tests-blank-lines-follow-the-source ()
   "The page paints one row per blank source line wherever the blank sits.
 A blank line between blocks, inside a loose list item and after a line the
