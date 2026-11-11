@@ -362,31 +362,46 @@ preview is not on screen, or when the window already starts there."
     (when (and start window (eq (window-buffer window) buffer))
       (unless (eql (plist-get session :follow-scroll-start) start)
         (plist-put session :follow-scroll-start start)
-        (when-let* ((runtime (etaf-runtime-for-buffer buffer))
-                    (ref (etaf-md-preview--block-ref-at session start))
-                    (position (etaf-host-ref-position runtime ref)))
-          (set-window-start window position)
-          position)))))
+        (let ((ref (etaf-md-preview--block-ref-at session start)))
+          (cond
+           ((eq ref 'top)
+            ;; The page opens on its front matter header, which no block
+            ;; owns; POSITION is read in the preview buffer, not in the
+            ;; source the hook runs in.
+            (let ((top (with-current-buffer buffer (point-min))))
+              (set-window-start window top)
+              top))
+           (ref
+            (when-let* ((runtime (etaf-runtime-for-buffer buffer))
+                        (position (etaf-host-ref-position runtime ref)))
+              (set-window-start window position)
+              position))))))))
 
 (defun etaf-md-preview--block-ref-at (session position)
-  "Return the ref of the block SESSION's page shows for source POSITION.
-POSITION is a character offset in the source text: its ref is the block that
-holds it, or the next block when it falls in the blank lines between two
-blocks.  A position past the last block answers with that block, and a page
-whose blocks carry no source range answers nil."
-  (let ((last nil)
+  "Return what SESSION's page shows at source POSITION.
+The answer is the ref of the block holding POSITION, or of the next block when
+POSITION falls in the blank lines between two blocks.  A position above the
+first block answers `top', because the page opens on the front matter header
+that no block owns; a position past the last block answers with that block.
+A page whose blocks carry no source range answers nil."
+  (let ((first nil)
+        (last nil)
         (found nil))
     (dolist (entry (plist-get (etaf-md-preview--read session :document) :children))
       (let* ((block (plist-get entry :block))
+             (begin (plist-get block :begin))
              (end (plist-get block :end)))
         (when (and (not found)
-                   (integerp (plist-get block :begin))
+                   (integerp begin)
                    (integerp end)
                    (not (eq (plist-get block :type) 'blank)))
+          (setq first (or first begin))
           (setq last (plist-get entry :ref))
           (when (< position end)
             (setq found last)))))
-    (or found last)))
+    (cond ((and first (< position first)) 'top)
+          (found)
+          (t last))))
 
 (defun etaf-md-preview--follow-schedule (file)
   "Repaint FILE's preview on the next frame.

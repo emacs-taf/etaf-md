@@ -39,6 +39,10 @@
 
 ### Fixed
 
+- The scroll follow reaches the top of the page: a source position above the
+  first block sits in the front matter, which no block owns, so the page used
+  to scroll past its header.  It now opens on the title, tags and metadata
+  line the page starts with.
 - An edit repaints a document that holds a definition list: the parse keeps a
   range for the paragraph above the list as well as for the list, and an edit
   whose document has a block without one falls back to a whole parse instead

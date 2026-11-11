@@ -604,7 +604,7 @@ Turning it off leaves the page where the reader put it."
     (unwind-protect
         (progn
           (with-temp-file file
-            (insert "# 标题\n\n")
+            (insert "---\ntitle: 跟随测试\n---\n\n")
             (dotimes (index 40)
               (insert (format "第 %d 段：一段用来测量跟随滚动的正文。\n\n" index))))
           (setq source (find-file-noselect file))
@@ -640,7 +640,18 @@ Turning it off leaves the page where the reader put it."
               ;; hook a command runs is what moves it.
               (run-hooks 'post-command-hook))
             (etaf-runtime-flush (etaf-runtime-for-buffer preview))
-            (should (string-match-p "第 20 段" (funcall top-line preview-window)))))
+            (should (string-match-p "第 20 段" (funcall top-line preview-window)))
+            ;; The first line of the source sits above the first block when
+            ;; the document opens with front matter, and the page shows its
+            ;; header there; the follow has to reach that header too.
+            (with-current-buffer source
+              (should (etaf-md-preview-follow-scroll 1))
+              (goto-char (point-min))
+              (set-window-start source-window (point-min))
+              (run-hooks 'post-command-hook))
+            (etaf-runtime-flush (etaf-runtime-for-buffer preview))
+            (should (= (window-start preview-window)
+                       (with-current-buffer preview (point-min))))))
       (when (buffer-live-p preview) (kill-buffer preview))
       (when (buffer-live-p source)
         (with-current-buffer source (set-buffer-modified-p nil))
