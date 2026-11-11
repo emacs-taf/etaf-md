@@ -160,25 +160,25 @@ sentence above it."
                                  :adapter 'auto)
                            nil)))
     (if (eq kind 'math)
-        ;; The blank lines the source wrote above and below the formula are
-        ;; the separation it gets, the way the text around it is separated;
-        ;; padding of the figure's own added a second, larger gap.
+        ;; A formula sits in the running text, so it takes half a line of air
+        ;; above and below it; the source's own blank lines add their rows to
+        ;; that instead of being the whole separation.
         (etaf-node 'column
-                   (list :width 'stretch :cross-align 'center)
+                   (list :width 'stretch :cross-align 'center
+                         :padding '((lh 0.5) (ch 0)))
                    (list image))
       (let ((open-file (plist-get env :open-file))
             (caption (format "%s（按 RET 打开）" (file-name-nondirectory path))))
+        ;; A diagram is its own drawing: no frame around it, and the caption
+        ;; under it names the file, so the page reads as one surface instead of
+        ;; a card inside a card.
         (etaf-node 'column
-                   (list :width 'stretch :cross-align 'center :item-gap '(lh 0))
-                   (list
-                    (etaf-node 'box
-                               (list :border (list '(px 1) 'solid
-                                                   (etaf-md-preview--env-color env :border))
-                                     :on-press (lambda () (when open-file (funcall open-file path)))
-                                     :role 'button :tab-index 0 :pointer 'hand
-                                     :help-echo caption)
-                               (list image))
-                    (etaf-md-preview--caption-view "▲ mermaid" env)))))))
+                   (list :width 'stretch :cross-align 'center :item-gap '(lh 0)
+                         :on-press (lambda () (when open-file (funcall open-file path)))
+                         :role 'button :tab-index 0 :pointer 'hand
+                         :help-echo caption)
+                   (list image
+                         (etaf-md-preview--caption-view "▲ mermaid" env)))))))
 
 (defun etaf-md-preview--mermaid-config (env)
   "Return the mermaid configuration JSON drawn for ENV's page.
@@ -195,7 +195,8 @@ sequence diagram starts at the very first pixel."
         (page (or (plist-get env :background)
                   (if (eq (etaf-appearance) 'dark) "#0d1117" "#ffffff"))))
     (json-encode
-     `((theme . "base")
+     `((look . "classic")
+       (theme . "base")
        (themeVariables
         . ((background . "transparent")
            (primaryColor . ,panel)

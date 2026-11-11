@@ -55,6 +55,12 @@
   window, and a formula a pixel taller than its rows took a whole extra row,
   which showed as a gap under it.  A formula now sits in 2 to 3 rows with one
   blank row between two of them, and a diagram stays inside the measure.
+- A diagram is drawn flat: mermaid's `neo` look gives every node a thick
+  outline and a drop shadow, which reads as a heavy card inside a card.  The
+  renderer asks for the classic look, and the card frame around a diagram is
+  gone, so a drawing sits on the page with only its caption under it.
+- A display formula takes half a line of air above and below: without it the
+  formulas stacked on the paragraph's last line and read as one cramped lump.
 ### Fixed
 
 - A soft line break folds into a space, as CommonMark reads it: the paragraph
