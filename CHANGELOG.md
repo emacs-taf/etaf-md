@@ -39,6 +39,10 @@
 
 ### Fixed
 
+- The page title takes the size of a level-one heading, which is the rank a
+  front matter title has.  It used to be a notch smaller than that rank, so a
+  document whose sections start at level 2 read as if the title and the
+  headings came from two different scales.
 - The scroll follow reaches the top of the page: a source position above the
   first block sits in the front matter, which no block owns, so the page used
   to scroll past its header.  It now opens on the title, tags and metadata

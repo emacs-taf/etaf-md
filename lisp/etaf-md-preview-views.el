@@ -90,7 +90,10 @@ document with front matter opens on a page-like header instead of raw text."
                   (list
                    (etaf-node 'text
                               (list :font-weight 'bold
-                                    :font-size (round (* base 1.9))
+                                    ;; The page title is the document's first
+                                    ;; level, so it takes the size a level 1
+                                    ;; heading of the body would.
+                                    :font-size (round (* base 2.0))
                                     :color (etaf-md-preview--env-color env :heading))
                               (list title)))
                   (when tags
