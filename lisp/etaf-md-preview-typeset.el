@@ -229,6 +229,69 @@ the page in; the names after it cover the glyphs that face may lack."
                   etaf-md-preview-mermaid-fonts)))
     (mapconcat #'identity (delete-dups names) ", ")))
 
+(defconst etaf-md-preview--mermaid-hues
+  '(:accent :ok :warn :important :danger :muted)
+  "Theme colors a diagram takes its categorical series from.
+Mermaid separates a git graph's branches, a pie's slices, a timeline's periods
+and a mind map's children by hue.  These are the page's own callout colors, in
+the order it introduces them, so a diagram never brings in a hue the page does
+not already use.")
+
+(defconst etaf-md-preview--mermaid-fill-contrast 4.5
+  "Contrast ratio a diagram's label keeps against the fill under it.
+A category fill is mixed from the page background and a hue.  A pale hue on a
+dark page, or a mid one on a light page, would otherwise put the page's ink on
+a surface it cannot read against, so the amount of hue answers to the label.")
+
+(defun etaf-md-preview--mermaid-fill (page ink hue)
+  "Return HUE mixed into PAGE so INK still reads on the result.
+The hue is added in small steps until the mix carries INK at
+`etaf-md-preview--mermaid-fill-contrast', which keeps as much of the page as
+the label allows; a hue that never gets there keeps the mix that reads best."
+  (let ((best (etaf-md-preview--mix-color page hue 0.25))
+        (best-ratio 0)
+        (weight 0.25))
+    (catch 'done
+      (while (<= weight 0.9)
+        (let* ((fill (etaf-md-preview--mix-color page hue weight))
+               (ratio (etaf-md-preview--contrast-ratio ink fill)))
+          (when (and ratio (> ratio best-ratio))
+            (setq best fill best-ratio ratio))
+          (when (and ratio (>= ratio etaf-md-preview--mermaid-fill-contrast))
+            (throw 'done fill)))
+        (setq weight (+ weight 0.05)))
+      best)))
+
+(defun etaf-md-preview--mermaid-categorical (env)
+  "Return the theme variables that colour ENV's diagram categories.
+Mermaid derives those colours by darkening the box color of the page, which on
+a dark page leaves every slice, branch and period black, and it cannot tell a
+dark page from a light one.  So the page's callout colors supply the hues, each
+mixed into the page background for the fill and kept as it is for the lines and
+borders that carry the same category."
+  (let* ((page (or (plist-get env :background)
+                   (etaf-md-preview--env-color env :bg)))
+         (ink (etaf-md-preview--env-color env :ink))
+         (series (mapcar (lambda (key)
+                           (let ((hue (etaf-md-preview--hex-color
+                                       (etaf-md-preview--env-color env key))))
+                             (cons hue (etaf-md-preview--mermaid-fill page ink hue))))
+                         etaf-md-preview--mermaid-hues))
+         (pick (lambda (index) (nth (mod index (length series)) series))))
+    (append
+     (cl-loop for i from 0 below 12
+              for (hue . fill) = (funcall pick i)
+              append (list (cons (intern (format "cScale%d" i)) fill)
+                           (cons (intern (format "cScaleInv%d" i)) hue)
+                           (cons (intern (format "cScalePeer%d" i)) hue)
+                           (cons (intern (format "cScaleLabel%d" i)) ink)
+                           (cons (intern (format "pie%d" (1+ i))) fill)))
+     (cl-loop for i from 0 below 8
+              for (hue . fill) = (funcall pick i)
+              append (list (cons (intern (format "git%d" i)) fill)
+                           (cons (intern (format "gitInv%d" i)) hue)
+                           (cons (intern (format "gitBranchLabel%d" i)) ink))))))
+
 (defun etaf-md-preview--mermaid-config (env)
   "Return the mermaid configuration JSON drawn for ENV's page.
 The diagram is built from the page's own colours instead of mermaid's fixed
@@ -276,6 +339,15 @@ sequence diagram starts at the very first pixel."
            (noteBkgColor . ,quote)
            (noteTextColor . ,ink)
            (noteBorderColor . ,border)
+           ;; A slice is separated from the next by the page itself, and the
+           ;; outer ring is the page's border, so a pie reads as sections of
+           ;; one drawing instead of sections inside a black wheel.
+           (pieStrokeColor . ,page)
+           (pieOuterStrokeColor . ,border)
+           ;; A commit's label is what the commit says, not a footnote: mermaid
+           ;; sets it at ten pixels, a size the page never uses.
+           (commitLabelFontSize . ,(format "%dpx" base))
+           (tagLabelFontSize . ,(format "%dpx" base))
            ;; The diagram is measured with this font as well as drawn with it:
            ;; a family the renderer's Chromium lacks makes it measure the label
            ;; narrower than the glyphs, and a CJK edge label comes out cut off.
@@ -283,7 +355,8 @@ sequence diagram starts at the very first pixel."
            ;; type as the page, with the CJK face behind it and a family every
            ;; desktop has as the last resort.
            (fontFamily . ,(etaf-md-preview--mermaid-font-family))
-           (fontSize . ,(format "%dpx" base))))
+           (fontSize . ,(format "%dpx" base))
+           ,@(etaf-md-preview--mermaid-categorical env)))
        ;; A node hugs its label.  Mermaid measures the text, adds this padding
        ;; and a minimum width of its own, and a diamond inscribes its label, so
        ;; its box grows to about twice the text's.  The wider padding inflated
@@ -303,10 +376,14 @@ sequence diagram starts at the very first pixel."
                     (actorMargin . 40) (boxMargin . 10)
                     (actorFontSize . ,base) (messageFontSize . ,base)
                     (noteFontSize . ,base)))
+       ;; These three carry minimum boxes of their own: a state node is 120
+       ;; wide, an entity 100 by 75, a requirement 200 wide.  A short label in
+       ;; one of them leaves a frame with room to spare, so the floors come down
+       ;; to a size the label fills.
        (gantt . ((fontSize . ,base) (sectionFontSize . ,base)))
-       (er . ((fontSize . ,base)))
-       (requirement . ((fontSize . ,base)))
-       (state . ((fontSize . ,base)))))))
+       (er . ((fontSize . ,base) (minEntityWidth . 60) (minEntityHeight . 40)))
+       (requirement . ((fontSize . ,base) (rect_min_width . 120)))
+       (state . ((fontSize . ,base) (minNodeWidth . 60)))))))
 
 (defun etaf-md-preview--typeset-start (key kind source env done)
   "Start rendering SOURCE of KIND for KEY, and return the process.

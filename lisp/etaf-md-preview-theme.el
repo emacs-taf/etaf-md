@@ -119,12 +119,28 @@ for a headless session that has no window of its own."
         value
       fallback)))
 
+(defun etaf-md-preview--color-rgb (color)
+  "Return COLOR's red, green and blue as 16-bit values, or nil.
+A hex value and an X11 name are read from the color itself; `color-values' has
+to ask the frame, and a batch session has none, so it answers from the
+terminal's own palette and turns a color into the nearest one it can show."
+  (cond
+   ((and (stringp color)
+         (string-match
+          "\\`#\\([[:xdigit:]]\\{2\\}\\)\\([[:xdigit:]]\\{2\\}\\)\\([[:xdigit:]]\\{2\\}\\)\\'" color))
+    (list (* 257 (string-to-number (match-string 1 color) 16))
+          (* 257 (string-to-number (match-string 2 color) 16))
+          (* 257 (string-to-number (match-string 3 color) 16))))
+   ((and (stringp color) (assoc-string color color-name-rgb-alist t))
+    (cdr (assoc-string color color-name-rgb-alist t)))
+   (t (ignore-errors (color-values color)))))
+
 (defun etaf-md-preview--mix-color (base overlay weight)
   "Return BASE mixed toward OVERLAY by WEIGHT (0 to 1) as #rrggbb.
 Unknown color names fall back to BASE so a theme with named colors still
 resolves a usable surface."
-  (let ((base-rgb (ignore-errors (color-values base)))
-        (overlay-rgb (ignore-errors (color-values overlay))))
+  (let ((base-rgb (etaf-md-preview--color-rgb base))
+        (overlay-rgb (etaf-md-preview--color-rgb overlay)))
     (if (and base-rgb overlay-rgb)
         (let ((mixed (cl-loop for base-value in (cl-subseq base-rgb 0 3)
                               for overlay-value in (cl-subseq overlay-rgb 0 3)
@@ -134,11 +150,21 @@ resolves a usable surface."
           (apply #'format "#%02x%02x%02x" mixed))
       base)))
 
+(defun etaf-md-preview--hex-color (color)
+  "Return COLOR as #rrggbb, or COLOR unchanged when it does not resolve.
+A theme may name a color the way X11 does (`SeaGreen2'), and a renderer that
+parses its own colors cannot read that name."
+  (let ((values (etaf-md-preview--color-rgb color)))
+    (if values
+        (apply #'format "#%02x%02x%02x"
+               (mapcar (lambda (value) (ash value -8)) (cl-subseq values 0 3)))
+      color)))
+
 (defun etaf-md-preview--luminance (color)
   "Return the relative luminance of COLOR, or nil when it does not resolve.
-`color-values' answers for a named or hex color without a frame, so this works
-in batch as well as in a session."
-  (when-let* ((values (ignore-errors (color-values color))))
+The value is read from COLOR itself, so a batch session measures the color the
+same way a frame does."
+  (when-let* ((values (etaf-md-preview--color-rgb color)))
     (cl-destructuring-bind (red green blue) values
       (+ (* 0.2126 (/ red 65535.0))
          (* 0.7152 (/ green 65535.0))
@@ -150,18 +176,21 @@ Several dark themes paint `outline-1' almost the body color, so honoring them
 literally renders every heading flat; below this ratio the palette derives the
 heading color from the accent instead.")
 
+(defun etaf-md-preview--contrast-ratio (first second)
+  "Return the WCAG contrast ratio between FIRST and SECOND, or nil."
+  (when-let* ((first-luminance (etaf-md-preview--luminance first))
+              (second-luminance (etaf-md-preview--luminance second)))
+    (/ (+ (max first-luminance second-luminance) 0.05)
+       (+ (min first-luminance second-luminance) 0.05))))
+
 (defun etaf-md-preview--heading-color (face-color ink accent background)
   "Return the heading color for FACE-COLOR over INK, ACCENT and BACKGROUND.
 FACE-COLOR is the theme's own heading color: it is kept when its contrast with
 INK reaches `etaf-md-preview--heading-contrast'.  Otherwise the accent is mixed
 toward BACKGROUND, which keeps a hue that is neither the body text nor the
 full-strength link color."
-  (let ((face-luminance (etaf-md-preview--luminance face-color))
-        (ink-luminance (etaf-md-preview--luminance ink)))
-    (if (and face-luminance ink-luminance
-             (>= (/ (+ (max face-luminance ink-luminance) 0.05)
-                    (+ (min face-luminance ink-luminance) 0.05))
-                 etaf-md-preview--heading-contrast))
+  (let ((ratio (etaf-md-preview--contrast-ratio face-color ink)))
+    (if (and ratio (>= ratio etaf-md-preview--heading-contrast))
         face-color
       (etaf-md-preview--mix-color accent background 0.35))))
 

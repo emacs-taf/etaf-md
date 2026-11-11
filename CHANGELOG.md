@@ -31,6 +31,26 @@
   is the font's file name rather than its family: the renderer found no such
   family and silently fell back to PingFang SC, so the diagram kept a face the
   page does not use no matter how the stack was configured.
+- A diagram that separates its items by hue stays readable on a dark page.  A
+  pie, a timeline, a git graph and a mind map take their colours from mermaid's
+  own scales, which it derives by darkening the page's box colour: on a dark
+  page every slice, branch, time period and mind-map node came out black, and a
+  pie's slices were indistinguishable.  Those scales now come from the page's
+  own callout colours, each mixed into the page background far enough that the
+  label on it still reads, so the same document keeps a readable diagram on a
+  light, sepia or dark page.  A pie's slices are separated by the page colour
+  and outlined in its border colour instead of a black ring.
+- A state node, an ER entity and a requirement box keep a size their label can
+  fill.  Their diagrams carry minimum boxes of their own - 120 pixels wide for
+  a state, 100 by 75 for an entity, 200 for a requirement - which left a
+  two-character label inside a frame with room to spare.
+- A git commit's label is set in the page's size instead of mermaid's ten
+  pixels, so a commit id reads like the rest of the page.
+- A colour derived from the theme is read from the colour itself instead of
+  asking the frame.  A batch session has no frame, so `color-values' answered
+  from the terminal's palette and turned `#b3541e' into pure red; a derived
+  heading colour, a mixed surface or a diagram fill now comes out the same in a
+  headless run as in a window.
 
 ### Added
 

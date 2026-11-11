@@ -122,6 +122,7 @@ Clicking the dimmed background also closes it and restores the previous focus.
 ```sh
 make check            # structure, compilation, API bindings, acceptance
 make benchmark        # batch render baseline for a generated large document
+make mermaid-check    # draw every mermaid fixture in each page palette
 ```
 
 See [docs/manual.md](docs/manual.md) for workflows, the supported syntax and

@@ -77,6 +77,40 @@ pixel size (ffprobe for videos) and the frame metrics, caps the height, and
 wraps the image in an interactive Box for opening. Missing files and remote
 URLs never reach the Host; they become labeled placeholder cards.
 
+**A typeset block is a file the page points at.** A `$$` display formula and a
+`mermaid` fence are drawn by an external program (`scripts/typeset-math.mjs`
+through Node, `mmdc` through mermaid-cli) into the cache directory, and the
+block names the picture. The cache key hashes the source, the page's palette
+and the frame's type size, so a document that did not change keeps its pictures
+across reloads and a theme or size change draws them again; the render runs
+asynchronously and republishes the page when its picture lands, so a slow
+diagram never blocks the first paint. While it runs, or when the program fails,
+the block stays its source text: a diagram that cannot be parsed shows its
+fence, not a broken picture.
+
+The configuration is generated from the page rather than taken from mermaid's
+fixed themes, so a diagram is drawn in the page's ink, boxes and borders. Two
+parts of that configuration answer to mermaid's quirks:
+
+- Mermaid sizes each kind of diagram on its own and gives several of them a
+  minimum box (a state node 120 pixels wide, an entity 100 by 75, a requirement
+  200), which left a short Chinese label in a frame with room to spare; the
+  configuration lowers those floors and tells every kind the page's size.
+- Mermaid colours everything that separates items by hue - pie slices, git
+  branches, timeline periods, mind-map children - from scales it derives by
+  darkening the page's box colour. On a dark page that derivation ends at
+  black, and mermaid has no way to know the page is dark. The scales therefore
+  come from the page's callout colours, each mixed into the page background far
+  enough that the ink still reads on it; a label on a fill keeps the contrast
+  the rest of the page has.
+
+The document keeps the last word: a `%%{init: ...}%%` directive or a YAML front
+matter `config` block in the block's own source overrides the generated
+configuration, which is mermaid's own precedence. `make mermaid-check` renders
+a fixture of every kind through this configuration in each page palette and
+asserts the geometry, the fill contrast and that a document's own colour still
+wins.
+
 **Typing edits the source, never the page.** In-place editing is driven by
 `etaf-md-preview-projection`, which turns the published blocks into
 `etaf-projection` entries, one `(REF . (BEGIN . END))` per block. A block's
