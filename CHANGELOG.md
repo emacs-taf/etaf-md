@@ -39,6 +39,11 @@
 
 ### Fixed
 
+- A typeset picture is placed at the size it is meant to occupy: the file is
+  drawn at two device pixels per point for sharpness, and the grid it is put in
+  now comes from half that file size.  Formulas are set at the reader's body
+  size instead of a fixed 30 pixels, which had made one equation claim half the
+  page, and mermaid diagrams stop appearing at twice their intended size.
 - The blank lines after a leading definition line are painted again: a
   document that opens with a link reference or an abbreviation definition used
   to lose the gap after it, because the whole leading stretch was skipped as

@@ -41,6 +41,9 @@ const browser = await puppeteer.launch({
 })
 try {
   const page = await browser.newPage()
+  // Twice the device pixels for the same CSS size: the page places the picture
+  // by its own pixel size, so the extra resolution only sharpens the edges.
+  await page.setViewport({ width: 1200, height: 800, deviceScaleFactor: 2 })
   await page.setContent(html, { waitUntil: 'load' })
   const element = await page.$('#formula')
   await element.screenshot({ path: outPath, omitBackground: true })

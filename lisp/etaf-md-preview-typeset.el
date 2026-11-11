@@ -42,11 +42,21 @@ cached yet appears on the repaint that follows its render."
                         (expand-file-name "~/.cache")))
   "Directory holding one PNG per rendered block.")
 
-(defconst etaf-md-preview-typeset--pixels 30
-  "Font size a formula is typeset at before the page scales it.")
-
 (defconst etaf-md-preview-typeset--scale 2
-  "Pixels per point the diagram is drawn at, so it stays sharp when scaled.")
+  "Pixels per point a picture is drawn at, so it stays sharp when it is placed.")
+
+(defconst etaf-md-preview-typeset--formula-scale 1.15
+  "A display formula is set this much larger than the page's body text.
+A formula is a line of the sentence above it, so it takes the reader's own body
+size with a little air; typesetting it at a heading's size made one equation
+claim half the page.")
+
+(defun etaf-md-preview--typeset-pixels ()
+  "Return the pixel size to typeset a formula at.
+The page's body size comes from the frame's own default font, so a reader who
+changes their font size gets a formula that still matches the text."
+  (max 12 (round (* (etaf-md-preview--base-pixels)
+                    etaf-md-preview-typeset--formula-scale))))
 
 (defvar etaf-md-preview-typeset--running (make-hash-table :test #'equal)
   "Render in flight by block key, so one block never renders twice.")
@@ -85,10 +95,13 @@ paints instead of carrying a palette of their own."
 The key holds what the picture depends on, so a theme switch draws a new one
 instead of reusing the colours of the old surface."
   (secure-hash 'sha1
-               (format "%s\n%s\n%s\n%s"
+               (format "%s\n%s\n%s\n%s\n%d"
                        kind source
                        (car (etaf-md-preview--typeset-colors env))
-                       (cdr (etaf-md-preview--typeset-colors env)))))
+                       (cdr (etaf-md-preview--typeset-colors env))
+                       ;; A formula drawn for another body size is another
+                       ;; picture, not a cache hit.
+                       (if (eq kind 'math) (etaf-md-preview--typeset-pixels) 0))))
 
 (defun etaf-md-preview--typeset-path (key)
   "Return the PNG path of KEY."
@@ -122,8 +135,14 @@ A diagram keeps a frame and a caption that opens the file, the way an image
 card does; a formula is its own line with no frame, because it belongs to the
 sentence above it."
   (let* ((width (max 24 (or (plist-get env :width) 92)))
-         (grid (or (ignore-errors
-                     (etaf-md-preview--media-grid path 'image (- width 2)))
+         ;; The picture is drawn at `--scale' device pixels per point, so its
+         ;; own pixel size is that many times the size it should occupy; the
+         ;; grid it is placed in comes from the size on the page, not the file.
+         (pixels (when-let* ((natural (ignore-errors
+                                        (etaf-md-preview--image-pixels path))))
+                   (cons (/ (car natural) (float etaf-md-preview-typeset--scale))
+                         (/ (cdr natural) (float etaf-md-preview-typeset--scale)))))
+         (grid (or (etaf-md-preview--media-grid-for-pixels pixels (- width 2))
                    (cons width 8)))
          (image (etaf-node 'image
                            (list :src path
@@ -170,7 +189,7 @@ republishes the page so the next paint finds the file."
                    (let ((script (etaf-md-preview-typeset--script)))
                      (unless script (error "No formula renderer in this checkout"))
                      (list "node" script input path (cdr colors)
-                           (number-to-string etaf-md-preview-typeset--pixels))))
+                           (number-to-string (etaf-md-preview--typeset-pixels)))))
                   (_ (list "mmdc" "-i" input "-o" path
                            "-t" (symbol-name (car colors))
                            "-b" "transparent"
