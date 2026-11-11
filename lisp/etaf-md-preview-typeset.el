@@ -243,7 +243,9 @@ sequence diagram starts at the very first pixel."
         (quote (etaf-md-preview--env-color env :quote-bg))
         (page (or (plist-get env :background)
                   (etaf-md-preview--env-color env :bg)))
-        (base (round (etaf-md-preview--base-pixels))))
+        ;; A frame supplies the body size; a batch run has none, and rounding
+        ;; its answer would size every diagram at one pixel.
+        (base (max 8 (round (etaf-md-preview--base-pixels)))))
     (json-encode
      `((look . "classic")
        (theme . "base")
@@ -282,7 +284,15 @@ sequence diagram starts at the very first pixel."
            ;; desktop has as the last resort.
            (fontFamily . ,(etaf-md-preview--mermaid-font-family))
            (fontSize . ,(format "%dpx" base))))
-       (flowchart . ((padding . 12) (useMaxWidth . t) (htmlLabels . t)))
+       ;; A node hugs its label.  Mermaid measures the text, adds this padding
+       ;; and a minimum width of its own, and a diamond inscribes its label, so
+       ;; its box grows to about twice the text's.  The wider padding inflated
+       ;; every box by four pixels an axis, which left short labels in frames
+       ;; with room to spare, and the spacing below keeps a wide flow chart from
+       ;; being scaled down to fit the reading column.
+       (flowchart . ((padding . 8) (nodeSpacing . 40) (rankSpacing . 40)
+                     (wrappingWidth . 160)
+                     (useMaxWidth . t) (htmlLabels . t)))
        ;; Mermaid sizes each kind of diagram on its own: a sequence diagram's
        ;; messages come out at 12px beside 14px actors, and gantt, er,
        ;; requirement and state diagrams default to 11, 12, 14 and 24.  One page

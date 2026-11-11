@@ -4,6 +4,11 @@
 
 ### Fixed
 
+- A flow chart's nodes hug their labels: the padding is mermaid's own eight
+  pixels rather than twelve, which had added four pixels an axis to every box,
+  and the node and rank spacing drop to forty, so a wide flow chart is scaled
+  down less before it fits the reading column.  In a batch run, with no frame to
+  ask, a diagram was sized at one pixel; the body size now has a floor.
 - A theme switch republishes every preview that follows the Emacs theme.  A
   picture's ink is part of the PNG, so a page whose ink changed kept showing the
   previous theme's drawing: a formula rendered in light ink stayed a blank block
