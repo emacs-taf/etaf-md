@@ -240,11 +240,9 @@ reuse their cached probe."
 
 (defun etaf-md-preview--media-grid-for-pixels (pixels max-columns)
   "Return the (COLUMNS . ROWS) grid for PIXELS capped by MAX-COLUMNS.
-The picture is drawn into the grid it is given, so both numbers have to agree
-on one size: the rows come from the height at the capped width, and the columns
-from the widest picture that still fits inside those rows and the reading
-measure.  Taking the columns from the picture's own width instead put a wide
-diagram 40 columns past the measure, where it was cut off at the window."
+A picture whose size could not be read keeps a card of a fixed shape rather than
+failing the whole page; `etaf-md-preview--media-grid-cells' sizes a measured
+one."
   (if (or (not (consp pixels))
           (not (numberp (car pixels)))
           (not (numberp (cdr pixels))))
@@ -255,21 +253,22 @@ diagram 40 columns past the measure, where it was cut off at the window."
 
 (defun etaf-md-preview--media-grid-cells (pixels max-columns)
   "Return the (COLUMNS . ROWS) grid for measured PIXELS inside MAX-COLUMNS.
-Only the width is capped: a picture wider than the reading measure is scaled
-down to fit it, and every other picture is drawn at the size it was made.  A
-height cap shrank a tall diagram that already fitted, so two diagrams on one
-page carried different text sizes."
+A picture is drawn at its own size and scaled down as a whole only when it is
+wider than the reading measure, so one number, the scale, decides both sides:
+the rows follow from the scaled height, then the columns from that same scale.
+Rounding each side on its own let a picture come out a few percent too wide for
+its own height, which stretches the drawing."
   (let* ((cell-width (max 1 (or (ignore-errors (frame-char-width)) 8)))
          (cell-height (max 1 (or (ignore-errors (frame-char-height)) 16)))
-         (pixel-width (float (car pixels)))
-         (pixel-height (float (cdr pixels)))
-         (limit (* max-columns cell-width))
-         (width (max 1 (min pixel-width limit)))
-         (height (max 1 (* pixel-height (/ width pixel-width))))
-         (rows (max 1 (round (/ height cell-height))))
-         ;; Round the columns down so the drawing never overflows its rows.
-         (columns (max 1 (floor (/ (* rows cell-height pixel-width)
-                                   (* pixel-height cell-width))))))
+         (natural-width (float (car pixels)))
+         (natural-height (float (cdr pixels)))
+         (fitted (min natural-width (* max-columns cell-width)))
+         (fitted-height (* natural-height (/ fitted natural-width)))
+         (rows (max 1 (round (/ fitted-height cell-height))))
+         ;; One scale keeps the aspect: the rows are whole cells, and the
+         ;; columns are chosen for that height.
+         (scale (min 1.0 (/ (* rows cell-height) natural-height)))
+         (columns (max 1 (round (/ (* natural-width scale) cell-width)))))
     (cons columns rows)))
 
 (defun etaf-md-preview--media-grid (path kind max-columns)

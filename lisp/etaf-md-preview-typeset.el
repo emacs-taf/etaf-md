@@ -104,13 +104,17 @@ the page paints instead of carrying a palette of their own."
 The key holds what the picture depends on, so a theme switch draws a new one
 instead of reusing the colours of the old surface."
   (secure-hash 'sha1
-               (format "%s\n%s\n%s\n%s\n%d"
+               (format "%s\n%s\n%s\n%s\n%s"
                        kind source
                        (car (etaf-md-preview--typeset-colors env))
                        (cdr (etaf-md-preview--typeset-colors env))
                        ;; A formula drawn for another body size is another
                        ;; picture, not a cache hit.
-                       (if (eq kind 'math) (etaf-md-preview--typeset-pixels) 0))))
+                       (if (eq kind 'math)
+                           (format "%d/%d"
+                                   (etaf-md-preview--typeset-pixels)
+                                   (max 1 (or (ignore-errors (frame-char-height)) 16)))
+                         0))))
 
 (defun etaf-md-preview--typeset-path (key)
   "Return the PNG path of KEY."
@@ -160,12 +164,14 @@ sentence above it."
                                  :adapter 'auto)
                            nil)))
     (if (eq kind 'math)
-        ;; A formula sits in the running text, so it takes half a line of air
-        ;; above and below it; the source's own blank lines add their rows to
-        ;; that instead of being the whole separation.
+        ;; A formula is a line of the text around it: the raster carries the
+        ;; transparent rows that centre it in whole rows, and the source's own
+        ;; blank lines are what separate it from the blocks beside it.  Block
+        ;; padding would add whole lines, since a fractional line of padding
+        ;; still takes one, and that turned two formulas one blank line apart
+        ;; into an 80-pixel gap.
         (etaf-node 'column
-                   (list :width 'stretch :cross-align 'center
-                         :padding '((lh 0.5) (ch 0)))
+                   (list :width 'stretch :cross-align 'center)
                    (list image))
       (let ((open-file (plist-get env :open-file))
             (caption (format "%s（按 RET 打开）" (file-name-nondirectory path))))
@@ -254,7 +260,8 @@ republishes the page so the next paint finds the file."
                    (let ((script (etaf-md-preview-typeset--script)))
                      (unless script (error "No formula renderer in this checkout"))
                      (list "node" script input path (cdr colors)
-                           (number-to-string (etaf-md-preview--typeset-pixels)))))
+                           (number-to-string (etaf-md-preview--typeset-pixels))
+                           (number-to-string (max 1 (or (ignore-errors (frame-char-height)) 16))))))
                   (_ (let ((config (expand-file-name (concat key ".json") directory)))
                        (with-temp-file config
                          (insert (etaf-md-preview--mermaid-config env)))

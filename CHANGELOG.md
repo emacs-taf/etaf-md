@@ -65,6 +65,14 @@
   the reading measure is scaled down to fit it.  A height cap used to shrink a
   diagram that already fitted, so one page showed diagrams with different text
   sizes.
+- A formula is drawn at the size of the text around it and never scaled: its
+  picture is produced in whole body rows with the transparent margin above and
+  below, which is the size it is placed at.  One number, the scale, decides both
+  sides of a picture's grid, so a drawing is never stretched to fit its box.
+- A formula no longer carries block padding.  A fractional line of padding takes
+  a whole line in the layout, so `(lh 0.5)` added two rows and turned a single
+  blank line between two formulas into an 80-pixel gap; the raster's own
+  transparent rows and the source's blank lines are the separation now.
 ### Fixed
 
 - A soft line break folds into a space, as CommonMark reads it: the paragraph
