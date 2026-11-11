@@ -4,6 +4,10 @@
 
 ### Fixed
 
+- A theme switch republishes every preview that follows the Emacs theme.  A
+  picture's ink is part of the PNG, so a page whose ink changed kept showing the
+  previous theme's drawing: a formula rendered in light ink stayed a blank block
+  on a light page until the document happened to be reloaded.
 - A formula or a diagram is drawn for the same surface the page paints.  The
   picture's palette was chosen from the frame's appearance whenever the preview
   followed the Emacs theme, while the page itself followed the theme's faces: a

@@ -53,6 +53,23 @@ The page is a rendering, so the markdown is edited in its own buffer and these
 keys only move around the view.  Native scrolling, isearch and link activation
 stay available as they are.")
 
+(defun etaf-md-preview--republish-appearance (&rest _)
+  "Republish every preview that follows the Emacs theme.
+A picture is drawn for the ink it was published with, so a theme switch changes
+what a page needs while its text stays the same: without this the page keeps a
+formula drawn in the previous theme's ink, which reads as a blank block when the
+two are both light."
+  (dolist (buffer (buffer-list))
+    (with-current-buffer buffer
+      (when-let* ((session (ignore-errors (etaf-app-state))))
+        (when (eq (etaf-md-preview--read session :theme-mode) 'auto)
+          (ignore-errors (etaf-md-preview--republish session)))))))
+
+(add-hook 'enable-theme-functions #'etaf-md-preview--republish-appearance)
+(when (boundp 'ns-system-appearance-change-functions)
+  (add-hook 'ns-system-appearance-change-functions
+            #'etaf-md-preview--republish-appearance))
+
 (defun etaf-md-preview--current-session ()
   "Return the preview session of the current buffer."
   (or (etaf-app-state)
