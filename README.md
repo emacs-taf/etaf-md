@@ -107,6 +107,12 @@ open when checking a change.
 | `q` | close the preview |
 | `C-s`, `C-v`, wheel | native isearch and scrolling |
 
+`M-x etaf-md-preview-follow-scroll` makes the page move with the source
+window: the block at the top of the markdown buffer becomes the first row of
+the preview as the source scrolls, so a reader keeping the two side by side
+sees the same place in each.  Only the source's scrolling follows; scrolling
+the preview itself stays free.
+
 Help follows the preview's theme without splitting its window. `/` searches
 the effective bindings; Escape leaves search editing before closing help.
 Clicking the dimmed background also closes it and restores the previous focus.

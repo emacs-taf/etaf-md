@@ -4,6 +4,11 @@
 
 ### Added
 
+- `etaf-md-preview-follow-scroll` makes the page move with the source window:
+  the block at the top of the markdown buffer becomes the first row of the
+  preview as the source scrolls.  Only the source's scrolling follows, so the
+  reader still scrolls the page freely, and typing follows as far as the
+  source window scrolls.  Run it from either buffer; it takes no key.
 - The preview follows the markdown file while it is edited: a change in the
   source buffer repaints the page on the next frame, block by block, so typing
   in the source costs the block under the caret instead of the whole document

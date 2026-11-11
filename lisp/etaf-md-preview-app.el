@@ -201,7 +201,8 @@ session built from text never follows a buffer."
     (puthash (expand-file-name path) buffer etaf-md-preview--live-sources)
     (plist-put session :source-buffer buffer)
     (with-current-buffer buffer
-      (add-hook 'after-change-functions #'etaf-md-preview--live-changed nil t))))
+      (add-hook 'after-change-functions #'etaf-md-preview--live-changed nil t)
+      (add-hook 'post-command-hook #'etaf-md-preview--follow-scroll-command nil t))))
 
 (defun etaf-md-preview--live-stop (file)
   "Stop following unsaved edits of FILE and drop its visiting buffer."
@@ -209,7 +210,8 @@ session built from text never follows a buffer."
               (buffer (gethash file etaf-md-preview--live-sources)))
     (when (buffer-live-p buffer)
       (with-current-buffer buffer
-        (remove-hook 'after-change-functions #'etaf-md-preview--live-changed t)))
+        (remove-hook 'after-change-functions #'etaf-md-preview--live-changed t)
+        (remove-hook 'post-command-hook #'etaf-md-preview--follow-scroll-command t)))
     (remhash file etaf-md-preview--live-sources)))
 
 (defun etaf-md-preview--follow-visit ()
@@ -299,6 +301,92 @@ A session created from text has no file, so it never follows anything."
     (when (zerop (hash-table-count etaf-md-preview--follow-sessions))
       (remove-hook 'after-save-hook #'etaf-md-preview--follow-saved)
       (remove-hook 'find-file-hook #'etaf-md-preview--follow-visit))))
+
+;;; ---------------------------------------------------------------------------
+;;; Following the source's scroll
+;;; ---------------------------------------------------------------------------
+
+(defun etaf-md-preview--follow-scroll-session ()
+  "Return the preview session the current buffer scrolls for, or nil.
+Run from the markdown buffer, this is the preview following its file; run from
+the preview, it is the preview itself."
+  (or (etaf-app-state)
+      (and buffer-file-name
+           (gethash (expand-file-name buffer-file-name)
+                    etaf-md-preview--follow-sessions))))
+
+(defun etaf-md-preview-follow-scroll (&optional arg)
+  "Toggle scrolling the preview along with its source buffer.
+While it is on, a command that scrolls the source window moves the preview so
+that the block at the top of that window becomes the first row of the
+preview: a reader keeping the two side by side sees the same place in each.
+Only the source's scrolling follows; scrolling the preview itself stays free,
+and typing follows as far as the source window scrolls.
+Run it from the markdown buffer or from its preview.  With prefix ARG, turn
+the follow on when ARG is positive and off otherwise.  Return the new state.
+Signal `user-error' when no preview shows the current buffer."
+  (interactive "P")
+  (let ((session (or (etaf-md-preview--follow-scroll-session)
+                     (user-error "No preview shows the current buffer"))))
+    (let ((on (if arg
+                  (> (prefix-numeric-value arg) 0)
+                (not (plist-get session :follow-scroll)))))
+      (plist-put session :follow-scroll (and on t))
+      (plist-put session :follow-scroll-start nil)
+      (when on
+        (etaf-md-preview--follow-scroll-sync session))
+      (message "Preview follows the source scroll: %s" (if on "on" "off"))
+      (plist-get session :follow-scroll))))
+
+(defun etaf-md-preview--follow-scroll-command ()
+  "Move the current buffer's preview along with its source window.
+Runs from the source buffer's `post-command-hook'.  A command that leaves the
+window where it was costs one lookup: the preview only moves when the source
+window starts on a different line than the one it followed before."
+  (when buffer-file-name
+    (when-let* ((session (gethash (expand-file-name buffer-file-name)
+                                  etaf-md-preview--follow-sessions))
+                ((plist-get session :follow-scroll)))
+      (etaf-md-preview--follow-scroll-sync session))))
+
+(defun etaf-md-preview--follow-scroll-sync (session)
+  "Scroll SESSION's window to the block its source window now starts with.
+Return the preview position it moved to, or nil when the source or the
+preview is not on screen, or when the window already starts there."
+  (let* ((source (plist-get session :source-buffer))
+         (buffer (plist-get session :buffer))
+         (source-window (and (buffer-live-p source)
+                             (get-buffer-window source t)))
+         (window (and (buffer-live-p buffer) (get-buffer-window buffer t)))
+         (start (and source-window (window-start source-window))))
+    (when (and start window (eq (window-buffer window) buffer))
+      (unless (eql (plist-get session :follow-scroll-start) start)
+        (plist-put session :follow-scroll-start start)
+        (when-let* ((runtime (etaf-runtime-for-buffer buffer))
+                    (ref (etaf-md-preview--block-ref-at session start))
+                    (position (etaf-host-ref-position runtime ref)))
+          (set-window-start window position)
+          position)))))
+
+(defun etaf-md-preview--block-ref-at (session position)
+  "Return the ref of the block SESSION's page shows for source POSITION.
+POSITION is a character offset in the source text: its ref is the block that
+holds it, or the next block when it falls in the blank lines between two
+blocks.  A position past the last block answers with that block, and a page
+whose blocks carry no source range answers nil."
+  (let ((last nil)
+        (found nil))
+    (dolist (entry (plist-get (etaf-md-preview--read session :document) :children))
+      (let* ((block (plist-get entry :block))
+             (end (plist-get block :end)))
+        (when (and (not found)
+                   (integerp (plist-get block :begin))
+                   (integerp end)
+                   (not (eq (plist-get block :type) 'blank)))
+          (setq last (plist-get entry :ref))
+          (when (< position end)
+            (setq found last)))))
+    (or found last)))
 
 (defun etaf-md-preview--follow-schedule (file)
   "Repaint FILE's preview on the next frame.

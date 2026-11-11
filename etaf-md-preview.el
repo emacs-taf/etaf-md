@@ -148,6 +148,19 @@
 ;; Reports "No earlier heading" at the first heading and signals
 ;; `user-error' when the current buffer is not a preview.
 ;;
+;; Function: etaf-md-preview-follow-scroll (&optional arg)
+;;;###autoload (autoload 'etaf-md-preview-follow-scroll "etaf-md-preview" nil t)
+;; Toggle scrolling the preview along with its source buffer and return the new
+;; state.  While it is on, a command that scrolls the source window moves the
+;; preview so the block at the top of that window becomes its first row: a
+;; reader keeping the two side by side sees the same place in each.  Only the
+;; source's scrolling follows, so scrolling the preview itself stays free, and
+;; typing follows as far as the source window scrolls.
+;;
+;; Run it from the markdown buffer or from its preview.  ARG sets the state
+;; instead of toggling: a positive prefix argument turns it on and anything
+;; else turns it off.  A buffer that no preview shows signals `user-error'.
+;;
 ;; Function: etaf-md-preview-locate (session index)
 ;; Move point to SESSION's outline heading INDEX and recenter.
 ;; INDEX is zero-based into `etaf-md-preview-outline'.  Return the buffer

@@ -136,6 +136,11 @@
       "purpose": "The side-by-side command opens the preview in a neighbouring window, keeps the source buffer selected, and closing the preview gives the window back."
     },
     {
+      "name": "etaf-md-preview-tests-follow-scroll-shows-the-source-top",
+      "file": "tests/etaf-md-preview-tests.el",
+      "purpose": "The scroll follow puts the block at the source window's top at the top of the page, and turning it off leaves the page alone."
+    },
+    {
       "name": "etaf-md-preview-tests-saving-the-source-repaints-the-preview",
       "file": "tests/etaf-md-preview-tests.el",
       "purpose": "Saving a source file repaints its open preview without a manual reload and keeps the reader in the section it was reading."

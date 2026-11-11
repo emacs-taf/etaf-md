@@ -586,6 +586,67 @@ window switching, and closing the preview gives the window back."
       (when (buffer-live-p source) (kill-buffer source))
       (delete-file file))))
 
+(ert-deftest etaf-md-preview-tests-follow-scroll-shows-the-source-top ()
+  "The scroll follow puts the block at the source window's top at the page's top.
+The preview is read-only and the source is edited in its own window, so a
+reader keeping the two side by side needs the page to move with the source.
+Turning it off leaves the page where the reader put it."
+  (let* ((file (make-temp-file "etaf-md-preview-scroll-" nil ".md"))
+         (source nil)
+         (preview nil)
+         (top-line (lambda (window)
+                     (with-current-buffer (window-buffer window)
+                       (buffer-substring-no-properties
+                        (window-start window)
+                        (save-excursion
+                          (goto-char (window-start window))
+                          (line-end-position)))))))
+    (unwind-protect
+        (progn
+          (with-temp-file file
+            (insert "# 标题\n\n")
+            (dotimes (index 40)
+              (insert (format "第 %d 段：一段用来测量跟随滚动的正文。\n\n" index))))
+          (setq source (find-file-noselect file))
+          (setq preview (etaf-md-preview-open file))
+          (let* ((source-window (selected-window))
+                 (preview-window (split-window source-window)))
+            (set-window-buffer source-window source)
+            (set-window-buffer preview-window preview)
+            (select-window source-window)
+            (sit-for 0.2)
+            (etaf-runtime-flush (etaf-runtime-for-buffer preview))
+            (should-not (string-match-p "第 20 段" (funcall top-line preview-window)))
+            (with-current-buffer source
+              (should (etaf-md-preview-follow-scroll 1)))
+            (with-current-buffer source
+              (goto-char (point-min))
+              (search-forward "第 20 段")
+              (set-window-start source-window (line-beginning-position))
+              ;; The page follows from the source buffer's command loop, so the
+              ;; hook a command runs is what moves it.
+              (run-hooks 'post-command-hook))
+            (etaf-runtime-flush (etaf-runtime-for-buffer preview))
+            (should (string-match-p "第 20 段" (funcall top-line preview-window)))
+            ;; The command also runs from the preview, and turning the follow
+            ;; off leaves the page where the source scroll last put it.
+            (with-current-buffer preview
+              (should-not (etaf-md-preview-follow-scroll 0)))
+            (with-current-buffer source
+              (goto-char (point-min))
+              (search-forward "第 35 段")
+              (set-window-start source-window (line-beginning-position))
+              ;; The page follows from the source buffer's command loop, so the
+              ;; hook a command runs is what moves it.
+              (run-hooks 'post-command-hook))
+            (etaf-runtime-flush (etaf-runtime-for-buffer preview))
+            (should (string-match-p "第 20 段" (funcall top-line preview-window)))))
+      (when (buffer-live-p preview) (kill-buffer preview))
+      (when (buffer-live-p source)
+        (with-current-buffer source (set-buffer-modified-p nil))
+        (kill-buffer source))
+      (delete-file file))))
+
 (ert-deftest etaf-md-preview-tests-saving-the-source-repaints-the-preview ()
   "Saving a source file republishes its open preview without a manual reload."
   (let* ((file (make-temp-file "etaf-md-preview-follow-" nil ".md"))
