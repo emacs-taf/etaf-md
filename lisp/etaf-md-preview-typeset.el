@@ -84,11 +84,19 @@ Chromium and KaTeX that package installs."
 
 (defun etaf-md-preview--typeset-colors (env)
   "Return (DIAGRAM-THEME . INK) drawn for ENV's page.
-The diagram theme follows the appearance the page is read in, and a formula is
-inked in the page's own text colour, so both sit on whatever surface the theme
-paints instead of carrying a palette of their own."
-  (cons (if (eq (etaf-appearance) 'dark) 'dark 'default)
-        (etaf-md-preview--env-color env :ink)))
+The diagram theme follows the page it is placed on, which a named palette sets
+even when the frame is the other way round: a light page keeps light diagrams.
+A page with no background of its own is read in the frame's appearance.  A
+formula is inked in the page's own text colour, so both sit on whatever surface
+the page paints instead of carrying a palette of their own."
+  (let* ((background (plist-get env :background))
+         (dark (if (and background (stringp background))
+                   ;; A dark page is the one with little contrast against
+                   ;; black, since the ratio against white would be large.
+                   (<= (etaf-ui-color-contrast background "#000000") 1.5)
+                 (eq (etaf-appearance) 'dark))))
+    (cons (if dark 'dark 'default)
+          (etaf-md-preview--env-color env :ink))))
 
 (defun etaf-md-preview--typeset-key (kind source env)
   "Return the cache key of KIND drawn from SOURCE for ENV's surface.

@@ -468,7 +468,10 @@ whole preview without a remount."
                                                  (etaf-md-preview-auto-theme)
                                                mode))
                     (etaf-md-preview--write preview :theme-source
-                                             (if (eq mode 'auto) 'frame 'palette))))
+                                             (if (eq mode 'auto) 'frame 'palette)))
+                  ;; The page's pictures are drawn for a palette too, so a
+                  ;; switch publishes again to attach the ones it needs.
+                  (etaf-md-preview--republish preview))
                 :immediate t :name 'etaf-md-preview-mode)
     (when-let* ((surface (etaf-surface-host)))
       (etaf-surface-declare surface :theme tokens :mode mode

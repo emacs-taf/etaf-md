@@ -698,6 +698,17 @@ published document untouched."
     ;; the text the page already shows.
     (plist-put session :live-text text)))
 
+(defun etaf-md-preview--republish (session)
+  "Publish SESSION's document again for its current palette and return it.
+A picture block carries the file drawn for the palette it was published with,
+so a palette change has to publish the document even though its text is the
+same.  The parse is cached, so this costs the block keys, not the text, and the
+publish starts the pictures the new palette needs."
+  (when-let* (((plist-get session :buffer))
+              (contents (car (plist-get session :parsed))))
+    (etaf-md-preview--install session contents))
+  session)
+
 (defun etaf-md-preview-set-theme (session theme)
   "Show SESSION with palette THEME; return SESSION.
 THEME is `auto', `dark', `light' or `sepia'; anything else signals
@@ -714,6 +725,7 @@ background, while `auto' returns to the face-derived surfaces."
                                theme))
     (etaf-md-preview--write session :theme-source
                              (if (eq theme 'auto) 'frame 'palette)))
+  (etaf-md-preview--republish session)
   session)
 
 (defun etaf-md-preview-cycle-theme (session)
