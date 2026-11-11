@@ -240,30 +240,36 @@ reuse their cached probe."
 
 (defun etaf-md-preview--media-grid-for-pixels (pixels max-columns)
   "Return the (COLUMNS . ROWS) grid for PIXELS capped by MAX-COLUMNS.
-The height follows the source aspect ratio and is capped to a third of the
-display so one figure cannot own the whole window.  When the height cap
-applies, the width shrinks with it so the figure keeps the source aspect
-ratio instead of being squashed into a shorter box."
-  (let ((cell-width (max 1 (frame-char-width)))
-        (cell-height (max 1 (frame-char-height)))
-        (max-rows (max 6 (round (* (window-body-height) 0.45)))))
-    (if pixels
-        (let* ((pixel-width (car pixels))
-               (pixel-height (cdr pixels))
-               (columns (min max-columns
-                             (max 8 (round (/ (* 1.0 pixel-width)
-                                              cell-width)))))
-               (rows (round (/ (* columns cell-width pixel-height)
-                               (* pixel-width cell-height))))
-               (rows (min (max 1 rows) max-rows))
-               (columns (if (> (* columns cell-width pixel-height)
-                               (* pixel-width rows cell-height))
-                            (max 8 (round (/ (* 1.0 rows cell-height
-                                              pixel-width)
-                                             (* pixel-height cell-width))))
-                          columns)))
-          (cons columns rows))
-      (cons (min max-columns 48) 14))))
+The picture is drawn into the grid it is given, so both numbers have to agree
+on one size: the rows come from the height at the capped width, and the columns
+from the widest picture that still fits inside those rows and the reading
+measure.  Taking the columns from the picture's own width instead put a wide
+diagram 40 columns past the measure, where it was cut off at the window."
+  (if (or (not (consp pixels))
+          (not (numberp (car pixels)))
+          (not (numberp (cdr pixels))))
+      ;; A picture whose size could not be read keeps a card of a fixed shape
+      ;; rather than failing the whole page.
+      (cons (min max-columns 48) 14)
+    (etaf-md-preview--media-grid-cells pixels max-columns)))
+
+(defun etaf-md-preview--media-grid-cells (pixels max-columns)
+  "Return the (COLUMNS . ROWS) grid for measured PIXELS inside MAX-COLUMNS."
+  (let* ((cell-width (max 1 (or (ignore-errors (frame-char-width)) 8)))
+         (cell-height (max 1 (or (ignore-errors (frame-char-height)) 16)))
+         (max-rows (max 6 (round (* (or (ignore-errors (window-body-height)) 40)
+                                    0.45))))
+         (pixel-width (float (car pixels)))
+         (pixel-height (float (cdr pixels)))
+         (limit (* max-columns cell-width))
+         (width (max 1 (min pixel-width limit)))
+         (height (max 1 (* pixel-height (/ width pixel-width))))
+         (rows (min max-rows (max 1 (round (/ height cell-height)))))
+         ;; The widest picture the rows can hold, kept inside the measure and
+         ;; rounded down so the drawing never overflows the box.
+         (fits (* rows cell-height (/ pixel-width pixel-height)))
+         (columns (max 1 (floor (/ (min width fits) cell-width)))))
+    (cons columns rows)))
 
 (defun etaf-md-preview--media-grid (path kind max-columns)
   "Return the (COLUMNS . ROWS) grid for media PATH of KIND.

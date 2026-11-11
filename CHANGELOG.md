@@ -49,6 +49,12 @@
 - A block whose picture changed is a different block.  The published entry's
   key holds the picture path, so a palette change publishes the pictures drawn
   for it instead of keeping the ones the previous page had drawn.
+- A picture's box and its grid agree on one size.  The rows came from the
+  height at the capped width while the columns came from the picture's own
+  width, so a wide diagram ran past the reading measure and was cut off at the
+  window, and a formula a pixel taller than its rows took a whole extra row,
+  which showed as a gap under it.  A formula now sits in 2 to 3 rows with one
+  blank row between two of them, and a diagram stays inside the measure.
 ### Fixed
 
 - A soft line break folds into a space, as CommonMark reads it: the paragraph

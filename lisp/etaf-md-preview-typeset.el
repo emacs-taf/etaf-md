@@ -160,9 +160,11 @@ sentence above it."
                                  :adapter 'auto)
                            nil)))
     (if (eq kind 'math)
+        ;; The blank lines the source wrote above and below the formula are
+        ;; the separation it gets, the way the text around it is separated;
+        ;; padding of the figure's own added a second, larger gap.
         (etaf-node 'column
-                   (list :width 'stretch :cross-align 'center
-                         :padding '((lh 0.5) (ch 0)))
+                   (list :width 'stretch :cross-align 'center)
                    (list image))
       (let ((open-file (plist-get env :open-file))
             (caption (format "%s（按 RET 打开）" (file-name-nondirectory path))))
