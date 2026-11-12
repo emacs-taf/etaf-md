@@ -67,6 +67,36 @@ function givePage(page) {
   else idle.push(page)
 }
 
+// Chromium resolves a font stack's real metrics on the first layout that uses
+// it, so the first diagram on a fresh page is measured against the fallback
+// face: its labels come out a size their boxes were not cut for, and two runs
+// of the same diagram differ.  Laying the stack out once, and waiting for the
+// page's fonts, makes the first diagram as correct as the rest.
+const warmed = new WeakSet()
+
+async function warmFonts(page, config) {
+  if (warmed.has(page)) return
+  const stack = config?.themeVariables?.fontFamily || 'sans-serif'
+  await page.evaluate(async (families) => {
+    const sample = document.createElement('div')
+    sample.style.cssText =
+      'position:absolute;left:-9999px;top:0;white-space:pre;font-size:16px;' +
+      `font-family:${families}`
+    sample.textContent = '图表 diagram 123 AGQ'
+    document.body.appendChild(sample)
+    sample.getBoundingClientRect()
+    await Promise.race([
+      document.fonts.ready,
+      new Promise((resolve) => setTimeout(resolve, 5000)),
+    ])
+    await new Promise((resolve) =>
+      requestAnimationFrame(() => requestAnimationFrame(resolve)),
+    )
+    sample.remove()
+  }, stack)
+  warmed.add(page)
+}
+
 // Mermaid draws in a document, so the page each worker draws in is opened once,
 // loads mermaid, and renders every request into its canvas.
 let pageRoot = null
@@ -109,6 +139,7 @@ async function drawDiagram(page, request) {
     }
   }, request.source)
   if (problem) return { error: problem, fatal: true }
+  await warmFonts(page, JSON.parse(request.config || '{}'))
   await page.evaluate(
     async ({ source, config, id, widest }) => {
       window.mermaid.initialize({ startOnLoad: false, ...JSON.parse(config) })

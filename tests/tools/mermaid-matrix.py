@@ -243,6 +243,22 @@ def check_agreement(name, raster, vector, workdir, rsvg, palette):
     return problems
 
 
+def check_repeat(name, first, second):
+    """Return the problems with two drawings of one source disagreeing."""
+    if first.size != second.size:
+        return ["%s: the second drawing is %dx%d, the first %dx%d"
+                % (name, second.size[0], second.size[1], first.size[0], first.size[1])]
+    one = first.convert("RGB")
+    two = second.convert("RGB")
+    difference = sum(ImageChops.difference(one, two)
+                     .convert("L").tobytes())
+    mean = difference / float(one.size[0] * one.size[1])
+    if mean > 2.0:
+        return ["%s: the second drawing differs from the first (mean %0.1f)"
+                % (name, mean)]
+    return []
+
+
 def check_override(name, colour, image):
     """Return the problems with a document that sets its own diagram colour."""
     wants = rgb(colour)
@@ -285,6 +301,10 @@ def main():
             kept.mkdir(parents=True, exist_ok=True)
 
         configs, requests, index = {}, [], 0
+        # Every drawing is asked for twice.  A diagram measured before the page
+        # resolved the reader's face comes out with labels their boxes were not
+        # cut for, and only the first drawing on a page pays that cost: the
+        # second request of the same source is what exposes it.
         for palette in PALETTES:
             config = emacs_config(arguments.emacs, palette)
             configs[palette] = config
@@ -297,21 +317,28 @@ def main():
             for problem in problems:
                 print("FAIL %s" % problem)
             failures += problems
-            for fixture in fixtures:
-                requests.append({
-                    "id": index,
-                    "kind": "mermaid",
-                    "source": fixture.read_text(),
-                    "out": str(workdir / ("%s-%s.png" % (palette, fixture.stem))),
-                    "config": config,
-                })
-                index += 1
+            for pass_number in (1, 2):
+                for fixture in fixtures:
+                    stem = fixture.stem
+                    name = "%s-%s.png" % (palette, stem)
+                    if pass_number == 2:
+                        name = "%s-%s-again.png" % (palette, stem)
+                    requests.append({
+                        "id": index,
+                        "kind": "mermaid",
+                        "source": fixture.read_text(),
+                        "out": str(workdir / name),
+                        "config": config,
+                    })
+                    index += 1
 
         answers = draw(requests, workdir)
         for request in requests:
             answer = answers[request["id"]]
-            palette = PALETTES[request["id"] // max(1, len(fixtures))]
+            palette = PALETTES[request["id"] // max(1, 2 * len(fixtures))]
             stem = Path(request["out"]).stem.split("-", 1)[1]
+            if stem.endswith("-again"):
+                stem = stem[: -len("-again")]
             name = "%s/%s" % (palette, stem)
             if not answer.get("ok"):
                 failures.append("%s: %s" % (name, answer.get("error", "no reason")))
@@ -331,12 +358,15 @@ def main():
                 problems.append("%s: degenerate %dx%d" % (name, *image.size))
             elif extent is None or extent[0] < 8 or extent[1] < 8:
                 problems.append("%s: nothing drawn" % name)
-            if stem in OVERRIDE_COLOURS:
+            if stem in OVERRIDE_COLOURS and not raster.stem.endswith("-again"):
                 problems += check_override(name, OVERRIDE_COLOURS[stem], image)
+            again = raster.with_name(raster.stem + "-again.png")
+            if again.exists():
+                problems += check_repeat(name, image, Image.open(again))
             for problem in problems:
                 print("FAIL %s" % problem)
             failures += problems
-            if not problems:
+            if not problems and not raster.stem.endswith("-again"):
                 print("ok   %-26s %4dx%-4d %s ink %s"
                       % (name, *image.size, "svg" if vector.exists() else "png",
                          "%dx%d" % extent if extent else "-"))

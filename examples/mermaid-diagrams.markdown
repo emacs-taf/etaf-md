@@ -238,7 +238,7 @@ journey
 
 ```mermaid
 mindmap
-  root((预览))
+  root((预览11))
     输入
       文件
       Markdown 源码
@@ -276,16 +276,16 @@ gitGraph
   commit id: "解析"
   branch typeset
   checkout typeset
-  commit id: "块视图"
-  commit id: "图片管线"
+  commit id: "视图"
+  commit id: "管线"
   checkout main
-  merge typeset id: "合入" tag: "v0.2"
+  merge typeset id: "合并" tag: "v0.2"
   branch theme
   checkout theme
   commit id: "暗色"
   checkout main
-  merge theme id: "合入主题"
-  commit id: "跟随滚动"
+  merge theme id: "主题"
+  commit id: "滚动"
 ```
 
 ## 象限图

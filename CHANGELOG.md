@@ -4,6 +4,16 @@
 
 ### Fixed
 
+- A diagram's first drawing after the renderer starts is laid out with the
+  reader's face.  Chromium resolves a font stack on the first layout that uses
+  it, so the first diagram on a fresh page was measured against the fallback
+  face: a label came out wider than the chip cut for it, and two runs of the
+  same diagram differed.  The renderer now lays the stack out once and waits
+  for the page's fonts before it draws.  `make mermaid-check` asks for every
+  fixture twice and refuses a second drawing that disagrees with the first.
+
+### Fixed
+
 - A diagram's pictures arrive in about a second instead of several.  Every
   fence and formula started its own Chromium through `mmdc`, so a page with a
   dozen diagrams paid a dozen launches and several ran at once; one renderer now
