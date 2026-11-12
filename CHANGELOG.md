@@ -4,6 +4,11 @@
 
 ### Fixed
 
+- Diagrams and formulas are no longer doubled on a display with two device
+pixels per point.  The picture was drawn at twice the size its rows were cut
+for, so each row held half a row of the drawing and every label appeared a few
+pixels below itself.  A picture now takes the size of the page it sits on.
+
 - A diagram's first drawing after the renderer starts is laid out with the
   reader's face.  Chromium resolves a font stack on the first layout that uses
   it, so the first diagram on a fresh page was measured against the fallback
