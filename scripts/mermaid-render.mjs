@@ -129,8 +129,65 @@ async function drawDiagram(page, request) {
     },
     { source: request.source, config: request.config || '{}', id: request.id, widest: WIDEST },
   )
-  const element = await page.$('#canvas svg')
-  await element.screenshot({ path: request.out, omitBackground: true })
+  // A kind that labels its drawing in HTML keeps a raster, and its canvas can
+  // hold rows of nothing under the drawing.  The picture is then cut to what is
+  // actually painted, which `getBoundingClientRect' answers for every element,
+  // the HTML ones included; the SVG copy keeps mermaid's own canvas instead.
+  const html = await page.evaluate(
+    () => Boolean(document.querySelector('#canvas svg foreignObject')),
+  )
+  if (html) {
+    const clip = await page.evaluate(() => {
+      const root = document.querySelector('#canvas svg')
+      const frame = root.getBoundingClientRect()
+      let left = Infinity
+      let top = Infinity
+      let right = -Infinity
+      let bottom = -Infinity
+      for (const element of root.querySelectorAll('*')) {
+        const box = element.getBoundingClientRect()
+        const style = getComputedStyle(element)
+        if (!box.width || !box.height || style.display === 'none') continue
+        left = Math.min(left, box.left)
+        top = Math.min(top, box.top)
+        right = Math.max(right, box.right)
+        bottom = Math.max(bottom, box.bottom)
+      }
+      if (!Number.isFinite(left)) return null
+      const pad = 2
+      return {
+        x: frame.left + left - frame.left - pad,
+        y: frame.top + top - frame.top - pad,
+        width: right - left + pad * 2,
+        height: bottom - top + pad * 2,
+      }
+    })
+    await page.screenshot({
+      path: request.out,
+      omitBackground: true,
+      clip: clip || undefined,
+    })
+  } else {
+    const element = await page.$('#canvas svg')
+    await element.screenshot({ path: request.out, omitBackground: true })
+  }
+  const vector = await page.evaluate((widest) => {
+    const element = document.querySelector('#canvas svg')
+    const [x, y, width, height] = element.getAttribute('viewBox').split(/[\s,]+/).map(Number)
+    // The vector copy is the picture at the size the raster was taken in - two
+    // device pixels per point - so a viewer can place it by its own size, and
+    // `xml:space' keeps the spaces between runs that mermaid writes as separate
+    // spans: a renderer that collapses them joins `+String' to its type name.
+    const scale = Math.min(1, widest / width)
+    element.setAttribute('width', Math.round(width * scale * 2))
+    element.setAttribute('height', Math.round(height * scale * 2))
+    element.setAttribute('xml:space', 'preserve')
+    return element.outerHTML
+  }, WIDEST)
+  // A label mermaid writes as HTML can only be drawn by a browser, so a diagram
+  // that keeps one stays a raster: the vector copy would lose its words.
+  if (!vector || vector.includes('<foreignObject')) return { vector: false }
+  fs.writeFileSync(request.out.replace(/\.png$/, '.svg'), vector)
   return null
 }
 
@@ -187,9 +244,8 @@ async function draw(request) {
     const page = await takePage()
     try {
       const problem = await drawDiagram(page, request)
-      return problem
-        ? { ok: false, error: problem.error, fatal: problem.fatal }
-        : { ok: true }
+      if (problem?.error) return { ok: false, error: problem.error, fatal: problem.fatal }
+      return { ok: true, vector: problem?.vector !== false }
     } finally {
       givePage(page)
     }

@@ -140,7 +140,7 @@ their own."
     (cons (if dark 'dark 'light)
           (etaf-md-preview--hex-color (etaf-md-preview--env-color env :ink)))))
 
-(defconst etaf-md-preview-typeset--picture-version 2
+(defconst etaf-md-preview-typeset--picture-version 3
   "Version of the drawing a cache key stands for.
 Raised when the renderer's own output changes - the size a picture is drawn
 at, or the part of the drawing it is cut from - so a picture drawn the old way
@@ -173,6 +173,17 @@ instead of reusing the colours of the old surface."
   "Return the PNG path of KEY."
   (expand-file-name (concat key ".png") etaf-md-preview-typeset--cache-directory))
 
+(defun etaf-md-preview--typeset-picture (key)
+  "Return the picture drawn for KEY, or nil when it is not drawn yet.
+A diagram has a vector copy beside its raster, which every place the picture is
+shown prefers: it stays sharp at whatever size the page gives it and holds no
+bitmap in memory.  A formula is drawn as a raster only.  The raster is the
+marker of a finished render either way, because it is written first."
+  (when-let* ((raster (etaf-md-preview--typeset-path key))
+              ((file-exists-p raster)))
+    (let ((vector (concat (file-name-sans-extension raster) ".svg")))
+      (if (file-exists-p vector) vector raster))))
+
 (defun etaf-md-preview-typeset-attach (block env)
   "Return BLOCK carrying the picture already rendered for it in ENV.
 The block gains `:picture', the PNG path, when one exists; the renderer draws
@@ -189,9 +200,8 @@ keystroke pays for."
       (if-let* ((source (plist-get block :text))
                 ((not (string-blank-p source)))
                 ((etaf-md-preview-typeset-available-p))
-                (path (etaf-md-preview--typeset-path
-                       (etaf-md-preview--typeset-key kind source env)))
-                ((file-exists-p path)))
+                (path (etaf-md-preview--typeset-picture
+                       (etaf-md-preview--typeset-key kind source env))))
           (plist-put (copy-sequence block) :picture path)
         block))))
 
@@ -273,11 +283,12 @@ and a mind map's children by hue.  These are the page's own callout colors, in
 the order it introduces them, so a diagram never brings in a hue the page does
 not already use.")
 
-(defconst etaf-md-preview--mermaid-fill-contrast 4.5
+(defconst etaf-md-preview--mermaid-fill-contrast 3.0
   "Contrast ratio a diagram's label keeps against the fill under it.
-A category fill is mixed from the page background and a hue.  A pale hue on a
-dark page, or a mid one on a light page, would otherwise put the page's ink on
-a surface it cannot read against, so the amount of hue answers to the label.")
+Three to one is the floor for drawn text; the four and a half of body prose is
+unreachable here, because the same colour is also the line that carries the
+structure - a mind map's branch, a timeline's rule - and a fill dark enough to
+carry the page's own dark ink on a dark page is a fill the page cannot see.")
 
 (defconst etaf-md-preview--mermaid-fill-separation 1.5
   "Contrast ratio a category fill keeps against the page it is drawn on.
@@ -285,28 +296,38 @@ A fill the colour of the page is not a fill, and mermaid paints a mind map's
 branch and a timeline's rule in this same colour: a fill that only just stands
 off the page leaves those lines too faint to follow.")
 
-(defun etaf-md-preview--mermaid-fill (page ink hue)
-  "Return HUE mixed into PAGE as far as a filled area needs.
-The mix is the palest that carries INK at
-`etaf-md-preview--mermaid-fill-contrast' and still stands
-`etaf-md-preview--mermaid-fill-separation' away from PAGE.  A hue that never
-reaches both keeps the mix that comes closest."
-  (let ((best (etaf-md-preview--mix-color page hue 0.2))
+(defun etaf-md-preview--mermaid-fill (page ink hue &optional label separate)
+  "Return (FILL . LABEL) for HUE mixed into PAGE, and for the label on it.
+A filled area has two jobs: it stands `etaf-md-preview--mermaid-fill-separation'
+away from PAGE so it reads as a shape, and the text on it reads at
+`etaf-md-preview--mermaid-fill-contrast'.  The page's own ink does not always
+manage both - a saturated hue carries neither a dark ink nor a light one - so
+the label falls back to the page colour when that reads better, and the mix is
+the palest one that satisfies both.  LABEL states one colour for the text
+instead, and SEPARATE `no' drops the demand to stand off the page, for a filled
+area that carries its own border.  A hue that never satisfies them keeps the
+mix that comes closest."
+  (let ((best (cons (etaf-md-preview--mix-color page hue 0.3) (or label ink)))
+        (separate (not (eq separate 'no)))
         (best-score 0)
-        (weight 0.2))
+        (weight 0.15))
     (catch 'done
       (while (<= weight 0.95)
         (let* ((fill (etaf-md-preview--mix-color page hue weight))
-               (ink-ratio (etaf-md-preview--contrast-ratio ink fill))
-               (page-ratio (etaf-md-preview--contrast-ratio fill page))
-               (score (min (/ (or ink-ratio 0)
-                              etaf-md-preview--mermaid-fill-contrast)
-                           (/ (or page-ratio 0)
-                              etaf-md-preview--mermaid-fill-separation))))
+               (text (or label
+                         (if (> (or (etaf-md-preview--contrast-ratio page fill) 0)
+                                (or (etaf-md-preview--contrast-ratio ink fill) 0))
+                             page ink)))
+               (label-ratio (or (etaf-md-preview--contrast-ratio text fill) 0))
+               (page-ratio (or (etaf-md-preview--contrast-ratio fill page) 0))
+               (score (if separate
+                          (min (/ label-ratio etaf-md-preview--mermaid-fill-contrast)
+                               (/ page-ratio etaf-md-preview--mermaid-fill-separation))
+                        (/ label-ratio etaf-md-preview--mermaid-fill-contrast))))
           (when (> score best-score)
-            (setq best fill best-score score))
+            (setq best (cons fill text) best-score score))
           (when (>= score 1.0)
-            (throw 'done fill)))
+            (throw 'done (cons fill text))))
         (setq weight (+ weight 0.05)))
       best)))
 
@@ -347,7 +368,10 @@ so the state takes it, mixed into PAGE far enough for the task's own label."
   (let ((surface (lambda (key prefix)
                    (let* ((hue (etaf-md-preview--hex-color
                                 (etaf-md-preview--env-color env key)))
-                          (fill (etaf-md-preview--mermaid-fill page ink hue)))
+                          ;; A bar carries its state at its edge, so its fill
+                          ;; only has to hold the task's text.
+                          (fill (car (etaf-md-preview--mermaid-fill
+                                      page ink hue ink 'no))))
                      (list (cons (intern (concat prefix "BkgColor")) fill)
                            (cons (intern (concat prefix "BorderColor")) hue))))))
     (append (funcall surface :ok "doneTask")
@@ -370,19 +394,21 @@ carry the same category."
     (append
      (cl-loop for i from 0 below 12
               for (hue . fill) = (funcall pick i)
-              append (list (cons (intern (format "cScale%d" i)) fill)
+              for (ink-fill . label) = fill
+              append (list (cons (intern (format "cScale%d" i)) ink-fill)
                            (cons (intern (format "cScaleInv%d" i)) hue)
                            (cons (intern (format "cScalePeer%d" i)) hue)
-                           (cons (intern (format "cScaleLabel%d" i)) ink)
-                           (cons (intern (format "pie%d" (1+ i))) fill)))
+                           (cons (intern (format "cScaleLabel%d" i)) label)
+                           (cons (intern (format "pie%d" (1+ i))) ink-fill)))
      (cl-loop for i from 0 below 8
               for (hue . fill) = (funcall pick i)
-              append (list (cons (intern (format "git%d" i)) fill)
+              for (ink-fill . label) = fill
+              append (list (cons (intern (format "git%d" i)) ink-fill)
                            (cons (intern (format "gitInv%d" i)) hue)
-                           (cons (intern (format "gitBranchLabel%d" i)) ink)
+                           (cons (intern (format "gitBranchLabel%d" i)) label)
                            ;; A journey paints a period's band and its tasks by
                            ;; the same series, and its actors beside them.
-                           (cons (intern (format "fillType%d" i)) fill)
+                           (cons (intern (format "fillType%d" i)) ink-fill)
                            (cons (intern (format "actor%d" i)) hue))))))
 
 (defun etaf-md-preview--mermaid-config (env)
@@ -405,6 +431,10 @@ sequence diagram starts at the very first pixel."
     (json-encode
      `((look . "classic")
        (theme . "base")
+       ;; A label is text, not an HTML box: mermaid otherwise wraps every label
+       ;; in the SVG's `foreignObject', which only a browser can draw, so the
+       ;; picture shows its shapes and loses every word in any other renderer.
+       (htmlLabels . :json-false)
        (themeVariables
         . ((background . "transparent")
            (primaryColor . ,panel)

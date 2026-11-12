@@ -160,18 +160,31 @@ parses its own colors cannot read that name."
                (mapcar (lambda (value) (ash value -8)) (cl-subseq values 0 3)))
       color)))
 
+(defun etaf-md-preview--luminance-channel (value)
+  "Return VALUE, a 0-65535 channel, as light.
+A channel is stored gamma-encoded, so it is decoded first: the encoded values
+understate the light a dark colour gives, and a contrast ratio measured without
+the decoding calls two dark surfaces far more different than they look."
+  (let ((scaled (/ value 65535.0)))
+    (if (<= scaled 0.03928)
+        (/ scaled 12.92)
+      (expt (/ (+ scaled 0.055) 1.055) 2.4))))
+
 (defun etaf-md-preview--luminance (color)
   "Return the relative luminance of COLOR, or nil when it does not resolve.
 The value is read from COLOR itself, so a batch session measures the color the
 same way a frame does."
   (when-let* ((values (etaf-md-preview--color-rgb color)))
     (cl-destructuring-bind (red green blue) values
-      (+ (* 0.2126 (/ red 65535.0))
-         (* 0.7152 (/ green 65535.0))
-         (* 0.0722 (/ blue 65535.0))))))
+      (+ (* 0.2126 (etaf-md-preview--luminance-channel red))
+         (* 0.7152 (etaf-md-preview--luminance-channel green))
+         (* 0.0722 (etaf-md-preview--luminance-channel blue))))))
 
-(defconst etaf-md-preview--heading-contrast 1.12
+(defconst etaf-md-preview--heading-contrast 1.35
   "Smallest contrast ratio that keeps a heading color apart from the body ink.
+A heading a couple of percent away from the body text is a heading the reader
+cannot see, so the step has to be a visible one; three to one is what the
+shipped palettes already give, and a flat theme sits near one.
 Several dark themes paint `outline-1' almost the body color, so honoring them
 literally renders every heading flat; below this ratio the palette derives the
 heading color from the accent instead.")

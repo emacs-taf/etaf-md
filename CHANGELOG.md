@@ -94,6 +94,31 @@
 
 ### Added
 
+- A diagram is drawn from its vector copy rather than a bitmap.  The renderer
+  writes the drawing's own SVG beside the raster, and the page places that: the
+  text stays sharp at whatever size the reading measure gives it, a wide
+  diagram narrows without resampling its labels, and no two-times bitmap of the
+  drawing is held in memory.  The raster stays as the fallback, and a diagram
+  whose labels mermaid writes as HTML - a journey's - keeps using it, because
+  no renderer outside a browser can draw one, and that raster is cut to the
+  drawing so a journey no longer carries rows of empty picture under it.
+
+### Fixed
+
+- A label mermaid wraps in HTML is text again.  Every diagram kind drew its
+  labels inside the SVG's `foreignObject`, which only a browser can paint, so
+  the picture showed its boxes and lost every word in any other renderer.  The
+  configuration asks for text labels instead, and the drawings are unchanged.
+- A fill and the label on it are chosen together.  A category fill now has to
+  stand 1.5:1 away from the page, so a mind map's branch - painted in that same
+  fill - is visible on a light page and on a dark one, and the label takes
+  whichever of the page's two inks reads on it at 3:1.
+- A contrast ratio is measured on decoded channels.  The luminance was computed
+  from the encoded values, which understated what a dark colour gives; two dark
+  surfaces were called far more different than they look, so the generator
+  believed a fill stood off the page when it did not.
+
+
 - `etaf-md-preview-follow-scroll` makes the page move with the source window:
   the block at the top of the markdown buffer becomes the first row of the
   preview as the source scrolls.  Only the source's scrolling follows, so the

@@ -127,12 +127,23 @@ a band of empty picture under a journey. A picture wider than the reading
 measure is narrowed in whole cells, and the width decides the height, so the
 right edge of a wide diagram is never cut off by its column.
 
+A diagram is shown from its vector copy. The renderer writes the drawing's own
+SVG beside the raster and the page places that, so the text stays sharp at any
+size and no twice-size bitmap is held in memory; the raster remains the
+fallback, and a kind whose labels mermaid writes as HTML stays a raster because
+nothing outside a browser can draw one. Two parts of the drawing exist for that
+renderer rather than for a browser: the configuration asks for text labels
+instead of `foreignObject`, and the SVG declares its own size so a viewer can
+place it without measuring the page.
+
 The document keeps the last word: a `%%{init: ...}%%` directive or a YAML front
 matter `config` block in the block's own source overrides the generated
-configuration, which is mermaid's own precedence. `make mermaid-check` renders
-a fixture of every kind through this configuration in each page palette and
-asserts the geometry, the label and fill contrast, and that a document's own
-colour still wins.
+configuration, which is mermaid's own precedence. `make mermaid-check` drives
+`scripts/mermaid-render.mjs` over a fixture of every kind in each page palette
+and asserts what a picture must satisfy: a categorical fill carries its label
+and stands off the page, the vector exists and holds its words as text, and a
+renderer that is not a browser - `rsvg-convert`, the engine Emacs draws SVG
+with - paints the same extent and a similar amount of ink.
 
 **Typing edits the source, never the page.** In-place editing is driven by
 `etaf-md-preview-projection`, which turns the published blocks into
