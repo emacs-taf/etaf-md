@@ -168,6 +168,17 @@ missing heading outline, and links that lost their activation keymap."
         (push "the document has no outline" problems)))
     (nreverse problems)))
 
+(defun etaf-md-preview-gui-wait (predicate &optional seconds)
+  "Return PREDICATE's first non-nil value within SECONDS, or nil.
+A mount publishes through a timer, so a probe that reads the buffer right
+after opening it can read an empty one: wait for the condition the probe is
+about instead of for a fixed delay."
+  (let ((deadline (+ (float-time) (or seconds 10))) (value nil))
+    (while (and (null value) (< (float-time) deadline))
+      (sit-for 0.25)
+      (setq value (funcall predicate)))
+    value))
+
 (defun etaf-md-preview-gui--line-slice (beg end)
   "Return the slice display BEG..END carries, or nil."
   (let ((position beg) (value nil))
