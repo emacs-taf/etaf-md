@@ -166,7 +166,7 @@ instead of reusing the colours of the old surface."
                        (if (eq kind 'math)
                            (format "%d/%d"
                                    (etaf-md-preview--typeset-pixels)
-                                   (max 1 (or (ignore-errors (frame-char-height)) 16)))
+                                   (cdr (etaf-md-preview--cell-metrics)))
                          (secure-hash 'sha1 (etaf-md-preview--mermaid-config env))))))
 
 (defun etaf-md-preview--typeset-path (key)
@@ -701,7 +701,7 @@ own message says what happened."
   (if (eq kind 'math)
       (list :ink (cdr (etaf-md-preview--typeset-colors env))
             :pixels (etaf-md-preview--typeset-pixels)
-            :cell (max 1 (or (ignore-errors (frame-char-height)) 16)))
+            :cell (cdr (etaf-md-preview--cell-metrics)))
     ;; The configuration is JSON already.  Parsing it to a plist and encoding
     ;; it again would turn every `false' into the string "false", which the
     ;; renderer reads as true.

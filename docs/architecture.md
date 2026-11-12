@@ -136,6 +136,12 @@ renderer rather than for a browser: the configuration asks for text labels
 instead of `foreignObject`, and the SVG declares its own size so a viewer can
 place it without measuring the page.
 
+A picture is placed in cells, so its grid is measured in the cells the page
+paints rather than the frame's defaults: `etaf-display-metrics` is a reactive
+read, and the framework republishes it when the buffer's text scaling settles,
+which is what makes a scaled page lay its pictures out again instead of leaving
+slices cut for the old line height.
+
 The document keeps the last word: a `%%{init: ...}%%` directive or a YAML front
 matter `config` block in the block's own source overrides the generated
 configuration, which is mermaid's own precedence. `make mermaid-check` drives

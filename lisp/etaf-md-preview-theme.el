@@ -272,17 +272,31 @@ Signal `etaf-md-preview-error' when either is unknown."
                 (list (format "Unknown markdown preview color: %S" key))))
       color)))
 
+(declare-function etaf-display-metrics "etaf-runtime" (&optional runtime))
+
+(defun etaf-md-preview--cell-metrics ()
+  "Return (CHAR-WIDTH . LINE-HEIGHT) of the page's own text.
+A picture is placed in cells, so its grid has to be measured in the cells the
+page actually paints.  Text scaling changes them and a frame's default font
+does not follow it, so reading the frame placed a picture in cells the page no
+longer had and left it striped: slices cut for the old line height sat on
+taller lines.  `etaf-display-metrics' is a reactive read, so the block that
+placed a picture renders again when the scale settles."
+  (let ((metrics (ignore-errors (etaf-display-metrics))))
+    (if metrics
+        (cons (max 1 (or (plist-get metrics :char-width) 1))
+              (max 1 (or (plist-get metrics :line-height) 1)))
+      ;; A batch run or a first build has no mounted Runtime, and the frame's
+      ;; own font is what the page will be painted with.
+      (cons (max 1 (or (ignore-errors (frame-char-width)) 8))
+            (max 1 (or (ignore-errors (frame-char-height)) 16))))))
+
 (defun etaf-md-preview--base-pixels ()
-  "Return the pixel height of the frame's default font.
-A formula or a diagram is placed beside text drawn in that font, so this is the
-size it is typeset at.  Emacs reports the font in points; the pixels a point
-takes belong to the frame, so the frame's own measured height is read.
-A batch session has no window, and the old conversion keeps it working."
-  (or (ignore-errors (window-font-height))
-      (let ((height (face-attribute 'default :height nil t)))
-        (if (numberp height)
-            (max 8 (round (/ (* height 4.0) 30.0)))
-          16.0))))
+  "Return the pixel size the page draws its own text at.
+Text scaling changes it and a frame's default font does not follow the scale,
+so a formula or a diagram typeset from the frame came out the wrong size beside
+the text it stands in."
+  (cdr (etaf-md-preview--cell-metrics)))
 
 (defun etaf-md-preview-theme-tokens (theme &optional palette)
   "Return the ETAF UI token plist for palette THEME.

@@ -92,6 +92,17 @@
   heading colour, a mixed surface or a diagram fill now comes out the same in a
   headless run as in a window.
 
+### Fixed
+
+- A diagram follows text scaling.  A picture is placed in cells, and the cells
+  were measured from the frame's default font, which does not follow a buffer's
+  text scale: after `C-x C-+` the page's lines grew and the slices drawn for the
+  old line height stayed behind, so every diagram broke into horizontal strips
+  with the glyphs cut between them.  The grid, the formula's row height and the
+  size a diagram is typeset at now come from the page's own metrics, which the
+  framework republishes when the scale settles, so the picture is placed and
+  drawn again at the new size.
+
 ### Added
 
 - A diagram is drawn from its vector copy rather than a bitmap.  The renderer

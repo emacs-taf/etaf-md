@@ -260,8 +260,9 @@ follows from those columns, keeps the drawing inside the column it starts in.
 Choosing the rows first and the columns from them rounded the height up to a
 whole cell and handed back a picture up to a few percent wider than the
 measure, which the window then cut off on the right."
-  (let* ((cell-width (max 1 (or (ignore-errors (frame-char-width)) 8)))
-         (cell-height (max 1 (or (ignore-errors (frame-char-height)) 16)))
+  (let* ((cell (etaf-md-preview--cell-metrics))
+         (cell-width (car cell))
+         (cell-height (cdr cell))
          (natural-width (float (car pixels)))
          (natural-height (float (cdr pixels)))
          (fitted (min natural-width (* max-columns cell-width)))
