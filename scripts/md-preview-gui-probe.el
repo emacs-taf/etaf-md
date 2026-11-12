@@ -168,6 +168,71 @@ missing heading outline, and links that lost their activation keymap."
         (push "the document has no outline" problems)))
     (nreverse problems)))
 
+(defun etaf-md-preview-gui--line-slice (beg end)
+  "Return the slice display BEG..END carries, or nil."
+  (let ((position beg) (value nil))
+    (while (and (< position end) (null value))
+      (let ((display (get-char-property position 'display)))
+        (when (eq (car-safe display) 'slice)
+          (setq value display)))
+      (setq position (1+ position)))
+    value))
+
+(defun etaf-md-preview-gui--picture-runs (beg end)
+  "Return the runs of slice rows in BEG..END as (ROWS STARTED HEIGHTS LINE)."
+  (let ((runs nil) (rows 0) (started 0) (heights nil) (first nil))
+    (save-excursion
+      (goto-char beg)
+      (while (< (point) end)
+        (let* ((slice (etaf-md-preview-gui--line-slice
+                       (line-beginning-position) (line-end-position)))
+               (height (and slice (nth 4 slice)))
+               (offset (and slice (nth 2 slice))))
+          (if (null slice)
+              (when (> rows 0)
+                (push (list rows started (delete-dups heights) first) runs)
+                (setq rows 0 started 0 heights nil first nil))
+            (setq rows (1+ rows)
+                  heights (cons height heights)
+                  first (or first (line-number-at-pos)))
+            (when (and offset (zerop offset)) (setq started (1+ started)))))
+        (forward-line 1)))
+    (when (> rows 0)
+      (push (list rows started (delete-dups heights) first) runs))
+    (nreverse runs)))
+
+(defun etaf-md-preview-gui--picture-problems (buffer)
+  "Return the picture invariants BUFFER breaks.
+A picture is one run of slice rows above its caption, each row exactly the
+height of the line it is painted on, starting at the picture's first row and
+starting once: a run that restarts is a second picture drawn over the first,
+and a caption with no rows above it is a picture that never arrived."
+  (with-current-buffer buffer
+    (let ((problems nil) (beg (point-min)))
+      (save-excursion
+        (goto-char (point-min))
+        (while (re-search-forward "▲" nil t)
+          (let ((runs (etaf-md-preview-gui--picture-runs beg (line-beginning-position))))
+            (unless runs
+              (push (format "line %d: the picture above the caption is missing"
+                            (line-number-at-pos))
+                    problems))
+            (dolist (run runs)
+              (let* ((rows (nth 0 run)) (started (nth 1 run))
+                     (heights (nth 2 run)) (first (nth 3 run)))
+                (unless (equal heights (list (plist-get (ebox--display-metrics buffer)
+                                                        :line-height)))
+                  (push (format "line %d: %d picture rows are %S tall, not the line height %s"
+                                first rows heights
+                                (plist-get (ebox--display-metrics buffer) :line-height))
+                        problems))
+                (unless (= started 1)
+                  (push (format "line %d: %d pictures start in one run of %d rows"
+                                first started rows)
+                        problems)))))
+          (setq beg (line-end-position))))
+      (nreverse problems))))
+
 (defun etaf-md-preview-gui-table-boundaries (header)
   "Check every displayed table row below HEADER against its column boundaries.
 Measure actual screen positions, not string widths: post-publication font

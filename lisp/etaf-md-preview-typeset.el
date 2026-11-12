@@ -199,7 +199,9 @@ keystroke pays for."
         block
       (if-let* ((source (plist-get block :text))
                 ((not (string-blank-p source)))
-                ((etaf-md-preview-typeset-available-p))
+                ;; A picture already on disk is shown whether or not this system
+                ;; can draw new ones: a preview that once drew diagrams must not
+                ;; lose them because the drawing program went missing later.
                 (path (etaf-md-preview--typeset-picture
                        (etaf-md-preview--typeset-key kind source env))))
           (plist-put (copy-sequence block) :picture path)
