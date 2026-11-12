@@ -179,13 +179,21 @@ about instead of for a fixed delay."
       (setq value (funcall predicate)))
     value))
 
+(defun etaf-md-preview-gui--slice (display)
+  "Return DISPLAY's slice spec, or nil when it carries no image slice.
+A picture row's display is the slice spec followed by its image descriptor:
+`((slice 0 Y W H) IMAGE)'.  Emacs also accepts the bare `(slice ...)' spec, so
+both shapes name the same thing here."
+  (cond
+   ((not (consp display)) nil)
+   ((eq (car display) 'slice) display)
+   ((and (consp (car display)) (eq (car (car display)) 'slice)) (car display))))
+
 (defun etaf-md-preview-gui--line-slice (beg end)
-  "Return the slice display BEG..END carries, or nil."
+  "Return the slice spec BEG..END carries, or nil."
   (let ((position beg) (value nil))
     (while (and (< position end) (null value))
-      (let ((display (get-char-property position 'display)))
-        (when (eq (car-safe display) 'slice)
-          (setq value display)))
+      (setq value (etaf-md-preview-gui--slice (get-char-property position 'display)))
       (setq position (1+ position)))
     value))
 
