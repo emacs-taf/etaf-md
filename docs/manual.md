@@ -70,7 +70,8 @@ an error.
 ## Extending the syntax
 
 The extension model, the syntax a document writes and the rules a definition
-follows are specified in [extensions.zh-CN.md](extensions.zh-CN.md) (Chinese).
+follows are specified in [extensions.md](extensions.md), with a Chinese
+translation in [extensions.zh-CN.md](extensions.zh-CN.md).
 The registry that runs definitions written outside the package is not
 implemented yet; the containers the package ships with are what a page can use
 today.
