@@ -125,6 +125,58 @@ window.ready = true
 const formulaPage = await browser.newPage()
 await formulaPage.setViewport({ width: 1200, height: 800, deviceScaleFactor: 2 })
 
+
+// A family that writes its own colours into its stylesheet cannot follow the
+// page's theme, so it is told the page's palette through the selectors it
+// listens to.  Each entry states that family's vocabulary in one place: the
+// selectors come from the family's own stylesheet, the colours from the page.
+// Nothing else in the renderer knows what a diagram calls its parts.
+const FAMILY_STYLES = [
+  {
+    family: /^\s*packet-beta/,
+    rules: ({ ink, line, panel }) => [
+      ['.packetBlock', `fill:${panel};stroke:${line}`],
+      ['.packetLabel, .packetTitle', `fill:${ink}`],
+      ['.packetByte', `fill:${line}`],
+    ],
+  },
+  {
+    family: /^\s*gantt/,
+    rules: ({ page, ink, line, danger }) => {
+      const mix = (colour, weight) => `color-mix(in srgb, ${colour} ${weight}%, ${page})`
+      return [
+        // A section's band and a weekend are the page seen through a shade,
+        // not two more colours of their own.
+        ['.section', `fill:${mix(ink, 5)};opacity:1;stroke:none`],
+        ['.exclude-range', `fill:${mix(ink, 4)}`],
+        ['.grid .tick text, .sectionTitle, .titleText', `fill:${line}`],
+        ['.today', `stroke:${danger}`],
+        // A task's state carries an index on its class, so the state is
+        // matched as a word inside the class rather than as a number of its
+        // own; the last rule here is the one an active critical task takes.
+        ['.task[class*="done"]', `fill:${mix(ink, 20)};stroke:${line}`],
+        ['.task[class*="active"]', `fill:${mix(ink, 30)};stroke:${line}`],
+        ['.task[class*="crit"]', `fill:${mix(danger, 30)};stroke:${danger}`],
+        ['.task[class*="milestone"]', `fill:${line};stroke:${line}`],
+        // Every task label takes the page's ink: the fills above all carry it.
+        ['[class*="taskText"]', `fill:${ink}!important`],
+      ]
+    },
+  },
+]
+
+// Return the style element that states PALETTE to the family SOURCE belongs
+// to, or an empty string for a family that already reads the theme.
+function pageStyles(source, palette, id) {
+  const roles = ['page', 'ink', 'line', 'panel', 'danger']
+  if (!palette || roles.some((role) => !palette[role])) return ''
+  const entry = FAMILY_STYLES.find((candidate) => candidate.family.test(source))
+  if (!entry) return ''
+  const scope = `#${id} `
+  const rules = entry.rules(palette).map(([selectors, body]) => scope + selectors + ' { ' + body + ' }')
+  return '<style>' + rules.join('') + '</style>'
+}
+
 // Draw a diagram into a PNG at OUT.  The picture is the diagram's own canvas:
 // its viewBox is what mermaid sized the drawing to.  An explicit height is
 // dropped because several kinds declare one that does not match their drawing,
@@ -141,12 +193,15 @@ async function drawDiagram(page, request) {
   if (problem) return { error: problem, fatal: true }
   await warmFonts(page, JSON.parse(request.config || '{}'))
   await page.evaluate(
-    async ({ source, config, id, widest }) => {
+    async ({ source, config, id, widest, pageStyle }) => {
       window.mermaid.initialize({ startOnLoad: false, ...JSON.parse(config) })
       const { svg } = await window.mermaid.render(`diagram-${id}`, source)
       const canvas = document.getElementById('canvas')
       canvas.innerHTML = svg
       const element = canvas.querySelector('svg')
+      // The page's colours come after the family's own stylesheet, so a rule
+      // stated for the page is read last where that family listens.
+      if (pageStyle) element.insertAdjacentHTML('beforeend', pageStyle)
       const viewBox = element.getAttribute('viewBox')
       const [width, height] = viewBox
         ? viewBox.split(/[\s,]+/).map(Number).slice(2)
@@ -158,7 +213,13 @@ async function drawDiagram(page, request) {
       element.style.maxHeight = 'none'
       await document.fonts.ready
     },
-    { source: request.source, config: request.config || '{}', id: request.id, widest: WIDEST },
+    {
+      source: request.source,
+      config: request.config || '{}',
+      id: request.id,
+      widest: WIDEST,
+      pageStyle: pageStyles(request.source, request.palette, `diagram-${request.id}`),
+    },
   )
   // A kind that labels its drawing in HTML keeps a raster, and its canvas can
   // hold rows of nothing under the drawing.  The picture is then cut to what is

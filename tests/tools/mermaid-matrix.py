@@ -59,7 +59,9 @@ INK_TOLERANCE = 0.25
 CONFIG_PROGRAM = """
 (progn
   (require 'etaf-md-preview)
-  (princ (etaf-md-preview--mermaid-config (list :theme (quote {palette})))))
+  (let ((env (list :theme (quote {palette}))))
+    (princ (json-encode (list :config (etaf-md-preview--mermaid-config env)
+                              :palette (etaf-md-preview--typeset-palette env))))))
 """
 
 OVERRIDE_COLOURS = {
@@ -91,8 +93,12 @@ def hexed(colour):
     return "#%02x%02x%02x" % colour
 
 
-def emacs_config(emacs, palette):
-    """Return the configuration the package generates for PALETTE."""
+def emacs_page(emacs, palette):
+    """Return the renderer settings the package generates for PALETTE.
+
+The renderer receives the page's palette beside mermaid's configuration, so a
+family that writes its own colours is told the page's rather than reading them
+out of mermaid's vocabulary."""
     load_path = ["-L", str(ROOT / "lisp")]
     for name in PROVIDERS:
         load_path += ["-L", str(ROOT.parent / name)]
@@ -103,7 +109,11 @@ def emacs_config(emacs, palette):
     if run.returncode != 0:
         raise SystemExit("Emacs could not build the %s configuration:\n%s"
                          % (palette, run.stderr.strip()))
-    return run.stdout.strip()
+    try:
+        return json.loads(run.stdout.strip())
+    except ValueError:
+        raise SystemExit("Emacs did not answer with a JSON page for %s:\n%s"
+                         % (palette, run.stdout.strip()[:400]))
 
 
 def draw(requests, outdir):
@@ -300,19 +310,14 @@ def main():
         if kept:
             kept.mkdir(parents=True, exist_ok=True)
 
-        configs, requests, index = {}, [], 0
+        requests, index = [], 0
         # Every drawing is asked for twice.  A diagram measured before the page
         # resolved the reader's face comes out with labels their boxes were not
         # cut for, and only the first drawing on a page pays that cost: the
         # second request of the same source is what exposes it.
         for palette in PALETTES:
-            config = emacs_config(arguments.emacs, palette)
-            configs[palette] = config
-            try:
-                parsed = json.loads(config)
-            except ValueError:
-                failures.append("%s: the configuration is not JSON" % palette)
-                continue
+            page = emacs_page(arguments.emacs, palette)
+            parsed = json.loads(page["config"])
             problems = check_colours(palette, parsed, PAGES[palette])
             for problem in problems:
                 print("FAIL %s" % problem)
@@ -328,7 +333,8 @@ def main():
                         "kind": "mermaid",
                         "source": fixture.read_text(),
                         "out": str(workdir / name),
-                        "config": config,
+                        "config": page["config"],
+                        "palette": page["palette"],
                     })
                     index += 1
 

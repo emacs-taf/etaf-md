@@ -380,6 +380,66 @@ so the state takes it, mixed into PAGE far enough for the task's own label."
             (funcall surface :accent "activeTask")
             (funcall surface :danger "crit"))))
 
+(defun etaf-md-preview--mermaid-family-theme (env colors)
+  "Return the theme variables that later diagram families read.
+Each of these families paints its own surface - a chart's plot, a radar's disc,
+a C4 box - instead of deriving it from the box colour, so the page states the
+surface and the ink that goes on it for every family at once."
+  (let ((page (plist-get colors :page))
+        (ink (plist-get colors :ink))
+        (border (plist-get colors :border))
+        (muted (plist-get colors :muted))
+        (panel (plist-get colors :panel))
+        (quote-bg (plist-get colors :quote)))
+    `((xyChart . ((backgroundColor . ,page)
+                  (titleColor . ,ink)
+                  (xAxisLabelColor . ,muted) (xAxisTitleColor . ,ink)
+                  (xAxisTickColor . ,muted) (xAxisLineColor . ,border)
+                  (yAxisLabelColor . ,muted) (yAxisTitleColor . ,ink)
+                  (yAxisTickColor . ,muted) (yAxisLineColor . ,border)
+                  (plotColorPalette . ,(etaf-md-preview--mermaid-plot-colours env page ink))
+                  (dataLabelColor . ,ink) (legendTextColor . ,ink)))
+      ;; A radar's curves are strokes over a mostly empty disc, so its series
+      ;; keep the hue rather than the fill mixed for a solid shape.
+      (radar . ((axisColor . ,muted) (axisStrokeWidth . 1)
+                (graticuleColor . ,(etaf-md-preview--mermaid-tint page ink 0.14))
+                (graticuleStrokeWidth . 1)
+                (curveStrokeWidth . 2) (curveOpacity . 0.2)))
+      (architecture . ((archEdgeColor . ,muted)
+                       (archEdgeArrowColor . ,muted)
+                       (archGroupBorderColor . ,border)))
+      (c4 . ((personBkg . ,panel) (personBorder . ,border)
+             (systemBkg . ,panel) (systemBorder . ,border)
+             (externalSystemBkg . ,quote-bg)
+             (externalSystemBorder . ,border)
+             (messageTextColor . ,ink))))))
+
+(defun etaf-md-preview--mermaid-series (env page ink)
+  "Return ENV's category colours, keyed by role.
+:fill is a page surface carrying the page's own ink, :hue is the same colour
+unmixed, for the line or border that belongs to the same category, and :label
+is the ink that goes on the fill."
+  (mapcar (lambda (key)
+            (let* ((hue (etaf-md-preview--hex-color
+                         (etaf-md-preview--env-color env key)))
+                   (fill (etaf-md-preview--mermaid-fill page ink hue)))
+              (list :hue hue :fill (car fill) :label (cdr fill))))
+          etaf-md-preview--mermaid-hues))
+
+(defun etaf-md-preview--mermaid-plot-colours (env page ink)
+  "Return a chart's series colours as a comma-separated list.
+A bar is a filled shape, so it takes the surface that carries the page's ink;
+the line beside it takes the hue itself, where the difference between the two
+series has to be visible in a stroke a pixel wide."
+  (let ((series (etaf-md-preview--mermaid-series env page ink)))
+    (mapconcat #'identity
+               (cl-loop for index from 0 below 6
+                        for entry = (nth (mod index (length series)) series)
+                        ;; A bar is filled, so it takes the surface; the line
+                        ;; beside it is a stroke and takes the hue itself.
+                        collect (plist-get entry (if (cl-evenp index) :fill :hue)))
+               ",")))
+
 (defun etaf-md-preview--mermaid-categorical (env page ink)
   "Return the theme variables that colour ENV's diagram categories.
 Mermaid derives those colours by darkening the box color of the page, which on
@@ -387,31 +447,44 @@ a dark page leaves every slice, branch and period black, and it cannot tell a
 dark page from a light one.  So the page's callout colors supply the hues, each
 mixed into PAGE for the fill and kept as it is for the lines and borders that
 carry the same category."
-  (let* ((series (mapcar (lambda (key)
-                           (let ((hue (etaf-md-preview--hex-color
-                                       (etaf-md-preview--env-color env key))))
-                             (cons hue (etaf-md-preview--mermaid-fill page ink hue))))
-                         etaf-md-preview--mermaid-hues))
+  (let* ((series (etaf-md-preview--mermaid-series env page ink))
          (pick (lambda (index) (nth (mod index (length series)) series))))
     (append
      (cl-loop for i from 0 below 12
-              for (hue . fill) = (funcall pick i)
-              for (ink-fill . label) = fill
-              append (list (cons (intern (format "cScale%d" i)) ink-fill)
+              for entry = (funcall pick i)
+              for fill = (plist-get entry :fill)
+              for label = (plist-get entry :label)
+              for hue = (plist-get entry :hue)
+              append (list (cons (intern (format "cScale%d" i)) fill)
                            (cons (intern (format "cScaleInv%d" i)) hue)
                            (cons (intern (format "cScalePeer%d" i)) hue)
                            (cons (intern (format "cScaleLabel%d" i)) label)
-                           (cons (intern (format "pie%d" (1+ i))) ink-fill)))
+                           (cons (intern (format "pie%d" (1+ i))) fill)))
      (cl-loop for i from 0 below 8
-              for (hue . fill) = (funcall pick i)
-              for (ink-fill . label) = fill
-              append (list (cons (intern (format "git%d" i)) ink-fill)
+              for entry = (funcall pick i)
+              for fill = (plist-get entry :fill)
+              for label = (plist-get entry :label)
+              for hue = (plist-get entry :hue)
+              append (list (cons (intern (format "git%d" i)) fill)
                            (cons (intern (format "gitInv%d" i)) hue)
                            (cons (intern (format "gitBranchLabel%d" i)) label)
                            ;; A journey paints a period's band and its tasks by
                            ;; the same series, and its actors beside them.
-                           (cons (intern (format "fillType%d" i)) ink-fill)
+                           (cons (intern (format "fillType%d" i)) fill)
                            (cons (intern (format "actor%d" i)) hue))))))
+
+(defun etaf-md-preview--typeset-palette (env)
+  "Return the page's colours as the drawing program names them.
+A few diagram families write their own colours instead of reading a theme, so
+the renderer is told the page's palette once and states it where those families
+listen.  Naming the roles here keeps mermaid's vocabulary out of the renderer."
+  (let ((colors (etaf-md-preview--page-colors env)))
+    (list :page (plist-get colors :page)
+          :ink (plist-get colors :ink)
+          :line (plist-get colors :muted)
+          :panel (plist-get colors :panel)
+          :danger (etaf-md-preview--hex-color
+                   (etaf-md-preview--env-color env :danger)))))
 
 (defun etaf-md-preview--mermaid-config (env)
   "Return the mermaid configuration JSON drawn for ENV's page.
@@ -425,7 +498,7 @@ sequence diagram starts at the very first pixel."
          (panel2 (plist-get colors :panel2))
          (border (plist-get colors :border))
          (muted (plist-get colors :muted))
-         (quote (plist-get colors :quote))
+         (quote-bg (plist-get colors :quote))
          (page (plist-get colors :page))
         ;; A frame supplies the body size; a batch run has none, and rounding
         ;; its answer would size every diagram at one pixel.
@@ -438,13 +511,17 @@ sequence diagram starts at the very first pixel."
        ;; picture shows its shapes and loses every word in any other renderer.
        (htmlLabels . :json-false)
        (themeVariables
-        . ((background . "transparent")
+        ;; Mermaid derives most of a drawing's own colours from this one:
+        ;; given `transparent' it computes black, so a dark card, a radar disc
+        ;; and a C4 canvas came out black on a light page.  The page's own
+        ;; colour is both the honest answer and the one every derivation needs.
+        . ((background . ,page)
            (primaryColor . ,panel)
            (primaryTextColor . ,ink)
            (primaryBorderColor . ,border)
            (secondaryColor . ,panel2)
            (secondaryTextColor . ,ink)
-           (tertiaryColor . ,quote)
+           (tertiaryColor . ,quote-bg)
            (tertiaryTextColor . ,ink)
            (lineColor . ,muted)
            (textColor . ,ink)
@@ -467,7 +544,7 @@ sequence diagram starts at the very first pixel."
            (labelBoxBkgColor . ,panel)
            (labelBoxBorderColor . ,border)
            (labelTextColor . ,ink)
-           (noteBkgColor . ,quote)
+           (noteBkgColor . ,quote-bg)
            (noteTextColor . ,ink)
            (noteBorderColor . ,border)
            ;; A slice is separated from the next by the page itself, and the
@@ -480,7 +557,7 @@ sequence diagram starts at the very first pixel."
            ;; a dark page that put the page's ink on a white row.  The page's own
            ;; row surfaces keep the ink readable.
            (rowOdd . ,panel2)
-           (rowEven . ,quote)
+           (rowEven . ,quote-bg)
            ;; A gantt's band, its grid and its today line are the light
            ;; page's greys and red on any page.
            (sectionBkgColor . ,(etaf-md-preview--mermaid-tint page ink 0.04))
@@ -529,6 +606,7 @@ sequence diagram starts at the very first pixel."
            ;; The reader's own font comes first, so a diagram carries the same
            ;; type as the page, with the CJK face behind it and a family every
            ;; desktop has as the last resort.
+           ,@(etaf-md-preview--mermaid-family-theme env colors)
            (fontFamily . ,(etaf-md-preview--mermaid-font-family))
            (fontSize . ,(format "%dpx" base))
            ,@(etaf-md-preview--mermaid-categorical env page ink)
@@ -707,7 +785,8 @@ own message says what happened."
     ;; The configuration is JSON already.  Parsing it to a plist and encoding
     ;; it again would turn every `false' into the string "false", which the
     ;; renderer reads as true.
-    (list :config (etaf-md-preview--mermaid-config env))))
+    (list :config (etaf-md-preview--mermaid-config env)
+          :palette (etaf-md-preview--typeset-palette env))))
 
 (defun etaf-md-preview--typeset-start (key kind source env done)
   "Ask the drawing program for SOURCE's picture as KIND, and call DONE later.

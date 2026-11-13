@@ -2,7 +2,15 @@
 
 ## Unreleased
 
-### Fixed
+### Added
+
+- Every diagram family the renderer supports is drawn in the page's own
+  colours.  Mermaid gives each family its own palette, and the ones added later
+  (charts, radar, kanban, treemap, block, packet, architecture, C4) were still
+  arriving in mermaid's light defaults: a chart's plot and a radar's disc came
+  out black on a light page, and a packet diagram stayed a strip of white paper
+  on a dark one.  A chart's bar and its line now take different hues instead of
+  two steps of the same grey.
 
 - Diagrams and formulas are no longer doubled on a display with two device
 pixels per point.  The picture was drawn at twice the size its rows were cut
