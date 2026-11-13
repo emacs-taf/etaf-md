@@ -131,14 +131,15 @@ Return `:line', `:kept' (the reader stayed within three lines of BEFORE) and
 (defun etaf-md-preview-gui-check ()
   "Return preview layout problems, or nil when the frame looks healthy.
 Checks the invariants a text frame can violate silently: painted lines that
-are wider than the window, text drawn without the palette's background, a
-missing heading outline, and links that lost their activation keymap."
+are wider than the window, a picture row cut for another measure, a missing
+heading outline, and links that lost their activation keymap."
   (let* ((session etaf-md-preview-gui--session)
          (buffer (and session (plist-get session :buffer)))
          (problems nil))
     (unless (buffer-live-p buffer)
       (push "no live preview buffer" problems))
     (when (buffer-live-p buffer)
+      (setq problems (nconc (etaf-md-preview-gui--picture-problems buffer) problems))
       (with-current-buffer buffer
         (let* ((window (get-buffer-window buffer t))
                (columns (and (window-live-p window) (window-body-width window)))
@@ -163,21 +164,10 @@ missing heading outline, and links that lost their activation keymap."
               (cl-incf links))
             (setq position (next-property-change position nil (point-max))))
           (unless (> links 0)
-            (push "the document rendered without any interactive link" problems))))
-      (unless (plist-get (etaf-md-preview-state session) :outline)
-        (push "the document has no outline" problems)))
+            (push "the document rendered without any interactive link" problems)))
+        (unless (plist-get (etaf-md-preview-state session) :outline)
+          (push "the document has no outline" problems))))
     (nreverse problems)))
-
-(defun etaf-md-preview-gui-wait (predicate &optional seconds)
-  "Return PREDICATE's first non-nil value within SECONDS, or nil.
-A mount publishes through a timer, so a probe that reads the buffer right
-after opening it can read an empty one: wait for the condition the probe is
-about instead of for a fixed delay."
-  (let ((deadline (+ (float-time) (or seconds 10))) (value nil))
-    (while (and (null value) (< (float-time) deadline))
-      (sit-for 0.25)
-      (setq value (funcall predicate)))
-    value))
 
 (defun etaf-md-preview-gui--slice (display)
   "Return DISPLAY's slice spec, or nil when it carries no image slice.
@@ -197,59 +187,42 @@ both shapes name the same thing here."
       (setq position (1+ position)))
     value))
 
-(defun etaf-md-preview-gui--picture-runs (beg end)
-  "Return the runs of slice rows in BEG..END as (ROWS STARTED HEIGHTS LINE)."
-  (let ((runs nil) (rows 0) (started 0) (heights nil) (first nil))
-    (save-excursion
-      (goto-char beg)
-      (while (< (point) end)
-        (let* ((slice (etaf-md-preview-gui--line-slice
-                       (line-beginning-position) (line-end-position)))
-               (height (and slice (nth 4 slice)))
-               (offset (and slice (nth 2 slice))))
-          (if (null slice)
-              (when (> rows 0)
-                (push (list rows started (delete-dups heights) first) runs)
-                (setq rows 0 started 0 heights nil first nil))
-            (setq rows (1+ rows)
-                  heights (cons height heights)
-                  first (or first (line-number-at-pos)))
-            (when (and offset (zerop offset)) (setq started (1+ started)))))
-        (forward-line 1)))
-    (when (> rows 0)
-      (push (list rows started (delete-dups heights) first) runs))
-    (nreverse runs)))
-
 (defun etaf-md-preview-gui--picture-problems (buffer)
-  "Return the picture invariants BUFFER breaks.
-A picture is one run of slice rows above its caption, each row exactly the
-height of the line it is painted on, starting at the picture's first row and
-starting once: a run that restarts is a second picture drawn over the first,
-and a caption with no rows above it is a picture that never arrived."
+  "Return the picture rows of BUFFER that do not fit the lines they sit on.
+A picture is a run of rows cut for one measure: every row is as tall as the
+line it is painted on, and the run begins once.  A row that leaves its line's
+height is a picture cut for another measure, and a run that begins twice is a
+second drawing over the first - the two ways a picture arrives doubled, with
+gaps between its rows, or out of line with the text around it."
   (with-current-buffer buffer
-    (let ((problems nil) (beg (point-min)))
-      (save-excursion
-        (goto-char (point-min))
-        (while (re-search-forward "▲" nil t)
-          (let ((runs (etaf-md-preview-gui--picture-runs beg (line-beginning-position))))
-            (unless runs
-              (push (format "line %d: the picture above the caption is missing"
-                            (line-number-at-pos))
-                    problems))
-            (dolist (run runs)
-              (let* ((rows (nth 0 run)) (started (nth 1 run))
-                     (heights (nth 2 run)) (first (nth 3 run)))
-                (unless (equal heights (list (plist-get (ebox--display-metrics buffer)
-                                                        :line-height)))
-                  (push (format "line %d: %d picture rows are %S tall, not the line height %s"
-                                first rows heights
-                                (plist-get (ebox--display-metrics buffer) :line-height))
+    (let ((window (get-buffer-window buffer t))
+          (position (point-min))
+          (problems nil)
+          (rows 0)
+          (last-line -2))
+      (when (window-live-p window)
+        (while (< position (point-max))
+          (let ((slice (etaf-md-preview-gui--slice (get-char-property position 'display))))
+            (when slice
+              (let* ((line (line-number-at-pos position))
+                     (height (nth 4 slice))
+                     (painted (with-selected-window window
+                                (save-excursion
+                                  (goto-char position)
+                                  (line-pixel-height)))))
+                (unless (= height painted)
+                  (push (format "line %d: a picture row is %d tall in a %d line"
+                                line height painted)
                         problems))
-                (unless (= started 1)
-                  (push (format "line %d: %d pictures start in one run of %d rows"
-                                first started rows)
-                        problems)))))
-          (setq beg (line-end-position))))
+                (when (and (zerop (nth 2 slice))
+                           (> rows 0)
+                           (= line (1+ last-line)))
+                  (push (format "line %d: a picture begins again inside one run" line)
+                        problems))
+                (setq rows (if (= line (1+ last-line)) (1+ rows) 1)
+                      last-line line))))
+          (setq position (or (next-single-property-change position 'display nil (point-max))
+                             (point-max)))))
       (nreverse problems))))
 
 (defun etaf-md-preview-gui-table-boundaries (header)
