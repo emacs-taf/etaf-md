@@ -12,7 +12,7 @@ deliberate.  A preview with twenty special-case blocks has twenty small rules,
 and their differences show up as pages that look right in one theme and wrong
 in another.  One primitive with twenty declarations has one rule.
 
-### A container
+## A container
 
 ```
 :::card {title="缓存命中" tone=info}
@@ -38,7 +38,7 @@ written without braces:
 :::
 ```
 
-### Parameters
+## Parameters
 
 A definition states the parameters it accepts and their types.  The types are
 `string`, `number`, `bool`, `length`, `color`, `enum` and a regular expression.
@@ -64,7 +64,7 @@ line 42: card's tone is "urgent"; it accepts info, warning, danger
 
 A page that fails loudly is a page whose author can fix it.
 
-### Colours and sizes come from the page
+## Colours and sizes come from the page
 
 A container may name a token, never a literal size.  The tokens are the ones
 the page already uses: `page`, `ink`, `muted`, `panel`, `quote`, `border`,
@@ -76,7 +76,7 @@ Type size is never a parameter.  It comes from the reader's Emacs, the way the
 rest of the page does, and a container that needs to stand out uses weight,
 space, a rule or a panel instead.
 
-### A layout
+## A layout
 
 `:::layout` arranges containers and prose in columns.  Its body is divided by
 `:::col` markers, and each column holds Markdown.
@@ -108,7 +108,7 @@ Complex layout is composition, not another language.  A column holds the same
 Markdown as the page, so a card, a diagram, a table and a formula inside one
 compose without a new rule for each.
 
-### Unknown names
+## Unknown names
 
 A document may travel to a machine whose definitions differ.  A name that is
 not defined is not an error and not a guess: the block keeps its source, and
@@ -126,7 +126,7 @@ line 12: "stats" is not defined here; this block is shown as its source
 The document still reads, the missing piece is visible, and adding the
 definition makes it render without touching the text.
 
-### Writing a definition
+## Writing a definition
 
 A definition is data, kept beside the package, not inside a document.  It names
 the container, states its parameters, and returns a view built from the same
@@ -151,7 +151,7 @@ definition decides arrangement, never parsing.  That is why a container can
 hold anything the page holds, and why publishing, tables of contents, links,
 search and per-block repainting keep working inside it.
 
-### The rules that keep it one system
+## The rules that keep it one system
 
 1. One syntax: `:::name {params}`.  A new effect is a new name, never a new
    punctuation.
