@@ -188,15 +188,35 @@ PATH without readable attributes is probed directly."
           (puthash key (funcall prober path)
                    etaf-md-preview--media-pixels-cache))))))
 
+(defun etaf-md-preview--svg-declared-size (path)
+  "Return the size PATH declares in its own header, or nil.
+A vector states the size it should occupy.  Reading that costs a few hundred
+bytes; asking the image loader for it rasterises the whole drawing instead, and
+a diagram with filters takes seconds that way - a page paid it once per picture
+every time it published."
+  (with-temp-buffer
+    (set-buffer-multibyte nil)
+    (when (ignore-errors (insert-file-contents-literally path nil 0 4096))
+      (goto-char (point-min))
+      (when (re-search-forward "<svg\\b[^>]*>" nil t)
+        (let* ((tag (match-string-no-properties 0))
+               (width (and (string-match "\\bwidth=\"\\([0-9.]+\\)" tag)
+                           (string-to-number (match-string 1 tag))))
+               (height (and (string-match "\\bheight=\"\\([0-9.]+\\)" tag)
+                            (string-to-number (match-string 1 tag)))))
+          (and width height (> width 0) (> height 0) (cons width height)))))))
+
 (defun etaf-md-preview--probe-image-pixels (path)
   "Return PATH's image pixel size as (WIDTH . HEIGHT), or nil.
 Drop PATH's entry first so an updated file is measured from its bytes rather
 than the previous render."
-  (ignore-errors
-    (clear-image-cache path)
-    (when-let* ((image (create-image path nil nil)))
-      (let ((size (image-size image t)))
-        (cons (car size) (cdr size))))))
+  (if (string-suffix-p ".svg" (downcase path))
+      (etaf-md-preview--svg-declared-size path)
+    (ignore-errors
+      (clear-image-cache path)
+      (when-let* ((image (create-image path nil nil)))
+        (let ((size (image-size image t)))
+          (cons (car size) (cdr size)))))))
 
 (defun etaf-md-preview--image-pixels (path)
   "Return PATH's pixel size as (WIDTH . HEIGHT), or nil.
