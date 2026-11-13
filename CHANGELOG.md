@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+### Changed
+
+- A page with many diagrams opens and rescales quickly.  A vector used to be
+  rasterised just to learn its size, and again whenever a text scale changed the
+  grid it sits in: on a page of twenty-three diagrams that meant five seconds to
+  open and two seconds per zoom.  A vector's size is now read from its own
+  header, and while the raster beside it still has the pixels a new grid needs,
+  the raster is shown - loading it is a decode, not a drawing.  The same page
+  opens in a third of a second and rescales in a fifth, holding less than half
+  the memory.
+
 ### Added
 
 - Every diagram family the renderer supports is drawn in the page's own
