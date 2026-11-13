@@ -5,12 +5,12 @@ EMACS ?= emacs
 # override PROVIDER_ROOT to pin another checkout.
 PROVIDER_ROOT ?= ..
 LOAD_PATH = -L . -L lisp -L tests -L $(PROVIDER_ROOT)/etaf -L $(PROVIDER_ROOT)/etaf-ui -L $(PROVIDER_ROOT)/ebox -L $(PROVIDER_ROOT)/ecss
-SOURCES = lisp/etaf-md-preview-theme.el
-SOURCES += lisp/etaf-md-preview-model.el lisp/etaf-md-preview-views.el
-SOURCES += lisp/etaf-md-preview-app.el lisp/etaf-md-preview-live.el
-SOURCES += lisp/etaf-md-preview-typeset.el etaf-md-preview.el
+SOURCES = lisp/etaf-md-theme.el
+SOURCES += lisp/etaf-md-model.el lisp/etaf-md-views.el
+SOURCES += lisp/etaf-md-app.el lisp/etaf-md-live.el
+SOURCES += lisp/etaf-md-typeset.el etaf-md.el
 SOURCES += $(wildcard examples/*.el)
-SOURCES += scripts/md-preview-gui-probe.el
+SOURCES += scripts/etaf-md-gui-probe.el
 SOURCES += benchmarks/performance-scenarios.el
 
 .PHONY: compile load check clean structure-check setup-hooks acceptance api-check test benchmark mermaid-check
@@ -23,7 +23,7 @@ compile:
 		--eval '(unless (cl-every (function byte-compile-file) (quote ($(foreach file,$(SOURCES),"$(file)")))) (kill-emacs 1))'
 
 load: compile
-	$(EMACS) -Q --batch $(LOAD_PATH) --eval '(require (quote etaf-md-preview))' --eval '(princ "etaf-md-preview load OK\n")'
+	$(EMACS) -Q --batch $(LOAD_PATH) --eval '(require (quote etaf-md))' --eval '(princ "etaf-md load OK\n")'
 
 check: structure-check compile acceptance api-check
 

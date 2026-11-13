@@ -58,10 +58,10 @@ INK_TOLERANCE = 0.25
 
 CONFIG_PROGRAM = """
 (progn
-  (require 'etaf-md-preview)
+  (require 'etaf-md)
   (let ((env (list :theme (quote {palette}))))
-    (princ (json-encode (list :config (etaf-md-preview--mermaid-config env)
-                              :palette (etaf-md-preview--typeset-palette env))))))
+    (princ (json-encode (list :config (etaf-md--mermaid-config env)
+                              :palette (etaf-md--typeset-palette env))))))
 """
 
 OVERRIDE_COLOURS = {

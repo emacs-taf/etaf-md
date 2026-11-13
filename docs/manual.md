@@ -51,7 +51,7 @@ preview needs:
   title and its author, date, version, license and status keys render in a
   title area at the top of the document.
 
-`etaf-md-preview-create` selects the dialect with its `:flavor` argument:
+`etaf-md-create` selects the dialect with its `:flavor` argument:
 `gfm` (the default) enables the GitHub extensions and front matter,
 `commonmark` parses the core specification only, and a feature plist such as
 `(:tables t :task-lists nil)` toggles individual extensions.
@@ -69,7 +69,7 @@ an error.
 
 ## Theming and layout
 
-`etaf-md-preview-theme` chooses the document's colors. The default `auto`
+`etaf-md-theme` chooses the document's colors. The default `auto`
 derives them from the active frame's own faces: the page keeps the Emacs
 theme's background, muted text follows `shadow`, headings `outline-1`, links
 `link`, callouts `success`/`warning`/`error`, and panel surfaces (code blocks,
@@ -78,7 +78,7 @@ toward its foreground. The preview therefore matches whatever Emacs theme is
 active without painting a page background of its own. The fixed `dark`,
 `light` and `sepia` palettes remain available when a self-contained page is
 wanted: selecting one paints its page background. `t` cycles the fixed
-palettes, `etaf-md-preview-set-theme` pins one, and the resulting colors are
+palettes, `etaf-md-set-theme` pins one, and the resulting colors are
 published as `:ui-*` theme tokens, so shared ETAF UI components used inside
 the preview follow them.
 
@@ -89,7 +89,7 @@ side outside the measure, so the text never starts or ends on the window edge
 and a table's border stays off the column where the renderer extends the last
 cell's paint across the window's sub-cell remainder. `[` and `]` adjust the
 maximum manually in both directions, and the result is clamped between
-`etaf-md-preview-width-min` and `etaf-md-preview-width-max`. A window resize
+`etaf-md-width-min` and `etaf-md-width-max`. A window resize
 reflows through the renderer's viewport update rather than rebuilding the
 document, and because the preview publishes into one buffer, resizing never
 restarts the session.
@@ -140,32 +140,32 @@ decision follows the document and the frame.
 
 | Option | Default | Effect |
 | --- | --- | --- |
-| `etaf-md-preview-theme` | `auto` | Initial palette; `auto` derives the colors from the Emacs theme's faces and paints no page background. |
-| `etaf-md-preview-flavor` | `gfm` | Default Markdown dialect when `etaf-md-preview-create` gets no `:flavor`. |
-| `etaf-md-preview-width-min` | `40` | Narrowest reading measure, in character cells. |
-| `etaf-md-preview-width-max` | `96` | Widest reading measure; a wider window keeps it and centers the column. |
+| `etaf-md-theme` | `auto` | Initial palette; `auto` derives the colors from the Emacs theme's faces and paints no page background. |
+| `etaf-md-flavor` | `gfm` | Default Markdown dialect when `etaf-md-create` gets no `:flavor`. |
+| `etaf-md-width-min` | `40` | Narrowest reading measure, in character cells. |
+| `etaf-md-width-max` | `96` | Widest reading measure; a wider window keeps it and centers the column. |
 
 ## Scripting and headless use
 
-`etaf-md-preview-create` builds a session from a file or from text without any
-buffer; `etaf-md-preview-view` returns the mountable view; `etaf-md-preview-state`
+`etaf-md-create` builds a session from a file or from text without any
+buffer; `etaf-md-view` returns the mountable view; `etaf-md-state`
 reports a detached snapshot. A session created from text is a complete
 headless preview, which is what the acceptance tests use:
 
 ```elisp
-(let* ((session (etaf-md-preview-create :text "# Notes\n\n**bold** body.\n"))
-       (buffer (etaf-md-preview-open session)))
-  (etaf-md-preview-locate session 0)
-  (etaf-md-preview-set-theme session 'sepia)
-  (etaf-md-preview-refresh session)
-  (with-current-buffer buffer (etaf-md-preview-close)))
+(let* ((session (etaf-md-create :text "# Notes\n\n**bold** body.\n"))
+       (buffer (etaf-md-open session)))
+  (etaf-md-locate session 0)
+  (etaf-md-set-theme session 'sepia)
+  (etaf-md-refresh session)
+  (with-current-buffer buffer (etaf-md-close)))
 ```
 
-`etaf-md-preview-open` accepts a file path or a session, so callers can render
-a document they built themselves. `etaf-md-preview-locate` moves point to an
-outline index; `etaf-md-preview-outline` returns the outline itself.
+`etaf-md-open` accepts a file path or a session, so callers can render
+a document they built themselves. `etaf-md-locate` moves point to an
+outline index; `etaf-md-outline` returns the outline itself.
 
-`scripts/md-preview-gui-probe.el` drives a live frame for GUI verification: it
+`scripts/etaf-md-gui-probe.el` drives a live frame for GUI verification: it
 opens a document at a given frame size, reports one-line state, sends real
 keys and checks layout invariants (no over-wide line, an interactive link, an
 outline).

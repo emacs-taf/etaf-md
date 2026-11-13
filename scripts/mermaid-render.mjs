@@ -103,7 +103,7 @@ let pageRoot = null
 
 async function openMermaidPage() {
   if (!pageRoot) {
-    pageRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'etaf-md-preview-'))
+    pageRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'etaf-md-'))
     fs.writeFileSync(
       path.join(pageRoot, 'index.html'),
       `<!doctype html><body><div id="canvas"></div>

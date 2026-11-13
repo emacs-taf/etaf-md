@@ -1,6 +1,6 @@
 # 扩展语法
 
-> **实现状态。** 今天页面能用的只有 GitHub 提示块，写法是 `> [!NOTE]`、`[!TIP]`、`[!IMPORTANT]`、`[!WARNING]`、`[!CAUTION]`。本文其余部分是设计契约：先把语法、参数和验收标准定下来，实现时照它做。标「计划中」的容器和接口今天都不存在，函数名也只是提案，落地时以根入口 `etaf-md-preview.el` 的 Commentary 为准。
+> **实现状态。** 今天页面能用的只有 GitHub 提示块，写法是 `> [!NOTE]`、`[!TIP]`、`[!IMPORTANT]`、`[!WARNING]`、`[!CAUTION]`。本文其余部分是设计契约：先把语法、参数和验收标准定下来，实现时照它做。标「计划中」的容器和接口今天都不存在，函数名也只是提案，落地时以根入口 `etaf-md.el` 的 Commentary 为准。
 >
 > 中英两版一节对一节。改一处，另一处同时改。
 
@@ -305,7 +305,7 @@ plume 还有 `card-masonry`，按高度装箱。我们不吸收：字符网格�
 :::code-tabs
 :::tab
 ```elisp
-(etaf-md-preview-open)
+(etaf-md-open)
 ```
 :::tab
 ```python
@@ -347,7 +347,7 @@ print("hi")
 :::field
 - 版本：12.3.0
 - 渲染器：Chromium，常驻
-- 缓存：`~/.cache/etaf-md-preview/typeset`
+- 缓存：`~/.cache/etaf-md/typeset`
 :::
 ```
 
@@ -461,9 +461,9 @@ print("hi")
 ```markdown
 :::file-tree {title="lisp/"}
 - lisp/
-  - etaf-md-preview-model.el
-  - etaf-md-preview-views.el
-- etaf-md-preview.el
+  - etaf-md-model.el
+  - etaf-md-views.el
+- etaf-md.el
 :::
 ```
 
@@ -577,7 +577,7 @@ print("hi")
 一个定义是数据，不是文档里的代码。形状是这样：
 
 ```elisp
-(etaf-md-preview-define-container
+(etaf-md-define-container
  'card
  :summary "一张带标题的卡片"
  :params '((title :string "" "卡片标题")
@@ -588,9 +588,9 @@ print("hi")
                     (list :width 'stretch
                           :gap '((lh 1) (ch 0))
                           :padding '((lh 1) (ch 2))
-                          :background-color (etaf-md-preview-token env 'panel)
+                          :background-color (etaf-md-token env 'panel)
                           :border-left (list '(px 3) 'solid
-                                             (etaf-md-preview-token env 'border)))
+                                             (etaf-md-token env 'border)))
                     (append
                      (when-let* ((title (plist-get params :title)))
                        (list (etaf-node 'text (list :weight 'bold) (list title))))
@@ -610,21 +610,21 @@ print("hi")
 
 - `params`：校验过的 plist。没写的参数取默认值，类型已经转换好，`number` 是数，`bool` 是 `t` 或 `nil`。
 - `body`：已经解析好的内容，一串视图，不是一个字符串。定义只决定怎么摆，从不碰怎么解析。
-- `env`：渲染环境。取颜色用 `(etaf-md-preview-token env 'panel)`，取当前字号对应的行高用 `(etaf-md-preview-token env 'lh)`。
+- `env`：渲染环境。取颜色用 `(etaf-md-token env 'panel)`，取当前字号对应的行高用 `(etaf-md-token env 'lh)`。
 
 ### 6.2 放在哪、什么时候读
 
-- 定义放在用户目录里的 `.el` 文件，路径写进 `etaf-md-preview-container-directory`。
+- 定义放在用户目录里的 `.el` 文件，路径写进 `etaf-md-container-directory`。
 - 一个 session 创建时读一次注册表，之后不再读盘。改了定义要 `r` 重载，或者重开预览。
 - 定义文件只从用户配置的目录加载。文档本身不能注册容器，也不能执行 Elisp。理由：一份 Markdown 文档不该有执行权限，分享文档不等于分享代码。
 - 重名默认报错，不静默覆盖。确实要替换包自带的定义时写 `:replace t`，报错行会说明被替换的是哪一条。
 
 ### 6.3 调试
 
-- `etaf-md-preview-describe-containers` 列出注册表：名字、摘要、参数、来源文件。计划中。
+- `etaf-md-describe-containers` 列出注册表：名字、摘要、参数、来源文件。计划中。
 - 报错行永远显示在页面上，不用开日志就能看到。
 - 定义自己报错时，那一块降级成源码，加一行「`card` 的定义报错：…」，后面的块照常渲染。
-- `etaf-md-preview-doctor` 报告注册了几个容器、有没有加载失败的定义文件。计划中。
+- `etaf-md-doctor` 报告注册了几个容器、有没有加载失败的定义文件。计划中。
 
 ### 6.4 版本与可移植性
 

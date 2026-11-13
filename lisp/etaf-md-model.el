@@ -1,4 +1,4 @@
-;;; etaf-md-preview-model.el --- Session state for etaf-md-preview -*- lexical-binding: t; -*-
+;;; etaf-md-model.el --- Session state for etaf-md -*- lexical-binding: t; -*-
 
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -9,7 +9,7 @@
 ;; reading width and the error text, and it can exist without any buffer, so
 ;; scripts and tests drive the same model the mounted application uses.
 ;;
-;; All display values are read through `etaf-md-preview--read' during render,
+;; All display values are read through `etaf-md--read' during render,
 ;; so writing a ref repaints the mounted preview without a refresh call.
 
 ;;; Code:
@@ -18,28 +18,28 @@
 (require 'subr-x)
 (require 'etaf)
 (require 'etaf-ui)
-(require 'etaf-md-preview-theme)
-(require 'etaf-md-preview-views)
+(require 'etaf-md-theme)
+(require 'etaf-md-views)
 
-(define-error 'etaf-md-preview-error "Markdown preview error")
+(define-error 'etaf-md-error "Markdown preview error")
 
-(defcustom etaf-md-preview-width-min 40
+(defcustom etaf-md-width-min 40
   "Narrowest reading measure, in character cells.
-`etaf-md-preview-adjust-width' clamps its result to this value."
+`etaf-md-adjust-width' clamps its result to this value."
   :type 'integer
-  :group 'etaf-md-preview)
+  :group 'etaf-md)
 
-(defcustom etaf-md-preview-width-max 96
+(defcustom etaf-md-width-max 96
   "Widest reading measure, in character cells.
 A window wider than this measure keeps the measure and centers the column.
 A measure wider than this runs a long way past a comfortable line: at 110
 cells a paragraph of Chinese holds more than fifty characters per line."
 
   :type 'integer
-  :group 'etaf-md-preview)
+  :group 'etaf-md)
 
-(defcustom etaf-md-preview-flavor nil
-  "Default Markdown dialect of `etaf-md-preview-create'.
+(defcustom etaf-md-flavor nil
+  "Default Markdown dialect of `etaf-md-create'.
 Nil defers to `etaf-ui-markdown-flavor', which is the widest preset and the one
 a reader expects to open a document.  A document may name its own dialect in
 its front matter (`flavor: gfm'), and a session's `:flavor' argument overrides
@@ -49,14 +49,14 @@ both: the argument, then the document, then this variable."
                  (const :tag "GitHub Flavored Markdown" gfm)
                  (const :tag "CommonMark only" commonmark)
                  (sexp :tag "Feature plist"))
-  :group 'etaf-md-preview)
+  :group 'etaf-md)
 
-(defconst etaf-md-preview--flavor-line
+(defconst etaf-md--flavor-line
   "^flavor:[ \t]*\\([a-z][a-z0-9-]*\\)[ \t]*$"
   "Front matter line that names the document's dialect.
 Anchors are line anchors: the line sits among the block's other keys.")
 
-(defun etaf-md-preview--document-flavor (text)
+(defun etaf-md--document-flavor (text)
   "Return the dialect TEXT's front matter names, or nil.
 Only the front matter block is read, so a `flavor:' line further down a
 document is body text and cannot change how the rest of it parses."
@@ -65,37 +65,37 @@ document is body text and cannot change how the rest of it parses."
              ;; explicit alternation: a front matter block is several lines.
              (string-match "\\`---[ \t]*\n\\(\\(?:.\\|\n\\)*?\\)\n---" text))
     (let* ((block (match-string 1 text))
-           (found (when (string-match etaf-md-preview--flavor-line block)
+           (found (when (string-match etaf-md--flavor-line block)
                     (match-string 1 block))))
       (and found (intern found)))))
 
-(defun etaf-md-preview--flavor-for (session text)
+(defun etaf-md--flavor-for (session text)
   "Return the dialect SESSION parses TEXT with.
 A session's own `:flavor' wins, then the document's front matter, then
-`etaf-md-preview-flavor'; nil leaves the choice to `etaf-ui-markdown-parse',
+`etaf-md-flavor'; nil leaves the choice to `etaf-ui-markdown-parse',
 whose default is the widest preset.  One file of a directory can therefore stay
 CommonMark while the rest read with everything the renderer knows."
   (or (plist-get session :flavor)
-      (etaf-md-preview--document-flavor text)
-      etaf-md-preview-flavor))
+      (etaf-md--document-flavor text)
+      etaf-md-flavor))
 
 ;;; ---------------------------------------------------------------------------
 ;;; Refs
 ;;; ---------------------------------------------------------------------------
 
-(defun etaf-md-preview--ref (session key)
+(defun etaf-md--ref (session key)
   "Return SESSION's reactive source named KEY."
   (plist-get session key))
 
-(defun etaf-md-preview--read (session key)
+(defun etaf-md--read (session key)
   "Return SESSION's current value for KEY, tracked while rendering."
-  (etaf-value (etaf-md-preview--ref session key)))
+  (etaf-value (etaf-md--ref session key)))
 
-(defun etaf-md-preview--write (session key value)
+(defun etaf-md--write (session key value)
   "Publish VALUE as SESSION's new value for KEY; return VALUE.
 A write that would not change the reading is skipped, because the preview
 re-renders on every write."
-  (let ((ref (etaf-md-preview--ref session key)))
+  (let ((ref (etaf-md--ref session key)))
     (unless (equal (etaf-value ref) value)
       (etaf-set-value ref value))
     value))
@@ -104,39 +104,39 @@ re-renders on every write."
 ;;; Source helpers
 ;;; ---------------------------------------------------------------------------
 
-(defun etaf-md-preview--remote-url-p (url)
+(defun etaf-md--remote-url-p (url)
   "Return non-nil when URL points to a remote resource."
   (string-match-p "\\`[a-zA-Z][a-zA-Z0-9+.-]*://" url))
 
-(defun etaf-md-preview--read-source (file)
-  "Return FILE's text, signaling `etaf-md-preview-error' on failure."
+(defun etaf-md--read-source (file)
+  "Return FILE's text, signaling `etaf-md-error' on failure."
   (unless (file-readable-p file)
-    (signal 'etaf-md-preview-error (list (format "Cannot read file: %s" file))))
+    (signal 'etaf-md-error (list (format "Cannot read file: %s" file))))
   (with-temp-buffer
     (insert-file-contents file)
     (buffer-string)))
 
-(defun etaf-md-preview--parse (text flavor)
-  "Parse TEXT with FLAVOR, reporting failures as `etaf-md-preview-error'.
+(defun etaf-md--parse (text flavor)
+  "Parse TEXT with FLAVOR, reporting failures as `etaf-md-error'.
 Parsing is shared with the other document viewers; this package keeps its
 own error type at its boundary."
   (condition-case err
       (etaf-ui-markdown-parse text flavor)
     (etaf-ui-markdown-error
-     (signal 'etaf-md-preview-error (cdr err)))))
+     (signal 'etaf-md-error (cdr err)))))
 
 ;;; ---------------------------------------------------------------------------
 ;;; Session
 ;;; ---------------------------------------------------------------------------
 
-(defun etaf-md-preview--block-source (block text)
+(defun etaf-md--block-source (block text)
   "Return BLOCK's own source slice in TEXT, or nil without a range."
   (let ((begin (plist-get block :begin))
         (end (plist-get block :end)))
     (and (integerp begin) (integerp end) (<= 0 begin end (length text))
          (substring text begin end))))
 
-(defun etaf-md-preview--session-text (session)
+(defun etaf-md--session-text (session)
   "Return SESSION's current source text.
 The text of the buffer visiting the file when there is one, so an unsaved edit
 is what gets published; then the text the session was created with; then the
@@ -149,11 +149,11 @@ as an empty document rather than a failure."
           ((plist-get session :text))
           ((plist-get session :file)
            (or (ignore-errors
-                 (etaf-md-preview--read-source (plist-get session :file)))
+                 (etaf-md--read-source (plist-get session :file)))
                ""))
           (t ""))))
 
-(defun etaf-md-preview--table-skeleton (block)
+(defun etaf-md--table-skeleton (block)
   "Return BLOCK's table as the pipe-and-dashes source that defines it.
 A table with no cells left paints an empty grid, which gives the caret nothing
 to stand on; the skeleton is what lets a reader fill it back in."
@@ -164,7 +164,7 @@ to stand on; the skeleton is what lets a reader fill it back in."
          (rule (concat "|" (mapconcat (lambda (_) "-----|") cells ""))))
     (concat bar "\n" rule "\n" bar)))
 
-(defun etaf-md-preview--block-marker (block)
+(defun etaf-md--block-marker (block)
   "Return the source skeleton BLOCK paints when its render has no content.
 A heading carries its hashes, a list item its bullet, a quote its angle, a
 fence its backticks, a table its pipes and rule: these are the characters the
@@ -179,14 +179,14 @@ reader see what is left and type it back."
     ('code-block (let ((info (or (plist-get block :info)
                                  (plist-get block :lang) "")))
                    (if (string-empty-p info) "```" (concat "```" info))))
-    ('table (etaf-md-preview--table-skeleton block))
+    ('table (etaf-md--table-skeleton block))
     (_ nil)))
 
-(defun etaf-md-preview--blank-p (value)
+(defun etaf-md--blank-p (value)
   "Return non-nil when VALUE holds no text."
   (string-empty-p (string-trim (or value ""))))
 
-(defun etaf-md-preview--block-content (block text)
+(defun etaf-md--block-content (block text)
   "Return BLOCK's own text in TEXT without its marker and line break.
 The rendered cells of a block stand for this text, so an empty result means the
 block paints nothing and the page would show a gap where its source sits."
@@ -196,12 +196,12 @@ block paints nothing and the page would show a gap where its source sits."
               ((integerp end))
               ((<= 0 begin end (length text))))
     (let* ((slice (substring text begin end))
-           (marker (etaf-md-preview--block-marker block)))
+           (marker (etaf-md--block-marker block)))
       (when (and marker (string-prefix-p marker slice))
         (setq slice (substring slice (length marker))))
       (string-trim slice))))
 
-(defun etaf-md-preview--inline-text (node)
+(defun etaf-md--inline-text (node)
   "Return the text NODE paints.
 A parsed cell holds a list of inline nodes rather than one node, and an inline
 node holds its own children, so this walks whatever shape it is given."
@@ -209,22 +209,22 @@ node holds its own children, so this walks whatever shape it is given."
         ((null node) "")
         ((and (consp node) (keywordp (car node)))
          (or (plist-get node :text)
-             (mapconcat #'etaf-md-preview--inline-text (plist-get node :children) "")))
+             (mapconcat #'etaf-md--inline-text (plist-get node :children) "")))
         ((listp node)
-         (mapconcat #'etaf-md-preview--inline-text node ""))
+         (mapconcat #'etaf-md--inline-text node ""))
         (t "")))
 
-(defun etaf-md-preview--table-blank-p (block)
+(defun etaf-md--table-blank-p (block)
   "Return non-nil when BLOCK's table holds no cell text.
 Only the pipes, dashes and padding that define the grid are left, so the render
 paints an empty grid and the caret has nowhere to stand inside it."
   (cl-every (lambda (row)
               (cl-every (lambda (cell)
-                          (etaf-md-preview--blank-p (etaf-md-preview--inline-text cell)))
+                          (etaf-md--blank-p (etaf-md--inline-text cell)))
                         (if (listp row) row nil)))
             (remq nil (cons (plist-get block :header) (plist-get block :rows)))))
 
-(defun etaf-md-preview--block-empty-p (block &optional text)
+(defun etaf-md--block-empty-p (block &optional text)
   "Return non-nil when BLOCK paints no content, so the page must show its marker.
 Deleting a heading's text is the case a reader meets first, but the rule holds
 for every block that carries a structure: a list item, a quote, a fence and a
@@ -234,20 +234,20 @@ skeleton is what lets the caret stand there and type it back.
 The block answers this from its own fields.  A render can run before the
 session publishes its text, and a block judged by that text would be painted as
 if it had content and keep that paint."
-  (and (etaf-md-preview--block-marker block)
+  (and (etaf-md--block-marker block)
        (pcase (plist-get block :type)
-         ('table (etaf-md-preview--table-blank-p block))
+         ('table (etaf-md--table-blank-p block))
          ((or 'heading 'list-item 'blockquote 'code-block)
           ;; A quote keeps its text in its children and a heading keeps it in
           ;; `:text'; both answer the same question through the same walk.
-          (etaf-md-preview--blank-p (etaf-md-preview--inline-text block)))
+          (etaf-md--blank-p (etaf-md--inline-text block)))
          (_ (when text
-              (etaf-md-preview--blank-p (etaf-md-preview--block-content block text)))))))
+              (etaf-md--blank-p (etaf-md--block-content block text)))))))
 
-(defconst etaf-md-preview--block-ref-prefix "etaf-md-preview-block-"
+(defconst etaf-md--block-ref-prefix "etaf-md-block-"
   "Prefix of the symbol naming a block's box for point-to-block lookup.")
 
-(defun etaf-md-preview--rendered-block (block)
+(defun etaf-md--rendered-block (block)
   "Return BLOCK without the source range it carries.
 A block's `:begin' and `:end' move when text above it changes, while the
 block displays the same content; comparing what a block displays keeps its
@@ -259,7 +259,7 @@ published entry reusable across such an edit."
         copy)
     block))
 
-(defun etaf-md-preview--gap-blocks (blocks text)
+(defun etaf-md--gap-blocks (blocks text)
   "Return a blank block for each stretch of blank TEXT holds between BLOCKS.
 A blank line is a line the document paints nothing on: the page would leave a
 gap where the source holds a line, so a reader who presses RET to start a
@@ -276,24 +276,24 @@ position gets a row standing for the text past its last character.  An empty
 file gets that row."
   (let* ((size (length text))
          (blocks (or blocks nil))
-         (front (etaf-md-preview--front-matter-end text))
+         (front (etaf-md--front-matter-end text))
          (cursor 0)
          (result nil))
     (dolist (block blocks)
       (let ((begin (or (plist-get block :begin) size))
             (end (or (plist-get block :end) cursor)))
-        (dolist (row (etaf-md-preview--gap-rows
+        (dolist (row (etaf-md--gap-rows
                       text (if (zerop cursor) (max cursor front) cursor) begin))
           (push row result))
         (setq cursor (max cursor end))))
     (cond ((< cursor size)
-           (dolist (row (etaf-md-preview--gap-rows text cursor size))
+           (dolist (row (etaf-md--gap-rows text cursor size))
              (push row result)))
           ((or (= size 0) (eq (aref text (1- size)) ?\n))
            (push (list :type 'blank :begin size :end (1+ size) :lines 1) result)))
     (nreverse result)))
 
-(defun etaf-md-preview--front-matter-end (text)
+(defun etaf-md--front-matter-end (text)
   "Return the offset past TEXT's front matter, or 0 when it has none.
 The parser reads a first line of `---' and a closing `---' or `...' as front
 matter; the page shows that as its title, so it paints no rows for those
@@ -307,7 +307,7 @@ lines but still paints the blank lines that follow them."
         (1+ (length (mapconcat #'identity (cl-subseq lines 0 (+ close 2)) "\n")))
       0)))
 
-(defun etaf-md-preview--gap-rows (text begin end)
+(defun etaf-md--gap-rows (text begin end)
   "Return the rows TEXT's gap from BEGIN to END contributes.
 A gap holds the lines the parser consumed without a block as well as blank
 lines, so each blank line paints one empty row and a metadata line paints
@@ -325,11 +325,11 @@ leaves out, because the page shows it as its title rather than as lines."
         (setq position (1+ line-end))))
     (nreverse rows)))
 
-(defun etaf-md-preview--paintable-blocks (blocks text)
+(defun etaf-md--paintable-blocks (blocks text)
   "Return BLOCKS in source order with their blank stretches filled in as rows.
 Both lists are ordered by source position already, so one merge keeps the page
 in the order the file holds."
-  (let ((blanks (etaf-md-preview--gap-blocks blocks text))
+  (let ((blanks (etaf-md--gap-blocks blocks text))
         (result nil))
     (while (or blocks blanks)
       (cond
@@ -341,7 +341,7 @@ in the order the file holds."
        (t (push (pop blanks) result))))
     (nreverse result)))
 
-(defun etaf-md-preview--block-entries (session document text published)
+(defun etaf-md--block-entries (session document text published)
   "Return DOCUMENT's top-level blocks as keyed publishing entries.
 An entry is `(:key KEY :block BLOCK :ref REF :view CALL)'.
 KEY names the block's type and a digest of the block's own source, plus an
@@ -360,16 +360,16 @@ list costs one comparison for it instead of a new call."
   (let ((counts (make-hash-table :test #'equal))
         (blank-index 0)
         (entries nil)
-        (widths (etaf-md-preview--page-widths
-                 session (etaf-md-preview--read session :width)))
-        (env (when (fboundp 'etaf-md-preview-typeset-attach)
-               (etaf-md-preview--env session))))
-    (dolist (block (etaf-md-preview--paintable-blocks
+        (widths (etaf-md--page-widths
+                 session (etaf-md--read session :width)))
+        (env (when (fboundp 'etaf-md-typeset-attach)
+               (etaf-md--env session))))
+    (dolist (block (etaf-md--paintable-blocks
                     (plist-get document :children) text))
       (when env
-        (setq block (etaf-md-preview-typeset-attach block env)))
+        (setq block (etaf-md-typeset-attach block env)))
       (let* ((blank (eq (plist-get block :type) 'blank))
-             (source (or (etaf-md-preview--block-source block text) ""))
+             (source (or (etaf-md--block-source block text) ""))
              ;; The picture is part of the block: it is drawn for one palette,
              ;; so a block whose picture changed is a different block and must
              ;; not reuse the entry that still holds the old drawing.
@@ -393,12 +393,12 @@ list costs one comparison for it instead of a new call."
              (digest (or digest (format "blank:%d" (cl-incf blank-index))))
              (occurrence (1+ (gethash digest counts 0)))
              (key (if (= 1 occurrence) digest (format "%s#%d" digest occurrence)))
-             (ref (make-symbol etaf-md-preview--block-ref-prefix))
+             (ref (make-symbol etaf-md--block-ref-prefix))
              (old (and published (gethash key published)))
              (same (and old
-                        (equal (etaf-md-preview--rendered-block
+                        (equal (etaf-md--rendered-block
                                 (plist-get old :block))
-                               (etaf-md-preview--rendered-block block)))))
+                               (etaf-md--rendered-block block)))))
         (puthash digest occurrence counts)
         (push (cond
                ;; Only the call is retained: the block itself is the freshly
@@ -408,18 +408,18 @@ list costs one comparison for it instead of a new call."
                            :view (plist-get old :view)))
                (t (list :key key :block block
                         :ref ref
-                        :view (etaf-md-preview--block-view
+                        :view (etaf-md--block-view
                                session key block ref widths))))
               entries)))
     (nreverse entries)))
 
-(defun etaf-md-preview--published-table (entries)
+(defun etaf-md--published-table (entries)
   "Return ENTRIES as a table from each entry's key to the entry."
   (let ((table (make-hash-table :test #'equal)))
     (dolist (entry entries) (puthash (plist-get entry :key) entry table))
     table))
 
-(defun etaf-md-preview--block-ref-table (entries)
+(defun etaf-md--block-ref-table (entries)
   "Return ENTRIES as a table from each entry's box reference to its key."
   (let ((table (make-hash-table :test #'eq)))
     (dolist (entry entries)
@@ -427,38 +427,38 @@ list costs one comparison for it instead of a new call."
         (puthash ref (plist-get entry :key) table)))
     table))
 
-(defun etaf-md-preview--keyed-document (session document contents published)
+(defun etaf-md--keyed-document (session document contents published)
   "Return (KEYED . TABLE) for DOCUMENT parsed from CONTENTS.
 KEYED is DOCUMENT with its top-level blocks replaced by publishing entries;
 TABLE maps each entry's key to the entry, to be published with the document
 and passed back as PUBLISHED by the next parse."
-  (let ((entries (etaf-md-preview--block-entries
+  (let ((entries (etaf-md--block-entries
                   session document contents published)))
-    (plist-put session :block-refs (etaf-md-preview--block-ref-table entries))
+    (plist-put session :block-refs (etaf-md--block-ref-table entries))
     (cons (plist-put (copy-sequence document) :children entries)
-          (etaf-md-preview--published-table entries))))
+          (etaf-md--published-table entries))))
 
-(cl-defun etaf-md-preview-create (&key file text title theme flavor)
+(cl-defun etaf-md-create (&key file text title theme flavor)
   "Create a headless preview session and return it.
 FILE names a markdown document to read; TEXT supplies the document directly
 for buffers and tests.  Exactly one source is required.  TITLE overrides the
 document title; THEME selects a palette and defaults to the value of
-`etaf-md-preview-theme' (`auto' derives the document colors from the active
+`etaf-md-theme' (`auto' derives the document colors from the active
 frame's faces and paints no page background).  FLAVOR selects the markdown
-dialect and defaults to `etaf-md-preview-flavor': `gfm' enables the GitHub
+dialect and defaults to `etaf-md-flavor': `gfm' enables the GitHub
 extensions and front matter, `commonmark' parses the core only, and a feature
 plist may toggle individual extensions."
   (let* ((file (and file (expand-file-name file)))
          (contents (cond (text text)
-                         (file (etaf-md-preview--read-source file))
-                         (t (signal 'etaf-md-preview-error
-                                    '("etaf-md-preview-create needs :file or :text")))))
+                         (file (etaf-md--read-source file))
+                         (t (signal 'etaf-md-error
+                                    '("etaf-md-create needs :file or :text")))))
          (decided (or flavor
-                      (etaf-md-preview--document-flavor contents)
-                      etaf-md-preview-flavor))
-         (requested (or theme etaf-md-preview-theme))
+                      (etaf-md--document-flavor contents)
+                      etaf-md-flavor))
+         (requested (or theme etaf-md-theme))
          (auto (eq requested 'auto))
-         (palette (if auto (etaf-md-preview-auto-theme) requested))
+         (palette (if auto (etaf-md-auto-theme) requested))
          ;; Every field exists before the first parse, because a published
          ;; block call refers to this session and later writes must stay in
          ;; place rather than build a second plist.
@@ -468,7 +468,7 @@ plist may toggle individual extensions."
                         :features nil
                         :dir (if file (file-name-directory file)
                                default-directory)
-                        :document (etaf-ref nil :name 'etaf-md-preview-document)
+                        :document (etaf-ref nil :name 'etaf-md-document)
                         ;; Publishing entries of the last parse, keyed by block
                         ;; identity; an unchanged block keeps its entry.
                         :published nil
@@ -482,29 +482,29 @@ plist may toggle individual extensions."
                                              (and file
                                                   (file-name-nondirectory file))
                                              "Markdown")
-                                        :name 'etaf-md-preview-title)
-                        :theme (etaf-ref palette :name 'etaf-md-preview-theme)
+                                        :name 'etaf-md-title)
+                        :theme (etaf-ref palette :name 'etaf-md-theme)
                         ;; `auto' derives its surface palette from the active
                         ;; frame's faces and paints no page background; a named
                         ;; palette paints its page.
                         :theme-source (etaf-ref (if auto 'frame 'palette)
-                                                :name 'etaf-md-preview-theme-source)
-                        :theme-mode (etaf-ref requested :name 'etaf-md-preview-theme-mode)
-                        :width (etaf-ref 92 :name 'etaf-md-preview-width)
-                        :error (etaf-ref nil :name 'etaf-md-preview-error-text)
+                                                :name 'etaf-md-theme-source)
+                        :theme-mode (etaf-ref requested :name 'etaf-md-theme-mode)
+                        :width (etaf-ref 92 :name 'etaf-md-width)
+                        :error (etaf-ref nil :name 'etaf-md-error-text)
                         :buffer nil
                         ;; Cards whose video plays inline; written by
                         ;; activation and read while rendering so a press
                         ;; repaints exactly the video cards.
-                        :video-active (etaf-ref nil :name 'etaf-md-preview-video-active)
+                        :video-active (etaf-ref nil :name 'etaf-md-video-active)
                         ;; One stable native-playback handle per card key so a
                         ;; repaint re-registers the same handle instead of
                         ;; invalidating the card's activation closure.
                         :video-handles (make-hash-table :test #'equal))))
-    (etaf-md-preview--install session contents title)
+    (etaf-md--install session contents title)
     session))
 
-(defun etaf-md-preview--video-card (session url occurrence)
+(defun etaf-md--video-card (session url occurrence)
   "Return (KEY . HANDLE) for URL's OCCURRENCE in SESSION.
 A document can show the same source on several cards; the occurrence number
 counts the cards in render order so each owns its own player.  KEY names the
@@ -513,30 +513,30 @@ card is playing inline."
   (let* ((table (plist-get session :video-handles))
          (key (list url occurrence))
          (handle (or (and (hash-table-p table) (gethash key table))
-                     (let ((new (make-symbol "etaf-md-preview-video")))
+                     (let ((new (make-symbol "etaf-md-video")))
                        (when (hash-table-p table)
                          (puthash key new table))
                        new))))
     (cons key handle)))
 
-(defun etaf-md-preview-state (session)
+(defun etaf-md-state (session)
   "Return SESSION's state as a detached plist snapshot.
 Keys are `:file', `:title', `:dir', `:theme', `:background', `:width',
 `:outline', `:error', `:blocks' (top-level block count, blank rows aside)
 and `:footnotes'
 \(labels).  `:background' is `palette' when the preview paints its palette's
 page background, and nil when it leaves the Emacs theme's background."
-  (let ((document (etaf-md-preview--read session :document)))
+  (let ((document (etaf-md--read session :document)))
     (list :file (plist-get session :file)
-          :title (etaf-md-preview--read session :title)
+          :title (etaf-md--read session :title)
           :dir (plist-get session :dir)
           :flavor (plist-get session :flavor)
-          :theme (etaf-md-preview--read session :theme)
-          :background (when (eq (etaf-md-preview--read session :theme-source) 'palette)
+          :theme (etaf-md--read session :theme)
+          :background (when (eq (etaf-md--read session :theme-source) 'palette)
                         'palette)
-          :width (etaf-md-preview--read session :width)
+          :width (etaf-md--read session :width)
           :outline (copy-tree (plist-get document :outline))
-          :error (etaf-md-preview--read session :error)
+          :error (etaf-md--read session :error)
           ;; The published list also carries the blank rows the page paints
           ;; between blocks; a reader counting blocks means the document's own.
           :blocks (cl-count-if (lambda (entry)
@@ -547,22 +547,22 @@ page background, and nil when it leaves the Emacs theme's background."
           :footnotes (mapcar (lambda (footnote) (plist-get footnote :label))
                              (plist-get document :footnotes)))))
 
-(defconst etaf-md-preview--reparse-neighbours 1
+(defconst etaf-md--reparse-neighbours 1
   "Unchanged blocks parsed again on each side of an edit.
 A block can change shape together with the block next to it: deleting the
 blank line between two paragraphs makes them one paragraph, so the parse has
 to see them together.")
 
-(defconst etaf-md-preview--fence-regexp "^ *\\(```\\|~~~\\)"
+(defconst etaf-md--fence-regexp "^ *\\(```\\|~~~\\)"
   "Line start of a code fence in markdown source.")
 
-(defun etaf-md-preview--shared-start (old new)
+(defun etaf-md--shared-start (old new)
   "Return how many characters OLD and NEW share from the start."
   (let ((common (min (length old) (length new))))
     (let ((result (compare-strings old 0 common new 0 common)))
       (if (eq result t) common (1- (abs result))))))
 
-(defun etaf-md-preview--shared-end (old new limit)
+(defun etaf-md--shared-end (old new limit)
   "Return how many characters at the end of OLD and NEW are the same, up to LIMIT."
   (let ((low 0)
         (high limit))
@@ -574,26 +574,26 @@ to see them together.")
           (setq high (1- middle)))))
     low))
 
-(defun etaf-md-preview--changed-span (old new)
+(defun etaf-md--changed-span (old new)
   "Return (OLD-START OLD-END NEW-END) naming what differs between OLD and NEW.
 Both ends are found by comparing the strings, so the cost follows the size of
 the edit rather than the size of the document."
-  (let* ((start (etaf-md-preview--shared-start old new))
-         (tail (etaf-md-preview--shared-end old new (- (min (length old) (length new)) start))))
+  (let* ((start (etaf-md--shared-start old new))
+         (tail (etaf-md--shared-end old new (- (min (length old) (length new)) start))))
     (list start (- (length old) tail) (- (length new) tail))))
 
-(defun etaf-md-preview--fence-count (text from to)
+(defun etaf-md--fence-count (text from to)
   "Return how many code fence lines TEXT holds between FROM and TO."
   (let ((count 0)
         (start from))
-    (while (let ((found (string-match etaf-md-preview--fence-regexp text start)))
+    (while (let ((found (string-match etaf-md--fence-regexp text start)))
              (when (and found (< found to))
                (setq count (1+ count)
                      start (match-end 0))
                t)))
     count))
 
-(defun etaf-md-preview--splice-parse (session contents old-text old-document)
+(defun etaf-md--splice-parse (session contents old-text old-document)
   "Return OLD-DOCUMENT updated for CONTENTS, or nil when it needs a whole parse.
 The blocks before and after an edit are the same text at a shifted offset, so
 only the blocks the edit could have touched are parsed again.  A whole parse
@@ -601,7 +601,7 @@ is needed when the edit reaches the front matter, and when it changes how many
 code fences the region holds: a fence opens a block that can end outside the
 region, and only the whole text tells where."
   (pcase-let* ((`(,old-start ,old-end ,_)
-                (etaf-md-preview--changed-span old-text contents))
+                (etaf-md--changed-span old-text contents))
                (delta (- (length contents) (length old-text)))
                (children (plist-get old-document :children))
                (count (length children)))
@@ -621,8 +621,8 @@ region, and only the whole text tells where."
                                           (> (or (plist-get block :begin) 0) old-end))
                                         children)
                         count))
-             (head (max 0 (- first etaf-md-preview--reparse-neighbours)))
-             (tail (min count (+ after etaf-md-preview--reparse-neighbours)))
+             (head (max 0 (- first etaf-md--reparse-neighbours)))
+             (tail (min count (+ after etaf-md--reparse-neighbours)))
              (from (if (> head 0) (plist-get (nth (1- head) children) :end) 0))
              (to (if (< tail count) (plist-get (nth tail children) :begin)
                     (length old-text)))
@@ -631,9 +631,9 @@ region, and only the whole text tells where."
                    (<= old-end to)
                    (> from 0)           ; front matter holds the title
                    (<= from to-new (length contents))
-                   (cl-evenp (etaf-md-preview--fence-count old-text from to))
-                   (cl-evenp (etaf-md-preview--fence-count contents from to-new)))
-          (let* ((fragment (etaf-md-preview--parse (substring contents from to-new)
+                   (cl-evenp (etaf-md--fence-count old-text from to))
+                   (cl-evenp (etaf-md--fence-count contents from to-new)))
+          (let* ((fragment (etaf-md--parse (substring contents from to-new)
                                                    (plist-get session :flavor)))
                  (middle (mapcar (lambda (block)
                                    (let ((copy (copy-sequence block)))
@@ -646,10 +646,10 @@ region, and only the whole text tells where."
                                      (plist-put copy :end (+ delta (plist-get block :end)))))
                                  (nthcdr tail children)))
                  (spliced (append (seq-take children head) middle suffix)))
-            (when (etaf-md-preview--blocks-ordered-p spliced (length contents))
+            (when (etaf-md--blocks-ordered-p spliced (length contents))
               (plist-put (copy-sequence old-document) :children spliced))))))))
 
-(defun etaf-md-preview--blocks-ordered-p (blocks size)
+(defun etaf-md--blocks-ordered-p (blocks size)
   "Return non-nil when BLOCKS name increasing ranges inside SIZE characters."
   (let ((edge 0) (ok t))
     (dolist (block blocks)
@@ -661,21 +661,21 @@ region, and only the whole text tells where."
         (setq edge end)))
     ok))
 
-(defun etaf-md-preview--parse-changed (session contents)
+(defun etaf-md--parse-changed (session contents)
   "Return the document CONTENTS describes, parsing only what changed.
 A preview republishes after every keystroke and parsing is the largest part of
 that cost, so the blocks the edit left alone keep the parse they already have."
-  (let* ((flavor (etaf-md-preview--flavor-for session contents))
+  (let* ((flavor (etaf-md--flavor-for session contents))
          (cached (plist-get session :parsed))
-         (document (cond ((null cached) (etaf-md-preview--parse contents flavor))
+         (document (cond ((null cached) (etaf-md--parse contents flavor))
                          ((equal (car cached) contents) (cdr cached))
-                         (t (or (etaf-md-preview--splice-parse
+                         (t (or (etaf-md--splice-parse
                                  session contents (car cached) (cdr cached))
-                                (etaf-md-preview--parse contents flavor))))))
+                                (etaf-md--parse contents flavor))))))
     (plist-put session :parsed (cons contents document))
     document))
 
-(defun etaf-md-preview--install (session contents &optional title)
+(defun etaf-md--install (session contents &optional title)
   "Parse CONTENTS and publish it as SESSION's document; return the document.
 TITLE, when given, names the document instead of its own front matter or file.
 The parser and the title fallback are shared by the first parse and every
@@ -683,100 +683,100 @@ refresh path: reading the file again, following a save, and following an edit
 that was not saved.  Each top-level block keeps the publishing entry it had
 while its source and parsed content survive, so one edited block repaints
 itself and every other block keeps its instance."
-  (let* ((keyed (etaf-md-preview--keyed-document
+  (let* ((keyed (etaf-md--keyed-document
                  session
-                 (etaf-md-preview--parse-changed session contents)
+                 (etaf-md--parse-changed session contents)
                  contents
                  (plist-get session :published)))
          (document (car keyed)))
     (etaf-batch
-      (etaf-set-value (etaf-md-preview--ref session :document) document)
-      (etaf-set-value (etaf-md-preview--ref session :title)
+      (etaf-set-value (etaf-md--ref session :document) document)
+      (etaf-set-value (etaf-md--ref session :title)
                       (or title
                           (plist-get document :title)
                           (and (plist-get session :file)
                                (file-name-nondirectory (plist-get session :file)))
                           "Markdown"))
-      (etaf-set-value (etaf-md-preview--ref session :error) nil))
+      (etaf-set-value (etaf-md--ref session :error) nil))
     (plist-put session :features (plist-get document :features))
     (plist-put session :published (cdr keyed))
-    (when (fboundp 'etaf-md-preview-typeset-request)
-      (etaf-md-preview-typeset-request session))
+    (when (fboundp 'etaf-md-typeset-request)
+      (etaf-md-typeset-request session))
     document))
 
-(defun etaf-md-preview--publish (session contents)
+(defun etaf-md--publish (session contents)
   "Publish CONTENTS as SESSION's document and return SESSION."
-  (etaf-md-preview--install session contents)
+  (etaf-md--install session contents)
   session)
 
-(defun etaf-md-preview-refresh (session)
+(defun etaf-md-refresh (session)
   "Re-read and re-parse SESSION's document.
-Return SESSION.  A read failure signals `etaf-md-preview-error' and leaves the
+Return SESSION.  A read failure signals `etaf-md-error' and leaves the
 published document untouched."
   (let* ((file (plist-get session :file))
-         (text (if file (etaf-md-preview--read-source file)
+         (text (if file (etaf-md--read-source file)
                  (or (plist-get session :text) ""))))
-    (etaf-md-preview--publish session text)
-    ;; See `etaf-md-preview--live-repaint': a scheduled follow compares against
+    (etaf-md--publish session text)
+    ;; See `etaf-md--live-repaint': a scheduled follow compares against
     ;; the text the page already shows.
     (plist-put session :live-text text)))
 
-(defun etaf-md-preview--republish (session)
+(defun etaf-md--republish (session)
   "Publish SESSION's document again for its current palette and return it.
 A picture block carries the file drawn for the palette it was published with,
 so a palette change has to publish the document even though its text is the
 same.  The parse is cached, so this costs the block keys, not the text, and the
 publish starts the pictures the new palette needs."
   (when (plist-get session :buffer)
-    (etaf-md-preview--install session (etaf-md-preview--session-text session)))
+    (etaf-md--install session (etaf-md--session-text session)))
   session)
 
-(defun etaf-md-preview-set-theme (session theme)
+(defun etaf-md-set-theme (session theme)
   "Show SESSION with palette THEME; return SESSION.
 THEME is `auto', `dark', `light' or `sepia'; anything else signals
-`etaf-md-preview-error'.  Selecting a palette also paints its page
+`etaf-md-error'.  Selecting a palette also paints its page
 background, while `auto' returns to the face-derived surfaces."
-  (unless (or (eq theme 'auto) (assq theme etaf-md-preview-themes))
-    (signal 'etaf-md-preview-error
+  (unless (or (eq theme 'auto) (assq theme etaf-md-themes))
+    (signal 'etaf-md-error
             (list (format "Unknown markdown preview theme: %S" theme))))
   (etaf-batch
-    (etaf-md-preview--write session :theme-mode theme)
-    (etaf-md-preview--write session :theme
+    (etaf-md--write session :theme-mode theme)
+    (etaf-md--write session :theme
                              (if (eq theme 'auto)
-                                 (etaf-md-preview-auto-theme)
+                                 (etaf-md-auto-theme)
                                theme))
-    (etaf-md-preview--write session :theme-source
+    (etaf-md--write session :theme-source
                              (if (eq theme 'auto) 'frame 'palette)))
-  (etaf-md-preview--republish session)
+  (etaf-md--republish session)
   session)
 
-(defun etaf-md-preview-cycle-theme (session)
+(defun etaf-md-cycle-theme (session)
   "Switch SESSION to the next palette and return its name."
-  (let* ((themes (mapcar #'car etaf-md-preview-themes))
-         (current (etaf-md-preview--read session :theme))
+  (let* ((themes (mapcar #'car etaf-md-themes))
+         (current (etaf-md--read session :theme))
          (tail (cdr (memq current themes))))
-    (etaf-md-preview-set-theme session (or (car tail) (car themes)))
-    (etaf-md-preview--read session :theme)))
+    (etaf-md-set-theme session (or (car tail) (car themes)))
+    (etaf-md--read session :theme)))
 
 ;;; ---------------------------------------------------------------------------
 ;;; Width and layout fitting
 ;;; ---------------------------------------------------------------------------
 
-(defun etaf-md-preview--clamp-width (width)
+(defun etaf-md--clamp-width (width)
   "Return WIDTH clamped to the supported reading measure."
-  (max etaf-md-preview-width-min
-       (min etaf-md-preview-width-max (round width))))
+  (max etaf-md-width-min
+       (min etaf-md-width-max (round width))))
 
-(defun etaf-md-preview-adjust-width (session delta)
+(defun etaf-md-adjust-width (session delta)
   "Widen SESSION's maximum reading measure by DELTA cells and return it.
 The window may still be narrower than the returned cap, in which case the
 column fills the window."
-  (let ((width (etaf-md-preview--clamp-width
-                (+ (etaf-md-preview--read session :width) delta))))
-    (etaf-md-preview--write session :width width)
+  (let ((width (etaf-md--clamp-width
+                (+ (etaf-md--read session :width) delta))))
+    (etaf-md--write session :width width)
     width))
 
-(defun etaf-md-preview--fit-width (session)
+(defun etaf-md--fit-width (session)
   "Set SESSION's reading measure from the window that shows it.
 The stored width is the maximum measure: the column is viewport-relative, so
 a later resize narrows it without changing this value.  The window's own
@@ -785,22 +785,22 @@ session keeps its current width.  Return the width in effect."
   (let* ((buffer (plist-get session :buffer))
          (window (and (buffer-live-p buffer) (get-buffer-window buffer t))))
     (if (window-live-p window)
-        (let ((width (etaf-md-preview--clamp-width
+        (let ((width (etaf-md--clamp-width
                       (- (window-body-width window)
-                         (* 2 etaf-md-preview--measure-gutter)))))
-          (etaf-md-preview--write session :width width)
+                         (* 2 etaf-md--measure-gutter)))))
+          (etaf-md--write session :width width)
           width)
-      (etaf-md-preview--read session :width))))
+      (etaf-md--read session :width))))
 
 ;;; ---------------------------------------------------------------------------
 ;;; Navigation
 ;;; ---------------------------------------------------------------------------
 
-(defun etaf-md-preview-outline (session)
+(defun etaf-md-outline (session)
   "Return SESSION's outline as a list of (LEVEL TEXT ID)."
-  (copy-tree (plist-get (etaf-md-preview--read session :document) :outline)))
+  (copy-tree (plist-get (etaf-md--read session :document) :outline)))
 
-(defun etaf-md-preview--heading-match-forward (text)
+(defun etaf-md--heading-match-forward (text)
   "Search forward for heading TEXT at the start of a line.
 Return the match start, or nil.  Leading blank characters (including the
 display spaces the renderer uses for centering) may precede the match."
@@ -812,26 +812,26 @@ display spaces the renderer uses for centering) may precede the match."
           (setq found (match-beginning 0)))))
     found))
 
-(defun etaf-md-preview--heading-positions (session)
+(defun etaf-md--heading-positions (session)
   "Return SESSION's heading buffer positions as a list of (INDEX . POSITION).
 The scan walks the outline in document order, so repeated heading texts map to
 successive occurrences."
   (let ((buffer (plist-get session :buffer))
-        (outline (etaf-md-preview-outline session)))
+        (outline (etaf-md-outline session)))
     (when (buffer-live-p buffer)
       (with-current-buffer buffer
         (save-excursion
           (goto-char (point-min))
           (cl-loop for entry in outline
                    for index from 0
-                   for position = (etaf-md-preview--heading-match-forward (nth 1 entry))
+                   for position = (etaf-md--heading-match-forward (nth 1 entry))
                    when position collect (cons index position)))))))
 
-(defun etaf-md-preview-locate (session index)
+(defun etaf-md-locate (session index)
   "Move point to SESSION's outline heading INDEX and recenter.
 Return the position, or nil when the heading is not visible."
   (let* ((buffer (plist-get session :buffer))
-         (position (cdr (assq index (etaf-md-preview--heading-positions session)))))
+         (position (cdr (assq index (etaf-md--heading-positions session)))))
     (when (and position (buffer-live-p buffer))
       (with-selected-window (or (get-buffer-window buffer t) (selected-window))
         (with-current-buffer buffer
@@ -839,11 +839,11 @@ Return the position, or nil when the heading is not visible."
           (recenter 0)))
       position)))
 
-(defun etaf-md-preview--adjacent-heading (session direction)
+(defun etaf-md--adjacent-heading (session direction)
   "Move point to the next outline heading in DIRECTION.
 DIRECTION is 1 for forward and -1 for backward.  Return the position moved to,
 or nil when there is no heading left in that direction."
-  (let* ((positions (etaf-md-preview--heading-positions session))
+  (let* ((positions (etaf-md--heading-positions session))
          (buffer (plist-get session :buffer))
          (point-now (if (buffer-live-p buffer)
                         (with-current-buffer buffer (point))
@@ -854,25 +854,25 @@ or nil when there is no heading left in that direction."
                                (lambda (cell) (< (cdr cell) point-now))
                                positions))))))
     (when target
-      (etaf-md-preview-locate session (car target)))))
+      (etaf-md-locate session (car target)))))
 
 ;;; ---------------------------------------------------------------------------
 ;;; Opening targets
 ;;; ---------------------------------------------------------------------------
 
-(defun etaf-md-preview--open-url (session url)
+(defun etaf-md--open-url (session url)
   "Open URL referenced by SESSION's document.
 In-document anchors jump to the matching heading; remote targets use the
 browser; local paths open in Emacs."
   (cond
    ((string-prefix-p "#" url)
     (let ((anchor (substring url 1)))
-      (cl-loop for entry in (etaf-md-preview-outline session)
+      (cl-loop for entry in (etaf-md-outline session)
                for index from 0
                when (equal (nth 2 entry) anchor)
-               return (etaf-md-preview-locate session index)
+               return (etaf-md-locate session index)
                finally (message "No heading matches #%s" anchor))))
-   ((etaf-md-preview--remote-url-p url)
+   ((etaf-md--remote-url-p url)
     (browse-url url))
    (t
     (let ((path (expand-file-name url (or (plist-get session :dir)
@@ -881,7 +881,7 @@ browser; local paths open in Emacs."
           (find-file-other-window path)
         (message "File not found: %s" path))))))
 
-(defun etaf-md-preview--open-file (path)
+(defun etaf-md--open-file (path)
   "Open PATH with the operating system's default application.
 Emacs's `browse-url' routes local non-HTML files back into Emacs, which would
 show a video as a binary buffer; media cards therefore ask the desktop to open
@@ -894,7 +894,7 @@ the file directly."
         (call-process opener nil 0 nil path)
       (browse-url-of-file path))))
 
-(defun etaf-md-preview--jump-footnote (session label)
+(defun etaf-md--jump-footnote (session label)
   "Move point to footnote LABEL in SESSION's buffer."
   (let ((buffer (plist-get session :buffer)))
     (when (buffer-live-p buffer)
@@ -903,7 +903,7 @@ the file directly."
         (if (search-forward (format "[%s]" (or (plist-get
                                                 (cl-find label
                                                          (plist-get
-                                                          (etaf-md-preview--read
+                                                          (etaf-md--read
                                                            session :document)
                                                           :footnotes)
                                                          :key (lambda (footnote)
@@ -919,15 +919,15 @@ the file directly."
 ;;; Rendering environment
 ;;; ---------------------------------------------------------------------------
 
-(defun etaf-md-preview--page-background (session)
+(defun etaf-md--page-background (session)
   "Return the page background SESSION paints, or nil for none.
 The session paints its palette's background only after an explicit palette
 selection; the face-derived `auto' appearance leaves the active Emacs theme's
 background visible instead."
-  (when (eq (etaf-md-preview--read session :theme-source) 'palette)
-    (etaf-md-preview-color :bg (etaf-md-preview--read session :theme))))
+  (when (eq (etaf-md--read session :theme-source) 'palette)
+    (etaf-md-color :bg (etaf-md--read session :theme))))
 
-(defun etaf-md-preview--display-frame (session)
+(defun etaf-md--display-frame (session)
   "Return the frame showing SESSION, or nil when it has no window.
 A face query answers for a frame, so the palette is derived from the frame the
 preview is read in rather than from whichever frame is selected."
@@ -936,19 +936,19 @@ preview is read in rather than from whichever frame is selected."
       (when-let* ((window (get-buffer-window buffer t)))
         (window-frame window)))))
 
-(defun etaf-md-preview--session-palette (session)
+(defun etaf-md--session-palette (session)
   "Return SESSION's surface palette, or nil for the named palette colors.
 Sessions created with the `auto' theme derive their surfaces from the faces of
 the frame showing them, so panels, tables and code blocks match the user's own
 theme.  A session that has not selected a palette explicitly uses the
 face-derived palette; a named palette returns its own color alist so the shared
 renderer never needs a theme name."
-  (if (eq (etaf-md-preview--read session :theme-source) 'palette)
-      (cdr (assq (etaf-md-preview--read session :theme) etaf-md-preview-themes))
-    (etaf-md-preview--palette-from-faces
-     (etaf-md-preview--display-frame session))))
+  (if (eq (etaf-md--read session :theme-source) 'palette)
+      (cdr (assq (etaf-md--read session :theme) etaf-md-themes))
+    (etaf-md--palette-from-faces
+     (etaf-md--display-frame session))))
 
-(defun etaf-md-preview--frame-surface (frame)
+(defun etaf-md--frame-surface (frame)
   "Return FRAME's default foreground and background.
 The face-derived palette follows these two faces, so a theme switch changes
 them and the shared environment is rebuilt instead of keeping the previous
@@ -960,75 +960,75 @@ frame, so FRAME nil reads that frame."
     (cons (face-attribute 'default :foreground)
           (face-attribute 'default :background))))
 
-(defun etaf-md-preview--env-inputs (session)
+(defun etaf-md--env-inputs (session)
   "Return the values SESSION's rendering environment is built from.
 Every value the environment prints is read here, once.  Reading them is what
 makes the shared environment follow a palette, width or theme change, so a new
-input belongs both in this list and in `etaf-md-preview--build-env'.  A
+input belongs both in this list and in `etaf-md--build-env'.  A
 face-derived palette also reads the appearance, which is what makes a block
 re-render after a theme switch instead of keeping the faces it first read."
-  (let* ((source (etaf-md-preview--read session :theme-source))
+  (let* ((source (etaf-md--read session :theme-source))
          (face-derived (not (eq source 'palette)))
-         (frame (etaf-md-preview--display-frame session)))
-    (list :theme (etaf-md-preview--read session :theme)
+         (frame (etaf-md--display-frame session)))
+    (list :theme (etaf-md--read session :theme)
           :source source
-          :width (etaf-md-preview--read session :width)
-          :columns (cdr (etaf-md-preview--page-widths
-                            session (etaf-md-preview--read session :width)))
-          :background (etaf-md-preview--page-background session)
-          :surface (and face-derived (etaf-md-preview--frame-surface frame))
+          :width (etaf-md--read session :width)
+          :columns (cdr (etaf-md--page-widths
+                            session (etaf-md--read session :width)))
+          :background (etaf-md--page-background session)
+          :surface (and face-derived (etaf-md--frame-surface frame))
           :appearance (and face-derived (etaf-appearance))
           :dir (plist-get session :dir)
           :features (plist-get session :features))))
 
-(declare-function etaf-md-preview--render-code-block "etaf-md-preview-typeset" (block env))
-(declare-function etaf-md-preview--render-math "etaf-md-preview-typeset" (block env))
-(declare-function etaf-md-preview-typeset-request "etaf-md-preview-typeset" (session))
-(declare-function etaf-md-preview-typeset-attach "etaf-md-preview-typeset" (block env))
+(declare-function etaf-md--render-code-block "etaf-md-typeset" (block env))
+(declare-function etaf-md--render-math "etaf-md-typeset" (block env))
+(declare-function etaf-md-typeset-request "etaf-md-typeset" (session))
+(declare-function etaf-md-typeset-attach "etaf-md-typeset" (block env))
 
-(defun etaf-md-preview--build-env (session)
+(defun etaf-md--build-env (session)
   "Build SESSION's rendering environment from its current inputs."
-  (list :theme (etaf-md-preview--read session :theme)
-        :palette (etaf-md-preview--session-palette session)
-        :width (etaf-md-preview--read session :width)
-        :figure-width (cdr (etaf-md-preview--page-widths
-                              session (etaf-md-preview--read session :width)))
-        :background (etaf-md-preview--page-background session)
+  (list :theme (etaf-md--read session :theme)
+        :palette (etaf-md--session-palette session)
+        :width (etaf-md--read session :width)
+        :figure-width (cdr (etaf-md--page-widths
+                              session (etaf-md--read session :width)))
+        :background (etaf-md--page-background session)
         :dir (plist-get session :dir)
         :features (plist-get session :features)
-        :open-url (lambda (url) (etaf-md-preview--open-url session url))
-        :open-link (lambda (url) (etaf-md-preview--open-url session url))
-        :open-file #'etaf-md-preview--open-file
-        :render-media #'etaf-md-preview--render-media
-        :alert-labels etaf-md-preview--alert-labels
+        :open-url (lambda (url) (etaf-md--open-url session url))
+        :open-link (lambda (url) (etaf-md--open-url session url))
+        :open-file #'etaf-md--open-file
+        :render-media #'etaf-md--render-media
+        :alert-labels etaf-md--alert-labels
         :video-active-p
         (lambda (key)
-          (member key (etaf-md-preview--read session :video-active)))
+          (member key (etaf-md--read session :video-active)))
         :activate-video
         (lambda (key)
           (etaf-set-value
-           (etaf-md-preview--ref session :video-active)
-           (cons key (etaf-md-preview--read session :video-active))))
-        :footnote-jump (lambda (label) (etaf-md-preview--jump-footnote session label))
+           (etaf-md--ref session :video-active)
+           (cons key (etaf-md--read session :video-active))))
+        :footnote-jump (lambda (label) (etaf-md--jump-footnote session label))
         ;; A picture costs a program, so only a session with a file may start
         ;; one: the finished render repaints that file's page.
-        :render-code-block #'etaf-md-preview--render-code-block
-        :render-math #'etaf-md-preview--render-math))
+        :render-code-block #'etaf-md--render-code-block
+        :render-math #'etaf-md--render-math))
 
-(defun etaf-md-preview--env (session)
+(defun etaf-md--env (session)
   "Return SESSION's rendering environment, reused until one of its inputs changes.
 A block Component reads this plist in its own render, so its colors and
 measure follow the session; a publish that changes no input hands every
 retained block the same environment object, which keeps its props unchanged."
-  (let ((inputs (etaf-md-preview--env-inputs session)))
+  (let ((inputs (etaf-md--env-inputs session)))
     (let ((cached (plist-get session :env-cache)))
       (if (equal (car cached) inputs)
           (cdr cached)
-        (let ((env (etaf-md-preview--build-env session)))
+        (let ((env (etaf-md--build-env session)))
           (plist-put session :env-cache (cons inputs env))
           env)))))
 
-(defun etaf-md-preview--card-env (session env scope)
+(defun etaf-md--card-env (session env scope)
   "Return ENV with video card identities for one render pass of SCOPE.
 SCOPE names the pass, so two cards of one source stay distinct while a card
 keeps its key across repaints of the same block.  ENV is shared between
@@ -1036,10 +1036,10 @@ publishes, so the occurrence counter cannot live in it."
   (let ((occurrences (make-hash-table :test #'equal)))
     (plist-put (copy-sequence env) :video-card
                (lambda (url)
-                 (etaf-md-preview--video-card
+                 (etaf-md--video-card
                   session url
                   (list scope (cl-incf (gethash url occurrences 0))))))))
 
 
-(provide 'etaf-md-preview-model)
-;;; etaf-md-preview-model.el ends here
+(provide 'etaf-md-model)
+;;; etaf-md-model.el ends here

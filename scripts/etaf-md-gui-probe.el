@@ -1,4 +1,4 @@
-;;; md-preview-gui-probe.el --- Drive and inspect a live preview -*- lexical-binding: t; -*-
+;;; etaf-md-gui-probe.el --- Drive and inspect a live preview -*- lexical-binding: t; -*-
 
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -13,13 +13,13 @@
 ;; Load it in a graphical Emacs with this repository and the provider roots on
 ;; `load-path', then:
 ;;
-;;   (etaf-md-preview-gui-open "README.md" "150x44")  ; open at a frame size
-;;   (etaf-md-preview-gui-status)                     ; one-line state for logs
-;;   (etaf-md-preview-gui-keys "nt")                  ; real keys through the loop
-;;   (etaf-md-preview-gui-follow "appended by a tool")  ; write the source
-;;   (etaf-md-preview-gui-follow-report "appended by a tool" LINE) ; then wait
-;;   (etaf-md-preview-gui-check)                      ; invariants; nil when healthy
-;;   (etaf-md-preview-gui-close)                      ; release the preview buffer
+;;   (etaf-md-gui-open "README.md" "150x44")  ; open at a frame size
+;;   (etaf-md-gui-status)                     ; one-line state for logs
+;;   (etaf-md-gui-keys "nt")                  ; real keys through the loop
+;;   (etaf-md-gui-follow "appended by a tool")  ; write the source
+;;   (etaf-md-gui-follow-report "appended by a tool" LINE) ; then wait
+;;   (etaf-md-gui-check)                      ; invariants; nil when healthy
+;;   (etaf-md-gui-close)                      ; release the preview buffer
 ;;
 ;; Nothing here is part of the package's public API.
 
@@ -27,12 +27,12 @@
 
 (require 'cl-lib)
 (require 'seq)
-(require 'etaf-md-preview)
+(require 'etaf-md)
 
-(defvar etaf-md-preview-gui--session nil
+(defvar etaf-md-gui--session nil
   "Preview session the probe drives, or nil before the first open.")
 
-(defun etaf-md-preview-gui-open (&optional file size)
+(defun etaf-md-gui-open (&optional file size)
   "Open FILE as a preview in the selected frame sized SIZE.
 SIZE is a \"WIDTHxHEIGHT\" string and defaults to `MD_PREVIEW_GUI_SIZE' or
 \"150x44\".  FILE defaults to the repository README.  Return the new session."
@@ -49,50 +49,50 @@ SIZE is a \"WIDTHxHEIGHT\" string and defaults to `MD_PREVIEW_GUI_SIZE' or
     (set-frame-size frame (string-to-number (car parts))
                     (string-to-number (cadr parts)))
     (delete-other-windows)
-    (setq etaf-md-preview-gui--session (etaf-md-preview-create :file file))
-    (etaf-md-preview-open etaf-md-preview-gui--session)
+    (setq etaf-md-gui--session (etaf-md-create :file file))
+    (etaf-md-open etaf-md-gui--session)
     (delete-other-windows)
-    etaf-md-preview-gui--session))
+    etaf-md-gui--session))
 
-(defun etaf-md-preview-gui-close ()
+(defun etaf-md-gui-close ()
   "Unmount and kill the probe's preview buffer."
-  (when-let* ((session etaf-md-preview-gui--session)
+  (when-let* ((session etaf-md-gui--session)
               (buffer (plist-get session :buffer)))
     (when (buffer-live-p buffer)
-      (with-current-buffer buffer (etaf-md-preview-close))))
-  (setq etaf-md-preview-gui--session nil))
+      (with-current-buffer buffer (etaf-md-close))))
+  (setq etaf-md-gui--session nil))
 
-(defun etaf-md-preview-gui-status ()
+(defun etaf-md-gui-status ()
   "Return a one-line summary of the preview's state for logging."
-  (let ((state (and etaf-md-preview-gui--session
-                    (etaf-md-preview-state etaf-md-preview-gui--session))))
+  (let ((state (and etaf-md-gui--session
+                    (etaf-md-state etaf-md-gui--session))))
     (format "frame=%dx%d theme=%s width=%s blocks=%s outline=%s footnotes=%s"
             (frame-width) (frame-height)
             (plist-get state :theme) (plist-get state :width)
             (plist-get state :blocks) (length (plist-get state :outline))
             (length (plist-get state :footnotes)))))
 
-(defun etaf-md-preview-gui-keys (keys)
+(defun etaf-md-gui-keys (keys)
   "Send KEYS through the real command loop and return the new status.
 KEYS is a `kbd' string, so \"nt\" moves to the next heading and cycles theme."
-  (let ((buffer (and etaf-md-preview-gui--session
-                     (plist-get etaf-md-preview-gui--session :buffer))))
+  (let ((buffer (and etaf-md-gui--session
+                     (plist-get etaf-md-gui--session :buffer))))
     (when (buffer-live-p buffer)
       (with-current-buffer buffer
         (execute-kbd-macro (kbd keys)))))
-  (etaf-md-preview-gui-status))
+  (etaf-md-gui-status))
 
-(defun etaf-md-preview-gui-follow (text)
+(defun etaf-md-gui-follow (text)
   "Append TEXT to the probe's source on disk and return the reader's position.
 The write happens outside any buffer, the way another program saves a file, so
 a caller exercises the follow path instead of a forced reload.  This returns
 before the repaint: the repaint runs from a timer once Emacs is idle, so a
 caller waiting inside another timer or a client request would starve it.
 Return a plist of `:file' and `:line', the reader's line at the write."
-  (let ((file (and etaf-md-preview-gui--session
-                   (plist-get etaf-md-preview-gui--session :file)))
-        (buffer (and etaf-md-preview-gui--session
-                     (plist-get etaf-md-preview-gui--session :buffer))))
+  (let ((file (and etaf-md-gui--session
+                   (plist-get etaf-md-gui--session :file)))
+        (buffer (and etaf-md-gui--session
+                     (plist-get etaf-md-gui--session :buffer))))
     (unless file
       (error "The probe has no file-backed preview to follow"))
     (let ((line (and (buffer-live-p buffer)
@@ -104,15 +104,15 @@ Return a plist of `:file' and `:line', the reader's line at the write."
         (write-region (point-min) (point-max) file nil 'silent))
       (list :file file :line line))))
 
-(defun etaf-md-preview-gui-follow-report (text &optional before)
+(defun etaf-md-gui-follow-report (text &optional before)
   "Wait for the follow repaint of TEXT and report what the preview did.
-BEFORE is the reader's line captured by `etaf-md-preview-gui-follow', which
+BEFORE is the reader's line captured by `etaf-md-gui-follow', which
 lets the caller see that the repaint kept the reader in its section.  Call
 this at top level: a timer cannot run the repaint while another timer waits.
 Return `:line', `:kept' (the reader stayed within three lines of BEFORE) and
 `:followed' (the new text reached the buffer)."
-  (let ((buffer (and etaf-md-preview-gui--session
-                     (plist-get etaf-md-preview-gui--session :buffer))))
+  (let ((buffer (and etaf-md-gui--session
+                     (plist-get etaf-md-gui--session :buffer))))
     (unless (buffer-live-p buffer)
       (error "The probe has no preview buffer to inspect"))
     (let ((waited 0)
@@ -128,18 +128,18 @@ Return `:line', `:kept' (the reader stayed within three lines of BEFORE) and
               :kept (and before (<= (abs (- line before)) 3))
               :followed (and found t))))))
 
-(defun etaf-md-preview-gui-check ()
+(defun etaf-md-gui-check ()
   "Return preview layout problems, or nil when the frame looks healthy.
 Checks the invariants a text frame can violate silently: painted lines that
 are wider than the window, a picture row cut for another measure, a missing
 heading outline, and links that lost their activation keymap."
-  (let* ((session etaf-md-preview-gui--session)
+  (let* ((session etaf-md-gui--session)
          (buffer (and session (plist-get session :buffer)))
          (problems nil))
     (unless (buffer-live-p buffer)
       (push "no live preview buffer" problems))
     (when (buffer-live-p buffer)
-      (setq problems (nconc (etaf-md-preview-gui--picture-problems buffer) problems))
+      (setq problems (nconc (etaf-md-gui--picture-problems buffer) problems))
       (with-current-buffer buffer
         (let* ((window (get-buffer-window buffer t))
                (columns (and (window-live-p window) (window-body-width window)))
@@ -165,11 +165,11 @@ heading outline, and links that lost their activation keymap."
             (setq position (next-property-change position nil (point-max))))
           (unless (> links 0)
             (push "the document rendered without any interactive link" problems)))
-        (unless (plist-get (etaf-md-preview-state session) :outline)
+        (unless (plist-get (etaf-md-state session) :outline)
           (push "the document has no outline" problems))))
     (nreverse problems)))
 
-(defun etaf-md-preview-gui--slice (display)
+(defun etaf-md-gui--slice (display)
   "Return DISPLAY's slice spec, or nil when it carries no image slice.
 A picture row's display is the slice spec followed by its image descriptor:
 `((slice 0 Y W H) IMAGE)'.  Emacs also accepts the bare `(slice ...)' spec, so
@@ -179,15 +179,15 @@ both shapes name the same thing here."
    ((eq (car display) 'slice) display)
    ((and (consp (car display)) (eq (car (car display)) 'slice)) (car display))))
 
-(defun etaf-md-preview-gui--line-slice (beg end)
+(defun etaf-md-gui--line-slice (beg end)
   "Return the slice spec BEG..END carries, or nil."
   (let ((position beg) (value nil))
     (while (and (< position end) (null value))
-      (setq value (etaf-md-preview-gui--slice (get-char-property position 'display)))
+      (setq value (etaf-md-gui--slice (get-char-property position 'display)))
       (setq position (1+ position)))
     value))
 
-(defun etaf-md-preview-gui--picture-problems (buffer)
+(defun etaf-md-gui--picture-problems (buffer)
   "Return the picture rows of BUFFER that do not fit the lines they sit on.
 A picture is a run of rows cut for one measure: every row is as tall as the
 line it is painted on, and the run begins once.  A row that leaves its line's
@@ -202,7 +202,7 @@ gaps between its rows, or out of line with the text around it."
           (last-line -2))
       (when (window-live-p window)
         (while (< position (point-max))
-          (let ((slice (etaf-md-preview-gui--slice (get-char-property position 'display))))
+          (let ((slice (etaf-md-gui--slice (get-char-property position 'display))))
             (when slice
               (let* ((line (line-number-at-pos position))
                      (height (nth 4 slice))
@@ -225,12 +225,12 @@ gaps between its rows, or out of line with the text around it."
                              (point-max)))))
       (nreverse problems))))
 
-(defun etaf-md-preview-gui-table-boundaries (header)
+(defun etaf-md-gui-table-boundaries (header)
   "Check every displayed table row below HEADER against its column boundaries.
 Measure actual screen positions, not string widths: post-publication font
 changes can invalidate layout measurements.  The entire table must be visible.
 Return its row boundary lists or signal an error for missing or shifted edges."
-  (let* ((buffer (plist-get etaf-md-preview-gui--session :buffer))
+  (let* ((buffer (plist-get etaf-md-gui--session :buffer))
          (window (get-buffer-window buffer t))
          rows expected border-color)
     (unless (window-live-p window)
@@ -274,5 +274,5 @@ Return its row boundary lists or signal an error for missing or shifted edges."
       (error "No complete table found for %s" header))
     (nreverse rows)))
 
-(provide 'md-preview-gui-probe)
-;;; md-preview-gui-probe.el ends here
+(provide 'etaf-md-gui-probe)
+;;; etaf-md-gui-probe.el ends here

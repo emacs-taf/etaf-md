@@ -11,258 +11,258 @@
   "support": [],
   "cases": [
     {
-      "name": "etaf-md-preview-tests-heading-color-separates-from-flat-themed-ink",
-      "file": "tests/etaf-md-preview-tests.el",
+      "name": "etaf-md-tests-heading-color-separates-from-flat-themed-ink",
+      "file": "tests/etaf-md-tests.el",
       "purpose": "A theme whose outline color is its body color still renders headings in a hue derived from the accent, instead of headings that read as plain text."
     },
     {
-      "name": "etaf-md-preview-tests-heading-keeps-a-distinct-theme-color",
-      "file": "tests/etaf-md-preview-tests.el",
+      "name": "etaf-md-tests-heading-keeps-a-distinct-theme-color",
+      "file": "tests/etaf-md-tests.el",
       "purpose": "A theme whose heading color differs from its body text keeps that color, so the derivation only replaces a heading color that would read flat."
     },
     {
-      "name": "etaf-md-preview-tests-open-prompt-defaults-to-the-relative-file",
-      "file": "tests/etaf-md-preview-tests.el",
+      "name": "etaf-md-tests-open-prompt-defaults-to-the-relative-file",
+      "file": "tests/etaf-md-tests.el",
       "purpose": "Opening the preview interactively hands the file prompt a name relative to `default-directory', so the prompt shows the directory once instead of repeating it around the current buffer's file."
     },
     {
-      "name": "etaf-md-preview-tests-help-stays-in-preview",
-      "file": "tests/etaf-md-preview-tests.el",
+      "name": "etaf-md-tests-help-stays-in-preview",
+      "file": "tests/etaf-md-tests.el",
       "purpose": "Both help entries show effective labelled bindings in the existing preview; search and layered Escape preserve the document state and window layout."
     },
     {
-      "name": "etaf-md-preview-tests-alerts-end-with-their-body",
-      "file": "tests/etaf-md-preview-tests.el",
+      "name": "etaf-md-tests-alerts-end-with-their-body",
+      "file": "tests/etaf-md-tests.el",
       "purpose": "All five callout kinds preserve explicit body line breaks and end without an extra padded row, retaining one normal inter-block blank line."
     },
     {
-      "name": "etaf-md-preview-tests-narrow-window-keeps-the-measure-gutter",
-      "file": "tests/etaf-md-preview-tests.el",
+      "name": "etaf-md-tests-narrow-window-keeps-the-measure-gutter",
+      "file": "tests/etaf-md-tests.el",
       "purpose": "A window that fills the reading measure keeps its side gutters, and a table whose columns cannot fit is clipped at the measure instead of painting a border bar across the edge."
     },
     {
-      "name": "etaf-md-preview-tests-auto-palette-follows-a-theme-switch",
-      "file": "tests/etaf-md-preview-tests.el",
+      "name": "etaf-md-tests-auto-palette-follows-a-theme-switch",
+      "file": "tests/etaf-md-tests.el",
       "purpose": "The face-derived palette re-derives after an Emacs theme switch, so the preview follows the new theme instead of keeping the ink and surfaces of the theme that was active when it opened."
     },
     {
-      "name": "etaf-md-preview-tests-reading-measure-stays-centered-on-refit",
-      "file": "tests/etaf-md-preview-tests.el",
+      "name": "etaf-md-tests-reading-measure-stays-centered-on-refit",
+      "file": "tests/etaf-md-tests.el",
       "purpose": "Wide and narrow viewport refits keep the capped reading measure centered at its measured pixel position."
     },
     {
-      "name": "etaf-md-preview-tests-heading-links-override-heading-color",
-      "file": "tests/etaf-md-preview-tests.el",
+      "name": "etaf-md-tests-heading-links-override-heading-color",
+      "file": "tests/etaf-md-tests.el",
       "purpose": "Links in all six heading levels retain accent color, heading weight and working activation without duplicate properties."
     },
     {
-      "name": "etaf-md-preview-tests-video-caption-activates-player",
-      "file": "tests/etaf-md-preview-tests.el",
+      "name": "etaf-md-tests-video-caption-activates-player",
+      "file": "tests/etaf-md-tests.el",
       "purpose": "RET on a video caption starts inline playback when ffmpeg can decode it and never leaves the card to an external player."
     },
     {
-      "name": "etaf-md-preview-tests-video-ret-toggles-playback-in-place",
-      "file": "tests/etaf-md-preview-tests.el",
+      "name": "etaf-md-tests-video-ret-toggles-playback-in-place",
+      "file": "tests/etaf-md-tests.el",
       "purpose": "RET on the live player pauses the canvas in place and resumes from the paused frame instead of restarting it."
     },
     {
-      "name": "etaf-md-preview-tests-video-without-decoder-opens-externally",
-      "file": "tests/etaf-md-preview-tests.el",
+      "name": "etaf-md-tests-video-without-decoder-opens-externally",
+      "file": "tests/etaf-md-tests.el",
       "purpose": "A local video without ffmpeg keeps its poster card and opens in the desktop player instead of mounting a player, even after an earlier render cached its playback metadata."
     },
     {
-      "name": "etaf-md-preview-tests-create-reports-document-state",
-      "file": "tests/etaf-md-preview-tests.el",
+      "name": "etaf-md-tests-create-reports-document-state",
+      "file": "tests/etaf-md-tests.el",
       "purpose": "Creating a session from text exposes title, outline and footnotes."
     },
     {
-      "name": "etaf-md-preview-tests-a-document-names-its-own-dialect",
-      "file": "tests/etaf-md-preview-tests.el",
+      "name": "etaf-md-tests-a-document-names-its-own-dialect",
+      "file": "tests/etaf-md-tests.el",
       "purpose": "文档 front matter 里的 flavor: 行决定该文件用哪个方言解析；会话的 :flavor 参数优先，缺省用最宽的预设。"
     },
     {
-      "name": "etaf-md-preview-tests-render-inline-styles-and-links",
-      "file": "tests/etaf-md-preview-tests.el",
+      "name": "etaf-md-tests-render-inline-styles-and-links",
+      "file": "tests/etaf-md-tests.el",
       "purpose": "A paragraph renders every run with its style and keeps links clickable."
     },
     {
-      "name": "etaf-md-preview-tests-render-block-structure",
-      "file": "tests/etaf-md-preview-tests.el",
+      "name": "etaf-md-tests-render-block-structure",
+      "file": "tests/etaf-md-tests.el",
       "purpose": "Headings, lists, tasks, quotes, code and tables all reach the buffer."
     },
     {
-      "name": "etaf-md-preview-tests-footnotes-numbered-and-defined",
-      "file": "tests/etaf-md-preview-tests.el",
+      "name": "etaf-md-tests-footnotes-numbered-and-defined",
+      "file": "tests/etaf-md-tests.el",
       "purpose": "Footnote references render numbered and definitions appear at the end."
     },
     {
-      "name": "etaf-md-preview-tests-media-cards-show-placeholders",
-      "file": "tests/etaf-md-preview-tests.el",
+      "name": "etaf-md-tests-media-cards-show-placeholders",
+      "file": "tests/etaf-md-tests.el",
       "purpose": "Missing local media renders a labeled card instead of failing."
     },
     {
-      "name": "etaf-md-preview-tests-media-keeps-source-aspect-under-height-cap",
-      "file": "tests/etaf-md-preview-tests.el",
+      "name": "etaf-md-tests-media-keeps-source-aspect-under-height-cap",
+      "file": "tests/etaf-md-tests.el",
       "purpose": "A media card capped by height narrows its grid instead of squashing the source."
     },
     {
-      "name": "etaf-md-preview-tests-video-card-plays-with-a-native-decoder",
-      "file": "tests/etaf-md-preview-tests.el",
+      "name": "etaf-md-tests-video-card-plays-with-a-native-decoder",
+      "file": "tests/etaf-md-tests.el",
       "purpose": "A local video renders as a poster card naming the inline play action when ffmpeg can decode it."
     },
     {
-      "name": "etaf-md-preview-tests-local-media-opens-with-the-desktop",
-      "file": "tests/etaf-md-preview-tests.el",
+      "name": "etaf-md-tests-local-media-opens-with-the-desktop",
+      "file": "tests/etaf-md-tests.el",
       "purpose": "RET on a local media card asks the desktop to open the file instead of loading it into Emacs."
     },
     {
-      "name": "etaf-md-preview-tests-refresh-re-reads-a-file",
-      "file": "tests/etaf-md-preview-tests.el",
+      "name": "etaf-md-tests-refresh-re-reads-a-file",
+      "file": "tests/etaf-md-tests.el",
       "purpose": "Refresh re-reads the file and publishes the new outline."
     },
     {
-      "name": "etaf-md-preview-tests-unsaved-edits-reach-the-preview",
-      "file": "tests/etaf-md-preview-tests.el",
+      "name": "etaf-md-tests-unsaved-edits-reach-the-preview",
+      "file": "tests/etaf-md-tests.el",
       "purpose": "Editing the source buffer repaints the preview before it is saved, and closing the preview stops following the buffer."
     },
     {
-      "name": "etaf-md-preview-tests-editing-beside-a-definition-list-repaints",
-      "file": "tests/etaf-md-preview-tests.el",
+      "name": "etaf-md-tests-editing-beside-a-definition-list-repaints",
+      "file": "tests/etaf-md-tests.el",
       "purpose": "An unsaved edit repaints a document holding a definition list, where one paragraph and the list share a parse clause."
     },
     {
-      "name": "etaf-md-preview-tests-entry-command-keeps-the-source-window",
-      "file": "tests/etaf-md-preview-tests.el",
+      "name": "etaf-md-tests-entry-command-keeps-the-source-window",
+      "file": "tests/etaf-md-tests.el",
       "purpose": "The side-by-side command opens the preview in a neighbouring window, keeps the source buffer selected, and closing the preview gives the window back."
     },
     {
-      "name": "etaf-md-preview-tests-follow-scroll-shows-the-source-top",
-      "file": "tests/etaf-md-preview-tests.el",
+      "name": "etaf-md-tests-follow-scroll-shows-the-source-top",
+      "file": "tests/etaf-md-tests.el",
       "purpose": "The scroll follow puts the block at the source window's top at the top of the page, and turning it off leaves the page alone."
     },
     {
-      "name": "etaf-md-preview-tests-a-theme-switch-keeps-a-closed-source-whole",
-      "file": "tests/etaf-md-preview-tests.el",
+      "name": "etaf-md-tests-a-theme-switch-keeps-a-closed-source-whole",
+      "file": "tests/etaf-md-tests.el",
       "purpose": "A palette switch republishes the file when its source buffer is closed, keeping the page whole instead of publishing an empty document."
     },
     {
-      "name": "etaf-md-preview-tests-breaks-follow-the-markdown-rules",
-      "file": "tests/etaf-md-preview-tests.el",
+      "name": "etaf-md-tests-breaks-follow-the-markdown-rules",
+      "file": "tests/etaf-md-tests.el",
       "purpose": "A soft break folds into one row, a two-space or backslash break and a blank line inside a fence paint their own rows, and blank lines between blocks keep their count."
     },
     {
-      "name": "etaf-md-preview-tests-blank-lines-follow-the-source",
-      "file": "tests/etaf-md-preview-tests.el",
+      "name": "etaf-md-tests-blank-lines-follow-the-source",
+      "file": "tests/etaf-md-tests.el",
       "purpose": "One blank source line paints one row between blocks, inside a loose list item, after a metadata line and after the front matter."
     },
     {
-      "name": "etaf-md-preview-tests-saving-the-source-repaints-the-preview",
-      "file": "tests/etaf-md-preview-tests.el",
+      "name": "etaf-md-tests-saving-the-source-repaints-the-preview",
+      "file": "tests/etaf-md-tests.el",
       "purpose": "Saving a source file repaints its open preview without a manual reload and keeps the reader in the section it was reading."
     },
     {
-      "name": "etaf-md-preview-tests-theme-changes-and-rejects-unknown",
-      "file": "tests/etaf-md-preview-tests.el",
+      "name": "etaf-md-tests-theme-changes-and-rejects-unknown",
+      "file": "tests/etaf-md-tests.el",
       "purpose": "Themes cycle in order and unknown palettes are rejected."
     },
     {
-      "name": "etaf-md-preview-tests-auto-theme-keeps-the-emacs-background",
-      "file": "tests/etaf-md-preview-tests.el",
+      "name": "etaf-md-tests-auto-theme-keeps-the-emacs-background",
+      "file": "tests/etaf-md-tests.el",
       "purpose": "The auto theme paints no page background; an explicit palette paints its own."
     },
     {
-      "name": "etaf-md-preview-tests-declares-its-surface-to-a-host",
-      "file": "tests/etaf-md-preview-tests.el",
+      "name": "etaf-md-tests-declares-its-surface-to-a-host",
+      "file": "tests/etaf-md-tests.el",
       "purpose": "A host frames the preview from the palette, theme cell and modes it declares, so a panel's title-bar switch repaints the document with the chosen page."
     },
     {
-      "name": "etaf-md-preview-tests-auto-theme-derives-surfaces-from-faces",
-      "file": "tests/etaf-md-preview-tests.el",
+      "name": "etaf-md-tests-auto-theme-derives-surfaces-from-faces",
+      "file": "tests/etaf-md-tests.el",
       "purpose": "The auto theme blends panel surfaces from the frame's own faces."
     },
     {
-      "name": "etaf-md-preview-tests-custom-defaults-select-theme-flavor-and-bounds",
-      "file": "tests/etaf-md-preview-tests.el",
+      "name": "etaf-md-tests-custom-defaults-select-theme-flavor-and-bounds",
+      "file": "tests/etaf-md-tests.el",
       "purpose": "The theme, flavor and reading-measure defcustoms drive new sessions."
     },
     {
-      "name": "etaf-md-preview-tests-locate-follows-the-outline",
-      "file": "tests/etaf-md-preview-tests.el",
+      "name": "etaf-md-tests-locate-follows-the-outline",
+      "file": "tests/etaf-md-tests.el",
       "purpose": "Locate moves point to the heading band and next/previous walk the outline."
     },
     {
-      "name": "etaf-md-preview-tests-close-releases-and-reopens",
-      "file": "tests/etaf-md-preview-tests.el",
+      "name": "etaf-md-tests-close-releases-and-reopens",
+      "file": "tests/etaf-md-tests.el",
       "purpose": "Closing kills the buffer and the same session mounts again."
     },
     {
-      "name": "etaf-md-preview-tests-front-matter-is-metadata",
-      "file": "tests/etaf-md-preview-tests.el",
+      "name": "etaf-md-tests-front-matter-is-metadata",
+      "file": "tests/etaf-md-tests.el",
       "purpose": "Front matter is stripped from the body and feeds the title."
     },
     {
-      "name": "etaf-md-preview-tests-flavor-commonmark-keeps-extensions-literal",
-      "file": "tests/etaf-md-preview-tests.el",
+      "name": "etaf-md-tests-flavor-commonmark-keeps-extensions-literal",
+      "file": "tests/etaf-md-tests.el",
       "purpose": "The CommonMark flavor leaves GFM-only syntax as literal text."
     },
     {
-      "name": "etaf-md-preview-tests-flavor-gfm-converts-extensions",
-      "file": "tests/etaf-md-preview-tests.el",
+      "name": "etaf-md-tests-flavor-gfm-converts-extensions",
+      "file": "tests/etaf-md-tests.el",
       "purpose": "The GFM flavor converts the extensions the previewer defaults to."
     },
     {
-      "name": "etaf-md-preview-tests-flavor-rejects-unknown-name",
-      "file": "tests/etaf-md-preview-tests.el",
+      "name": "etaf-md-tests-flavor-rejects-unknown-name",
+      "file": "tests/etaf-md-tests.el",
       "purpose": "An unknown dialect name is reported instead of guessed."
     },
     {
-      "name": "etaf-md-preview-tests-palette-paints-the-canvas",
-      "file": "tests/etaf-md-preview-tests.el",
+      "name": "etaf-md-tests-palette-paints-the-canvas",
+      "file": "tests/etaf-md-tests.el",
       "purpose": "Choosing each palette paints the cells the page does not cover with that palette's page background."
     },
     {
-      "name": "etaf-md-preview-tests-a-file-opened-later-is-followed",
-      "file": "tests/etaf-md-preview-tests.el",
+      "name": "etaf-md-tests-a-file-opened-later-is-followed",
+      "file": "tests/etaf-md-tests.el",
       "purpose": "先开预览、后打开 markdown 文件时，文件里的编辑（未保存）照样实时重画预览。"
     },
     {
-      "name": "etaf-md-preview-tests-one-edit-repaints-one-block",
-      "file": "tests/etaf-md-preview-tests.el",
+      "name": "etaf-md-tests-one-edit-repaints-one-block",
+      "file": "tests/etaf-md-tests.el",
       "purpose": "An unsaved edit in the source buffer repaints the block it changed: the published buffer patch covers that block's lines while the rest of a long document keeps its text, because every top-level block is published as its own Component."
     },
     {
-      "name": "etaf-md-preview-tests-empty-block-paints-its-source-skeleton",
-      "file": "tests/etaf-md-preview-tests.el",
+      "name": "etaf-md-tests-empty-block-paints-its-source-skeleton",
+      "file": "tests/etaf-md-tests.el",
       "purpose": "A heading, list item, quote, fence or table whose text is gone paints the markup its source still holds."
     },
     {
-      "name": "etaf-md-preview-tests-empty-block-does-not-hide-a-full-table",
-      "file": "tests/etaf-md-preview-tests.el",
+      "name": "etaf-md-tests-empty-block-does-not-hide-a-full-table",
+      "file": "tests/etaf-md-tests.el",
       "purpose": "A table that still holds text paints its cells rather than its skeleton."
     },
     {
-      "name": "etaf-md-preview-tests-front-matter-is-not-painted-as-blank-rows",
-      "file": "tests/etaf-md-preview-tests.el",
+      "name": "etaf-md-tests-front-matter-is-not-painted-as-blank-rows",
+      "file": "tests/etaf-md-tests.el",
       "purpose": "Front matter is shown as the document's title and subtitle, not as lines, so the page does not open with blank rows standing for it."
     },
     {
-      "name": "etaf-md-preview-tests-a-metadata-line-keeps-the-blank-rows-around-it",
-      "file": "tests/etaf-md-preview-tests.el",
+      "name": "etaf-md-tests-a-metadata-line-keeps-the-blank-rows-around-it",
+      "file": "tests/etaf-md-tests.el",
       "purpose": "A line the parser consumes without a block, such as a link reference or abbreviation definition, still leaves the blank rows the file puts around it, so the next block is not pulled up against the previous one."
     },
     {
-      "name": "etaf-md-preview-tests-pictures-fall-back-to-their-source",
-      "file": "tests/etaf-md-preview-tests.el",
+      "name": "etaf-md-tests-pictures-fall-back-to-their-source",
+      "file": "tests/etaf-md-tests.el",
       "purpose": "With the drawing program turned off, a mermaid fence and a display formula still paint their source, so a page never depends on an external program."
     },
     {
-      "name": "etaf-md-preview-tests-a-thematic-break-paints-a-rule",
-      "file": "tests/etaf-md-preview-tests.el",
+      "name": "etaf-md-tests-a-thematic-break-paints-a-rule",
+      "file": "tests/etaf-md-tests.el",
       "purpose": "A thematic break paints its horizontal rule instead of the dashes that wrote it, because a rule carries no text and must not be treated as an empty block."
     },
     {
-      "name": "etaf-md-preview-tests-front-matter-labels-join-without-gaps",
-      "file": "tests/etaf-md-preview-tests.el",
+      "name": "etaf-md-tests-front-matter-labels-join-without-gaps",
+      "file": "tests/etaf-md-tests.el",
       "purpose": "A document whose front matter omits version and license shows its labels joined by one separator each, with no separator left standing for the missing value."
     }
   ]

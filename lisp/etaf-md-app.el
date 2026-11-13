@@ -1,16 +1,16 @@
-;;; etaf-md-preview-app.el --- Application shell of etaf-md-preview -*- lexical-binding: t; -*-
+;;; etaf-md-app.el --- Application shell of etaf-md -*- lexical-binding: t; -*-
 
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 
 ;;; Commentary:
 ;;
 ;; The application layer binds one preview session to the Views.  The
-;; `etaf-md-preview-app' Component is the only place that reads the session's
+;; `etaf-md-app' Component is the only place that reads the session's
 ;; reactive sources, so a palette, width or document change repaints the whole
 ;; preview in one place; it also provides the palette tokens to its subtree so
 ;; shared ETAF UI Components follow the same colors.
 ;;
-;; `etaf-md-preview-open' opens the session as an ETAF application: the
+;; `etaf-md-open' opens the session as an ETAF application: the
 ;; application buffer, its root keys, the initial reading measure, the page
 ;; background and the commands for outline navigation, reload and theming.  A
 ;; window resize reflows through the framework's own viewport update, so the
@@ -23,37 +23,37 @@
 (require 'filenotify)
 (require 'etaf)
 (require 'etaf-ui)
-(require 'etaf-md-preview-theme)
-(require 'etaf-md-preview-model)
-(require 'etaf-md-preview-views)
+(require 'etaf-md-theme)
+(require 'etaf-md-model)
+(require 'etaf-md-views)
 
-(defun etaf-md-preview--buffer-name (file)
+(defun etaf-md--buffer-name (file)
   "Return the preview buffer name for FILE."
   (format "*ETAF Markdown: %s*" (file-name-nondirectory file)))
 
-(defvar etaf-md-preview-after-repaint-functions nil
+(defvar etaf-md-after-repaint-functions nil
   "Functions called with each session whose document was just republished.
 An in-place edit uses it to put the caret back on the repainted page; the hook
 runs after the publication, so a handler reads the new document.")
 
-(declare-function etaf-md-preview--live-refresh "etaf-md-preview-live" (session text))
+(declare-function etaf-md--live-refresh "etaf-md-live" (session text))
 
-(defconst etaf-md-preview--keys
-  '(("n" etaf-md-preview-next-heading "下一个标题")
-    ("p" etaf-md-preview-previous-heading "上一个标题")
-    ("C-c j" etaf-md-preview-goto-heading "选择标题")
-    ("r" etaf-md-preview-reload "重新加载文档")
-    ("t" etaf-md-preview--cycle-theme-command "切换主题")
-    ("[" etaf-md-preview-narrower "缩窄阅读栏")
-    ("]" etaf-md-preview-wider "加宽阅读栏")
+(defconst etaf-md--keys
+  '(("n" etaf-md-next-heading "下一个标题")
+    ("p" etaf-md-previous-heading "上一个标题")
+    ("C-c j" etaf-md-goto-heading "选择标题")
+    ("r" etaf-md-reload "重新加载文档")
+    ("t" etaf-md--cycle-theme-command "切换主题")
+    ("[" etaf-md-narrower "缩窄阅读栏")
+    ("]" etaf-md-wider "加宽阅读栏")
     ("C-c h" etaf-help "查看快捷键")
-    ("q" etaf-md-preview-close "关闭预览"))
-  "Root keys of a preview opened by `etaf-md-preview-open'.
+    ("q" etaf-md-close "关闭预览"))
+  "Root keys of a preview opened by `etaf-md-open'.
 The page is a rendering, so the markdown is edited in its own buffer and these
 keys only move around the view.  Native scrolling, isearch and link activation
 stay available as they are.")
 
-(defun etaf-md-preview--republish-appearance (&rest _)
+(defun etaf-md--republish-appearance (&rest _)
   "Republish every preview that follows the Emacs theme.
 A picture is drawn for the ink it was published with, so a theme switch changes
 what a page needs while its text stays the same: without this the page keeps a
@@ -62,15 +62,15 @@ two are both light."
   (dolist (buffer (buffer-list))
     (with-current-buffer buffer
       (when-let* ((session (ignore-errors (etaf-app-state))))
-        (when (eq (etaf-md-preview--read session :theme-mode) 'auto)
-          (ignore-errors (etaf-md-preview--republish session)))))))
+        (when (eq (etaf-md--read session :theme-mode) 'auto)
+          (ignore-errors (etaf-md--republish session)))))))
 
-(add-hook 'enable-theme-functions #'etaf-md-preview--republish-appearance)
+(add-hook 'enable-theme-functions #'etaf-md--republish-appearance)
 (when (boundp 'ns-system-appearance-change-functions)
   (add-hook 'ns-system-appearance-change-functions
-            #'etaf-md-preview--republish-appearance))
+            #'etaf-md--republish-appearance))
 
-(defun etaf-md-preview--current-session ()
+(defun etaf-md--current-session ()
   "Return the preview session of the current buffer."
   (or (etaf-app-state)
       (user-error "Not an ETAF markdown preview buffer")))
@@ -79,25 +79,25 @@ two are both light."
 ;;; Navigation and display commands
 ;;; ---------------------------------------------------------------------------
 
-(defun etaf-md-preview-next-heading ()
+(defun etaf-md-next-heading ()
   "Move to the next outline heading of the current preview."
   (interactive)
-  (let ((session (etaf-md-preview--current-session)))
-    (unless (etaf-md-preview--adjacent-heading session 1)
+  (let ((session (etaf-md--current-session)))
+    (unless (etaf-md--adjacent-heading session 1)
       (message "No further heading"))))
 
-(defun etaf-md-preview-previous-heading ()
+(defun etaf-md-previous-heading ()
   "Move to the previous outline heading of the current preview."
   (interactive)
-  (let ((session (etaf-md-preview--current-session)))
-    (unless (etaf-md-preview--adjacent-heading session -1)
+  (let ((session (etaf-md--current-session)))
+    (unless (etaf-md--adjacent-heading session -1)
       (message "No earlier heading"))))
 
-(defun etaf-md-preview-goto-heading ()
+(defun etaf-md-goto-heading ()
   "Choose an outline heading of the current preview and move to it."
   (interactive)
-  (let* ((session (etaf-md-preview--current-session))
-         (outline (etaf-md-preview-outline session))
+  (let* ((session (etaf-md--current-session))
+         (outline (etaf-md-outline session))
          (candidates
           (cl-loop for entry in outline
                    for index from 0
@@ -109,46 +109,46 @@ two are both light."
     (unless candidates
       (user-error "This document has no headings"))
     (let ((choice (completing-read "Heading: " candidates nil t)))
-      (etaf-md-preview-locate session (cdr (assoc choice candidates))))))
+      (etaf-md-locate session (cdr (assoc choice candidates))))))
 
-(defun etaf-md-preview-reload ()
+(defun etaf-md-reload ()
   "Re-read and repaint the current preview."
   (interactive)
-  (let ((session (etaf-md-preview--current-session)))
-    (etaf-md-preview-refresh session)
-    (message "Reloaded %s" (etaf-md-preview--read session :title))))
+  (let ((session (etaf-md--current-session)))
+    (etaf-md-refresh session)
+    (message "Reloaded %s" (etaf-md--read session :title))))
 
-(defun etaf-md-preview--cycle-theme-command ()
+(defun etaf-md--cycle-theme-command ()
   "Switch the current preview to the next palette."
   (interactive)
-  (let ((session (etaf-md-preview--current-session)))
-    (etaf-md-preview-cycle-theme session)
-    (message "Theme: %s" (etaf-md-preview--read session :theme))))
+  (let ((session (etaf-md--current-session)))
+    (etaf-md-cycle-theme session)
+    (message "Theme: %s" (etaf-md--read session :theme))))
 
-(defun etaf-md-preview-wider ()
+(defun etaf-md-wider ()
   "Widen the current preview's reading column."
   (interactive)
-  (let* ((session (etaf-md-preview--current-session))
-         (cap (etaf-md-preview-adjust-width session 4)))
+  (let* ((session (etaf-md--current-session))
+         (cap (etaf-md-adjust-width session 4)))
     (message "Reading width: %d (max %d)"
-             (etaf-md-preview--effective-width session) cap)))
+             (etaf-md--effective-width session) cap)))
 
-(defun etaf-md-preview-narrower ()
+(defun etaf-md-narrower ()
   "Narrow the current preview's reading column."
   (interactive)
-  (let* ((session (etaf-md-preview--current-session))
-         (cap (etaf-md-preview-adjust-width session -4)))
+  (let* ((session (etaf-md--current-session))
+         (cap (etaf-md-adjust-width session -4)))
     (message "Reading width: %d (max %d)"
-             (etaf-md-preview--effective-width session) cap)))
+             (etaf-md--effective-width session) cap)))
 
-(defun etaf-md-preview-close ()
+(defun etaf-md-close ()
   "Unmount the current preview, kill its buffer and free its window.
 The current window goes away when the frame has another window to spare, so a
 preview opened beside its source closes back onto the source instead of leaving
 a second copy of it.  Signals `user-error' when the current buffer is not a
 preview."
   (interactive)
-  (etaf-md-preview--current-session)
+  (etaf-md--current-session)
   (let ((window (selected-window)))
     (etaf-app-close)
     (when (and (window-live-p window) (not (one-window-p t)))
@@ -158,119 +158,119 @@ preview."
 ;;; Window fitting
 ;;; ---------------------------------------------------------------------------
 
-(defun etaf-md-preview--effective-width (session)
+(defun etaf-md--effective-width (session)
   "Return the reading width the window actually gives SESSION.
 The session's `:width' is the maximum measure; a narrower window fills the
 available columns instead, so this reports what is on screen outside the
 column's side gutters."
   (let* ((buffer (plist-get session :buffer))
          (window (and (buffer-live-p buffer) (get-buffer-window buffer t)))
-         (cap (etaf-md-preview--read session :width)))
+         (cap (etaf-md--read session :width)))
     (if (window-live-p window)
         (min cap (max 24 (- (window-body-width window)
-                            (* 2 etaf-md-preview--measure-gutter))))
+                            (* 2 etaf-md--measure-gutter))))
       cap)))
 
 ;;; ---------------------------------------------------------------------------
 ;;; Following the source file
 ;;; ---------------------------------------------------------------------------
 
-(defconst etaf-md-preview--follow-tick 0.016
+(defconst etaf-md--follow-tick 0.016
   "Seconds between a source change and its repaint.
 One frame at 60 Hz.  A change only schedules a repaint when none is pending,
 so a burst of keystrokes coalesces into one repaint per frame instead of one
 per keystroke, and typing never waits for the keys to stop.")
 
-(defconst etaf-md-preview--follow-retry 0.2
+(defconst etaf-md--follow-retry 0.2
   "Seconds between attempts to watch a file that is temporarily missing.")
 
-(defvar etaf-md-preview--writing-back nil
+(defvar etaf-md--writing-back nil
   "Non-nil while the preview writes an edit back into its source buffer.
 The change hook runs inside that write, which comes from the preview itself:
 following it would republish the document and replace the block the live edit
 session is editing.")
 
-(defvar etaf-md-preview--follow-sessions (make-hash-table :test #'equal)
+(defvar etaf-md--follow-sessions (make-hash-table :test #'equal)
   "Displayed preview sessions by absolute source file name.")
 
-(defvar etaf-md-preview--follow-watches (make-hash-table :test #'equal)
+(defvar etaf-md--follow-watches (make-hash-table :test #'equal)
   "Change watches by absolute source file name.")
 
-(defvar etaf-md-preview--follow-timers (make-hash-table :test #'equal)
+(defvar etaf-md--follow-timers (make-hash-table :test #'equal)
   "Pending repaints by absolute source file name.")
 
-(defvar etaf-md-preview--live-sources (make-hash-table :test #'equal)
+(defvar etaf-md--live-sources (make-hash-table :test #'equal)
   "Visiting buffers followed for unsaved edits by absolute source file name.")
 
-(defun etaf-md-preview--live-changed (&rest _)
+(defun etaf-md--live-changed (&rest _)
   "Repaint the preview of the file being edited on the next frame.
 The hook runs on every buffer change; scheduling keeps one pending repaint
 per file, so a keystroke joins the frame that is already coming."
-  (when (and buffer-file-name (not etaf-md-preview--writing-back))
-    (etaf-md-preview--follow-schedule (expand-file-name buffer-file-name))))
+  (when (and buffer-file-name (not etaf-md--writing-back))
+    (etaf-md--follow-schedule (expand-file-name buffer-file-name))))
 
-(defun etaf-md-preview--live-start (session)
+(defun etaf-md--live-start (session)
   "Make SESSION follow unsaved edits of its visiting buffer, when it has one.
 A file with no visiting buffer has nothing to follow until it is opened, and a
 session built from text never follows a buffer."
   (when-let* ((path (plist-get session :file))
               (buffer (get-file-buffer (expand-file-name path))))
-    (puthash (expand-file-name path) buffer etaf-md-preview--live-sources)
+    (puthash (expand-file-name path) buffer etaf-md--live-sources)
     (plist-put session :source-buffer buffer)
     (with-current-buffer buffer
-      (add-hook 'after-change-functions #'etaf-md-preview--live-changed nil t)
-      (add-hook 'post-command-hook #'etaf-md-preview--follow-scroll-command nil t))))
+      (add-hook 'after-change-functions #'etaf-md--live-changed nil t)
+      (add-hook 'post-command-hook #'etaf-md--follow-scroll-command nil t))))
 
-(defun etaf-md-preview--live-stop (file)
+(defun etaf-md--live-stop (file)
   "Stop following unsaved edits of FILE and drop its visiting buffer."
   (when-let* ((file (and file (expand-file-name file)))
-              (buffer (gethash file etaf-md-preview--live-sources)))
+              (buffer (gethash file etaf-md--live-sources)))
     (when (buffer-live-p buffer)
       (with-current-buffer buffer
-        (remove-hook 'after-change-functions #'etaf-md-preview--live-changed t)
-        (remove-hook 'post-command-hook #'etaf-md-preview--follow-scroll-command t)))
-    (remhash file etaf-md-preview--live-sources)))
+        (remove-hook 'after-change-functions #'etaf-md--live-changed t)
+        (remove-hook 'post-command-hook #'etaf-md--follow-scroll-command t)))
+    (remhash file etaf-md--live-sources)))
 
-(defun etaf-md-preview--follow-visit ()
+(defun etaf-md--follow-visit ()
   "Start following the file the buffer just opened, when a preview shows it.
 A preview can be opened before its markdown is, and a reader who opens the
 file afterwards expects the preview to follow that buffer as they type.  The
 hook is buffer-local where it lands, so closing the file takes it away."
   (when-let* ((file (and buffer-file-name (expand-file-name buffer-file-name)))
-              (session (gethash file etaf-md-preview--follow-sessions)))
-    (etaf-md-preview--live-start session)))
+              (session (gethash file etaf-md--follow-sessions)))
+    (etaf-md--live-start session)))
 
-(defconst etaf-md-preview--follow-attempts 3
+(defconst etaf-md--follow-attempts 3
   "Times to retry a watch while its file is missing.
 An editor that saves atomically deletes the old file before it renames the
 new one over the name, and the watch must be re-armed once the name exists
-again; each retry waits `etaf-md-preview--follow-retry'.")
+again; each retry waits `etaf-md--follow-retry'.")
 
-(defun etaf-md-preview--follow-saved ()
+(defun etaf-md--follow-saved ()
   "Repaint the preview of the file being saved, when one is open."
-  (when (and buffer-file-name (not etaf-md-preview--writing-back))
-    (etaf-md-preview--follow-schedule (expand-file-name buffer-file-name))))
+  (when (and buffer-file-name (not etaf-md--writing-back))
+    (etaf-md--follow-schedule (expand-file-name buffer-file-name))))
 
-(defun etaf-md-preview--follow-watch (file)
+(defun etaf-md--follow-watch (file)
   "Arm, or re-arm, FILE's change watch and return its descriptor.
 Return nil when the file cannot be watched right now, for example because it
 is missing; the caller retries.  The watch follows the file's own node, so an
 atomic replace leaves it watching a node nothing writes again, and every event
 re-arms it."
-  (when-let* ((old (gethash file etaf-md-preview--follow-watches)))
+  (when-let* ((old (gethash file etaf-md--follow-watches)))
     (ignore-errors (file-notify-rm-watch old))
-    (remhash file etaf-md-preview--follow-watches))
+    (remhash file etaf-md--follow-watches))
   (when-let* ((watch
                (condition-case nil
                    (file-notify-add-watch
                     file '(change)
                     (lambda (event)
-                      (etaf-md-preview--follow-event file event)))
+                      (etaf-md--follow-event file event)))
                  (file-error nil))))
-    (puthash file watch etaf-md-preview--follow-watches)
+    (puthash file watch etaf-md--follow-watches)
     watch))
 
-(defun etaf-md-preview--follow-event (file event)
+(defun etaf-md--follow-event (file event)
   "Repaint FILE's preview for EVENT, and re-arm the watch only when it died.
 A watch is re-armed for `stopped' and `deleted' alone: an editor that saves by
 replacing the file takes the watched node away, so the name has to be watched
@@ -278,61 +278,61 @@ again.  Re-arming on every event instead re-adds a watch from inside its own
 callback, and the backend reports the same write again, which never settles."
   (let ((action (nth 1 event)))
     (when (memq action '(changed created renamed))
-      (etaf-md-preview--follow-schedule file))
+      (etaf-md--follow-schedule file))
     (when (memq action '(stopped deleted))
-      (etaf-md-preview--follow-rearm file etaf-md-preview--follow-attempts))))
+      (etaf-md--follow-rearm file etaf-md--follow-attempts))))
 
-(defun etaf-md-preview--follow-rearm (file attempts)
+(defun etaf-md--follow-rearm (file attempts)
   "Watch FILE again, retrying ATTEMPTS times while it is missing."
-  (when (gethash file etaf-md-preview--follow-sessions)
-    (unless (etaf-md-preview--follow-watch file)
+  (when (gethash file etaf-md--follow-sessions)
+    (unless (etaf-md--follow-watch file)
       (when (> attempts 0)
-        (run-with-timer etaf-md-preview--follow-retry nil
-                        #'etaf-md-preview--follow-rearm file (1- attempts))))))
+        (run-with-timer etaf-md--follow-retry nil
+                        #'etaf-md--follow-rearm file (1- attempts))))))
 
-(defun etaf-md-preview--follow-register (session)
+(defun etaf-md--follow-register (session)
   "Make the displayed SESSION follow its source file.
 A session created from text has no file, so it never follows anything."
   (when-let* ((path (plist-get session :file)))
     (let ((file (expand-file-name path)))
-      (puthash file session etaf-md-preview--follow-sessions)
-      (etaf-md-preview--follow-watch file)
-      (etaf-md-preview--live-start session)
+      (puthash file session etaf-md--follow-sessions)
+      (etaf-md--follow-watch file)
+      (etaf-md--live-start session)
       ;; The mount already published this text, so a follow that finds it
       ;; unchanged has nothing to repaint.
-      (plist-put session :live-text (etaf-md-preview--session-text session))
-      (add-hook 'after-save-hook #'etaf-md-preview--follow-saved t)
-      (add-hook 'find-file-hook #'etaf-md-preview--follow-visit))))
+      (plist-put session :live-text (etaf-md--session-text session))
+      (add-hook 'after-save-hook #'etaf-md--follow-saved t)
+      (add-hook 'find-file-hook #'etaf-md--follow-visit))))
 
-(defun etaf-md-preview--follow-unregister (file)
+(defun etaf-md--follow-unregister (file)
   "Stop following FILE: drop its watch, pending repaint and session."
   (when-let* ((file (and file (expand-file-name file))))
-    (etaf-md-preview--live-stop file)
-    (when-let* ((watch (gethash file etaf-md-preview--follow-watches)))
+    (etaf-md--live-stop file)
+    (when-let* ((watch (gethash file etaf-md--follow-watches)))
       (ignore-errors (file-notify-rm-watch watch))
-      (remhash file etaf-md-preview--follow-watches))
-    (when-let* ((timer (gethash file etaf-md-preview--follow-timers)))
+      (remhash file etaf-md--follow-watches))
+    (when-let* ((timer (gethash file etaf-md--follow-timers)))
       (cancel-timer timer)
-      (remhash file etaf-md-preview--follow-timers))
-    (remhash file etaf-md-preview--follow-sessions)
-    (when (zerop (hash-table-count etaf-md-preview--follow-sessions))
-      (remove-hook 'after-save-hook #'etaf-md-preview--follow-saved)
-      (remove-hook 'find-file-hook #'etaf-md-preview--follow-visit))))
+      (remhash file etaf-md--follow-timers))
+    (remhash file etaf-md--follow-sessions)
+    (when (zerop (hash-table-count etaf-md--follow-sessions))
+      (remove-hook 'after-save-hook #'etaf-md--follow-saved)
+      (remove-hook 'find-file-hook #'etaf-md--follow-visit))))
 
 ;;; ---------------------------------------------------------------------------
 ;;; Following the source's scroll
 ;;; ---------------------------------------------------------------------------
 
-(defun etaf-md-preview--follow-scroll-session ()
+(defun etaf-md--follow-scroll-session ()
   "Return the preview session the current buffer scrolls for, or nil.
 Run from the markdown buffer, this is the preview following its file; run from
 the preview, it is the preview itself."
   (or (etaf-app-state)
       (and buffer-file-name
            (gethash (expand-file-name buffer-file-name)
-                    etaf-md-preview--follow-sessions))))
+                    etaf-md--follow-sessions))))
 
-(defun etaf-md-preview-follow-scroll (&optional arg)
+(defun etaf-md-follow-scroll (&optional arg)
   "Toggle scrolling the preview along with its source buffer.
 While it is on, a command that scrolls the source window moves the preview so
 that the block at the top of that window becomes the first row of the
@@ -343,7 +343,7 @@ Run it from the markdown buffer or from its preview.  With prefix ARG, turn
 the follow on when ARG is positive and off otherwise.  Return the new state.
 Signal `user-error' when no preview shows the current buffer."
   (interactive "P")
-  (let ((session (or (etaf-md-preview--follow-scroll-session)
+  (let ((session (or (etaf-md--follow-scroll-session)
                      (user-error "No preview shows the current buffer"))))
     (let ((on (if arg
                   (> (prefix-numeric-value arg) 0)
@@ -351,22 +351,22 @@ Signal `user-error' when no preview shows the current buffer."
       (plist-put session :follow-scroll (and on t))
       (plist-put session :follow-scroll-start nil)
       (when on
-        (etaf-md-preview--follow-scroll-sync session))
+        (etaf-md--follow-scroll-sync session))
       (message "Preview follows the source scroll: %s" (if on "on" "off"))
       (plist-get session :follow-scroll))))
 
-(defun etaf-md-preview--follow-scroll-command ()
+(defun etaf-md--follow-scroll-command ()
   "Move the current buffer's preview along with its source window.
 Runs from the source buffer's `post-command-hook'.  A command that leaves the
 window where it was costs one lookup: the preview only moves when the source
 window starts on a different line than the one it followed before."
   (when buffer-file-name
     (when-let* ((session (gethash (expand-file-name buffer-file-name)
-                                  etaf-md-preview--follow-sessions))
+                                  etaf-md--follow-sessions))
                 ((plist-get session :follow-scroll)))
-      (etaf-md-preview--follow-scroll-sync session))))
+      (etaf-md--follow-scroll-sync session))))
 
-(defun etaf-md-preview--follow-scroll-sync (session)
+(defun etaf-md--follow-scroll-sync (session)
   "Scroll SESSION's window to the block its source window now starts with.
 Return the preview position it moved to, or nil when the source or the
 preview is not on screen, or when the window already starts there."
@@ -379,7 +379,7 @@ preview is not on screen, or when the window already starts there."
     (when (and start window (eq (window-buffer window) buffer))
       (unless (eql (plist-get session :follow-scroll-start) start)
         (plist-put session :follow-scroll-start start)
-        (let ((ref (etaf-md-preview--block-ref-at session start)))
+        (let ((ref (etaf-md--block-ref-at session start)))
           (cond
            ((eq ref 'top)
             ;; The page opens on its front matter header, which no block
@@ -394,7 +394,7 @@ preview is not on screen, or when the window already starts there."
               (set-window-start window position)
               position))))))))
 
-(defun etaf-md-preview--block-ref-at (session position)
+(defun etaf-md--block-ref-at (session position)
   "Return what SESSION's page shows at source POSITION.
 The answer is the ref of the block holding POSITION, or of the next block when
 POSITION falls in the blank lines between two blocks.  A position above the
@@ -404,7 +404,7 @@ A page whose blocks carry no source range answers nil."
   (let ((first nil)
         (last nil)
         (found nil))
-    (dolist (entry (plist-get (etaf-md-preview--read session :document) :children))
+    (dolist (entry (plist-get (etaf-md--read session :document) :children))
       (let* ((block (plist-get entry :block))
              (begin (plist-get block :begin))
              (end (plist-get block :end)))
@@ -420,57 +420,57 @@ A page whose blocks carry no source range answers nil."
           (found)
           (t last))))
 
-(defun etaf-md-preview--follow-schedule (file)
+(defun etaf-md--follow-schedule (file)
   "Repaint FILE's preview on the next frame.
 A repaint already scheduled for FILE is kept rather than replaced, so the
 delay measures from the first change of the burst and the preview follows a
 typing hand instead of going quiet until it stops."
-  (when (and (gethash file etaf-md-preview--follow-sessions)
-             (not (gethash file etaf-md-preview--follow-timers)))
+  (when (and (gethash file etaf-md--follow-sessions)
+             (not (gethash file etaf-md--follow-timers)))
     (puthash file
-             (run-with-timer etaf-md-preview--follow-tick nil
-                             #'etaf-md-preview--follow-repaint file)
-             etaf-md-preview--follow-timers)))
+             (run-with-timer etaf-md--follow-tick nil
+                             #'etaf-md--follow-repaint file)
+             etaf-md--follow-timers)))
 
-(defun etaf-md-preview--follow-repaint (file)
+(defun etaf-md--follow-repaint (file)
   "Repaint FILE's preview after its source changed.
 The repaint republishes the document and lets the framework draw it the way
 any other reactive change does: forcing a flush or moving the reading window
 from the timer that runs here re-enters the update while a redisplay is
 pending, and that spins instead of settling."
-  (remhash file etaf-md-preview--follow-timers)
-  (when-let* ((session (gethash file etaf-md-preview--follow-sessions))
+  (remhash file etaf-md--follow-timers)
+  (when-let* ((session (gethash file etaf-md--follow-sessions))
               (buffer (plist-get session :buffer))
               ((buffer-live-p buffer)))
     (condition-case error
-        (let ((text (etaf-md-preview--session-text session)))
+        (let ((text (etaf-md--session-text session)))
           ;; A repaint already made from the same text leaves nothing to draw:
           ;; the page shows what the source now holds.
           (unless (equal text (plist-get session :live-text))
-            (etaf-md-preview--live-refresh session text)
-            (run-hook-with-args 'etaf-md-preview-after-repaint-functions session)))
-      (etaf-md-preview-error
+            (etaf-md--live-refresh session text)
+            (run-hook-with-args 'etaf-md-after-repaint-functions session)))
+      (etaf-md-error
        (message "Preview kept its last render: %s"
                 (error-message-string error))))))
 
-(etaf-define-component etaf-md-preview-app (&key session)
+(etaf-define-component etaf-md-app (&key session)
   "Render the markdown preview for SESSION and own its lifecycle.
-SESSION must come from `etaf-md-preview-create'.  Mounting provides the
+SESSION must come from `etaf-md-create'.  Mounting provides the
 palette for its subtree; every displayed value is read from the session's
 reactive sources, so a refresh, a width change or a theme change repaints the
 whole preview without a remount."
   :bindings ((preview (or session
-                          (signal 'etaf-md-preview-error
-                                  '("etaf-md-preview-app needs the :session from `etaf-md-preview-create'"))))
-             (document (etaf-md-preview--ref preview :document))
-             (theme (etaf-md-preview--ref preview :theme))
-             (mode (etaf-md-preview--ref preview :theme-mode))
+                          (signal 'etaf-md-error
+                                  '("etaf-md-app needs the :session from `etaf-md-create'"))))
+             (document (etaf-md--ref preview :document))
+             (theme (etaf-md--ref preview :theme))
+             (mode (etaf-md--ref preview :theme-mode))
              (tokens (etaf-computed
                       (lambda ()
-                        (etaf-md-preview-theme-tokens
+                        (etaf-md-theme-tokens
                          (etaf-value theme)
-                         (etaf-md-preview--session-palette preview)))
-                      :name 'etaf-md-preview-theme-tokens)))
+                         (etaf-md--session-palette preview)))
+                      :name 'etaf-md-theme-tokens)))
   :setup
   (progn
     (etaf-theme-provide tokens)
@@ -480,36 +480,36 @@ whole preview without a remount."
     (etaf-watch mode
                 (lambda (mode _old)
                   (etaf-batch
-                    (etaf-md-preview--write preview :theme
+                    (etaf-md--write preview :theme
                                              (if (eq mode 'auto)
-                                                 (etaf-md-preview-auto-theme)
+                                                 (etaf-md-auto-theme)
                                                mode))
-                    (etaf-md-preview--write preview :theme-source
+                    (etaf-md--write preview :theme-source
                                              (if (eq mode 'auto) 'frame 'palette)))
                   ;; The page's pictures are drawn for a palette too, so a
                   ;; switch publishes again to attach the ones it needs.
-                  (etaf-md-preview--republish preview))
-                :immediate t :name 'etaf-md-preview-mode)
+                  (etaf-md--republish preview))
+                :immediate t :name 'etaf-md-mode)
     (when-let* ((surface (etaf-surface-host)))
       (etaf-surface-declare surface :theme tokens :mode mode
-                            :modes etaf-md-preview--surface-modes)))
+                            :modes etaf-md--surface-modes)))
   :render
-  (etaf-md-preview--view-document
+  (etaf-md--view-document
    preview
    (etaf-value document)
-   (etaf-md-preview--env preview)))
+   (etaf-md--env preview)))
 
-(defun etaf-md-preview-view (&optional session)
+(defun etaf-md-view (&optional session)
   "Return the preview View for SESSION.
 SESSION defaults to a new session over an empty document; pass a session from
-`etaf-md-preview-create' to mount a real one."
-  (etaf-view (etaf-md-preview-app
-              :session (or session (etaf-md-preview-create :text "")))))
+`etaf-md-create' to mount a real one."
+  (etaf-view (etaf-md-app
+              :session (or session (etaf-md-create :text "")))))
 
 ;;;###autoload
-(defun etaf-md-preview-open (&optional source)
+(defun etaf-md-open (&optional source)
   "Open a markdown preview and return its buffer.
-SOURCE is a file path, a session from `etaf-md-preview-create', or nil to
+SOURCE is a file path, a session from `etaf-md-create', or nil to
 prompt for a file.  Interactively it defaults to the current buffer's
 markdown file and then to a file prompt.  Opening a file that already has a
 preview buffer selects it instead of rendering a second copy; opening a
@@ -522,14 +522,14 @@ themselves."
                      (string-match-p "\\.\\(md\\|markdown\\|mdown\\|mkd\\)\\'" buffer-file-name))
             (file-relative-name buffer-file-name default-directory)))))
   (if (and (listp source) (etaf-ref-p (plist-get source :document)))
-      (etaf-md-preview--display source
-                                (etaf-md-preview--buffer-name-for-session source))
+      (etaf-md--display source
+                                (etaf-md--buffer-name-for-session source))
     (let* ((file (expand-file-name source))
-           (name (etaf-md-preview--buffer-name file))
+           (name (etaf-md--buffer-name file))
            (existing (get-buffer name)))
       (if (and existing (etaf-app-state existing))
           (switch-to-buffer existing)
-        (etaf-md-preview--display (etaf-md-preview-create :file file) name)))))
+        (etaf-md--display (etaf-md-create :file file) name)))))
 
 ;;;###autoload
 (defun etaf-md-preview (&optional source)
@@ -537,7 +537,7 @@ themselves."
 SOURCE is a file path.  Interactively it is the current buffer's Markdown
 file, and a buffer that visits no Markdown file prompts for one.  Any previous
 window layout gives way to those two panes, the point stays in the source, and
-`etaf-md-preview-close' gives the layout back to the source alone."
+`etaf-md-close' gives the layout back to the source alone."
   (interactive
    (list (or (and buffer-file-name
                   (string-match-p "\\.\\(md\\|markdown\\|mdown\\|mkd\\)\\'"
@@ -556,17 +556,17 @@ window layout gives way to those two panes, the point stays in the source, and
     ;; The preview beside the source is the same page as one opened alone, so
     ;; the window arrangement is the only difference; opening it editable is
     ;; the mount path's job.
-    (etaf-md-preview-open file)
+    (etaf-md-open file)
     (when-let* ((window (get-buffer-window buffer t)))
       (select-window window))))
 
-(defun etaf-md-preview--buffer-name-for-session (session)
+(defun etaf-md--buffer-name-for-session (session)
   "Return the preview buffer name for SESSION."
   (if-let* ((file (plist-get session :file)))
-      (etaf-md-preview--buffer-name file)
+      (etaf-md--buffer-name file)
     "*ETAF Markdown*"))
 
-(defun etaf-md-preview--display (session name)
+(defun etaf-md--display (session name)
   "Open SESSION as the application buffer NAME and return that buffer.
 The session starts on the mount path every entry command shares, which is what
 makes opening a preview mean the same thing however it was called.
@@ -579,34 +579,34 @@ session without one lets the Emacs theme show through."
          (buffer
           (etaf-app-open
            name
-           (etaf-view (etaf-md-preview-app :session session :keys etaf-md-preview--keys))
+           (etaf-view (etaf-md-app :session session :keys etaf-md--keys))
            :state session
            :mode-line t
-           :background (lambda () (etaf-md-preview--page-background session))
+           :background (lambda () (etaf-md--page-background session))
            :on-fit (lambda (_window)
                      (unless measured
                        (setq measured t)
                        (plist-put session :buffer (current-buffer))
-                       (etaf-md-preview--fit-width session)))
+                       (etaf-md--fit-width session)))
            :on-close (lambda ()
-                       (etaf-md-preview--follow-unregister (plist-get session :file))
+                       (etaf-md--follow-unregister (plist-get session :file))
                        (plist-put session :buffer nil)))))
     (plist-put session :buffer buffer)
-    (etaf-md-preview--follow-register session)
+    (etaf-md--follow-register session)
     (add-hook 'kill-buffer-hook
               (lambda ()
-                (etaf-md-preview--follow-unregister (plist-get session :file)))
+                (etaf-md--follow-unregister (plist-get session :file)))
               t t)
     (with-current-buffer buffer
       (setq-local imenu-create-index-function
                   (lambda ()
-                    (let ((outline (etaf-md-preview-outline session)))
+                    (let ((outline (etaf-md-outline session)))
                       (mapcar (lambda (cell)
                                 (cons (nth 1 (nth (car cell) outline))
                                       (cdr cell)))
-                              (etaf-md-preview--heading-positions session))))))
+                              (etaf-md--heading-positions session))))))
     (etaf-runtime-flush (etaf-runtime-for-buffer buffer))
     buffer))
 
-(provide 'etaf-md-preview-app)
-;;; etaf-md-preview-app.el ends here
+(provide 'etaf-md-app)
+;;; etaf-md-app.el ends here

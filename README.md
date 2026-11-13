@@ -36,7 +36,7 @@ scrolling, isearch and window splitting keep working.
 - Links open in the browser, jump to in-document headings, or open local files;
   a missing media file becomes a labeled card instead of an error.
 - Three fixed palettes (dark, light and sepia) plus a face-derived default
-  (`etaf-md-preview-theme' = `auto') that follows the active Emacs theme and
+  (`etaf-md-theme' = `auto') that follows the active Emacs theme and
   paints no page background; all colors are published as `:ui-*` theme tokens
   so shared ETAF UI components follow the preview.  A floating panel's
   title-bar switch writes the same theme cell, so it can pin `亮` / `暗` /
@@ -54,8 +54,8 @@ scrolling, isearch and window splitting keep working.
   preview beside the source and leaves the point in the source, so one command
   from a Markdown buffer sets up editing with a live preview; `q` closes the
   preview and gives the window back.
-- Four user options: `etaf-md-preview-theme`, `etaf-md-preview-flavor`,
-  `etaf-md-preview-width-min` and `etaf-md-preview-width-max`.
+- Four user options: `etaf-md-theme`, `etaf-md-flavor`,
+  `etaf-md-width-min` and `etaf-md-width-max`.
 
 ## Prerequisites
 
@@ -76,18 +76,18 @@ siblings, then add each repository root to `load-path` and require the entry:
 (add-to-list 'load-path "/path/to/emacs-taf/ebox")
 (add-to-list 'load-path "/path/to/emacs-taf/etaf-ui")
 (add-to-list 'load-path "/path/to/emacs-taf/etaf")
-(add-to-list 'load-path "/path/to/emacs-taf/etaf-md-preview")
-(require 'etaf-md-preview)
+(add-to-list 'load-path "/path/to/emacs-taf/etaf-md")
+(require 'etaf-md)
 ```
 
-`M-x etaf-md-preview-open` then prompts for a file. A package installation that
+`M-x etaf-md-open` then prompts for a file. A package installation that
 exposes the root entry through package.el does not need the manual
 `add-to-list` for this repository.
 
 ## Usage
 
 ```
-M-x etaf-md-preview-open RET README.md RET
+M-x etaf-md-open RET README.md RET
 ```
 
 `examples/sample.markdown` is a full document written for the previewer, and
@@ -107,7 +107,7 @@ open when checking a change.
 | `q` | close the preview |
 | `C-s`, `C-v`, wheel | native isearch and scrolling |
 
-`M-x etaf-md-preview-follow-scroll` makes the page move with the source
+`M-x etaf-md-follow-scroll` makes the page move with the source
 window: the block at the top of the markdown buffer becomes the first row of
 the preview as the source scrolls, so a reader keeping the two side by side
 sees the same place in each.  Only the source's scrolling follows; scrolling

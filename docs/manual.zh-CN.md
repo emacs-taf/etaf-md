@@ -41,7 +41,7 @@ buffer 操作和 `imenu` 都照常可用。`M-x imenu` 列出文档目录。帮�
 - YAML front matter 从正文里去掉；其中 `title` 成为文档标题，author、date、version、
   license、status 渲染在页面顶部的标题区。
 
-`etaf-md-preview-create` 用 `:flavor` 选方言：`gfm`（默认）打开 GitHub 扩展和 front
+`etaf-md-create` 用 `:flavor` 选方言：`gfm`（默认）打开 GitHub 扩展和 front
 matter，`commonmark` 只按核心规范解析，也可以传一个特性 plist，例如
 `(:tables t :task-lists nil)`，逐个开关扩展。
 
@@ -53,18 +53,18 @@ matter，`commonmark` 只按核心规范解析，也可以传一个特性 plist�
 
 ## 配色与版面
 
-`etaf-md-preview-theme` 决定文档的颜色。默认的 `auto` 从当前 frame 自己的 face 里推：
+`etaf-md-theme` 决定文档的颜色。默认的 `auto` 从当前 frame 自己的 face 里推：
 页面用 Emacs 主题的背景色，次要文字跟 `shadow`，标题跟 `outline-1`，链接跟 `link`，
 提示块跟 `success`、`warning`、`error`，面板底色（代码块、表头与斑马纹、分隔线）是
 frame 背景朝前景混出来的浅色。因此预览跟当前 Emacs 主题一致，自己不画页面背景。想要
 自带背景的独立页面时，固定的 `dark`、`light`、`sepia` 三套配色仍然可用：选了就画各自的
-页面底色。`t` 在这三套之间轮换，`etaf-md-preview-set-theme` 钉住其中一套，最终的颜色
+页面底色。`t` 在这三套之间轮换，`etaf-md-set-theme` 钉住其中一套，最终的颜色
 以 `:ui-*` 主题令牌发布出去，预览里用到的共享 ETAF UI 组件跟着它们走。
 
 阅读宽度有上限，并且在窗口里居中。会话里存的是上限；这一列伸展到窗口宽度，但不超过上限，
 所以窄窗口就用满可用的列。这一列在正文之外两侧各留两格边距，文字不会顶在窗口边缘，
 表格的边框也不会落进渲染器把最后一格铺满窗口余量的那一列。`[` 和 `]` 手动加减上限，
-结果夹在 `etaf-md-preview-width-min` 与 `etaf-md-preview-width-max` 之间。窗口缩放走
+结果夹在 `etaf-md-width-min` 与 `etaf-md-width-max` 之间。窗口缩放走
 渲染器的视口更新重新流排，不重建文档；预览只发布到一个 buffer，所以缩放不会重启会话。
 
 能用的最窄窗口是「最小宽度加两侧边距」，约 44 列。比这更窄时，缩不下去的块（例如列里
@@ -98,30 +98,30 @@ frame 背景朝前景混出来的浅色。因此预览跟当前 Emacs 主题一�
 
 | 设置 | 默认值 | 作用 |
 | --- | --- | --- |
-| `etaf-md-preview-theme` | `auto` | 初始配色；`auto` 从 Emacs 主题的 face 推颜色，不画页面背景。 |
-| `etaf-md-preview-flavor` | `gfm` | `etaf-md-preview-create` 没收到 `:flavor` 时用的方言。 |
-| `etaf-md-preview-width-min` | `40` | 最窄的阅读宽度，单位是字符格。 |
-| `etaf-md-preview-width-max` | `96` | 最宽的阅读宽度；窗口更宽时保持这个值并把这一列居中。 |
+| `etaf-md-theme` | `auto` | 初始配色；`auto` 从 Emacs 主题的 face 推颜色，不画页面背景。 |
+| `etaf-md-flavor` | `gfm` | `etaf-md-create` 没收到 `:flavor` 时用的方言。 |
+| `etaf-md-width-min` | `40` | 最窄的阅读宽度，单位是字符格。 |
+| `etaf-md-width-max` | `96` | 最宽的阅读宽度；窗口更宽时保持这个值并把这一列居中。 |
 
 ## 脚本与无界面使用
 
-`etaf-md-preview-create` 从文件或者一段文字建会话，不需要 buffer；`etaf-md-preview-view`
-返回可挂载的视图；`etaf-md-preview-state` 报告一份分离的快照。从文字建出来的会话就是完整的
+`etaf-md-create` 从文件或者一段文字建会话，不需要 buffer；`etaf-md-view`
+返回可挂载的视图；`etaf-md-state` 报告一份分离的快照。从文字建出来的会话就是完整的
 无界面预览，验收测试用的正是它：
 
 ```elisp
-(let* ((session (etaf-md-preview-create :text "# 笔记\n\n**加粗** 正文。\n"))
-       (buffer (etaf-md-preview-open session)))
-  (etaf-md-preview-locate session 0)
-  (etaf-md-preview-set-theme session 'sepia)
-  (etaf-md-preview-refresh session)
-  (with-current-buffer buffer (etaf-md-preview-close)))
+(let* ((session (etaf-md-create :text "# 笔记\n\n**加粗** 正文。\n"))
+       (buffer (etaf-md-open session)))
+  (etaf-md-locate session 0)
+  (etaf-md-set-theme session 'sepia)
+  (etaf-md-refresh session)
+  (with-current-buffer buffer (etaf-md-close)))
 ```
 
-`etaf-md-preview-open` 接受文件路径或者会话，所以调用方可以渲染自己拼出来的文档。
-`etaf-md-preview-locate` 把光标移到目录里的第几项；`etaf-md-preview-outline` 返回目录本身。
+`etaf-md-open` 接受文件路径或者会话，所以调用方可以渲染自己拼出来的文档。
+`etaf-md-locate` 把光标移到目录里的第几项；`etaf-md-outline` 返回目录本身。
 
-`scripts/md-preview-gui-probe.el` 驱动一个活的 frame 做 GUI 验证：按指定的 frame 尺寸打开
+`scripts/etaf-md-gui-probe.el` 驱动一个活的 frame 做 GUI 验证：按指定的 frame 尺寸打开
 文档，报告一行状态，发送真实按键，并检查版面不变量（没有超宽的行、有可交互的链接、有目录）。
 
 ## 排错

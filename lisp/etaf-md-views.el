@@ -1,10 +1,10 @@
-;;; etaf-md-preview-views.el --- Views of the markdown previewer -*- lexical-binding: t; -*-
+;;; etaf-md-views.el --- Views of the markdown previewer -*- lexical-binding: t; -*-
 
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 
 ;;; Commentary:
 ;;
-;; Presentation layer of etaf-md-preview.  The document body comes from the
+;; Presentation layer of etaf-md.  The document body comes from the
 ;; shared `etaf-ui-markdown' renderer; this module keeps what is specific to
 ;; the previewer: the face-derived or named palette, the front-matter header,
 ;; the reading column, and the media layer that turns images, videos and HTML
@@ -23,33 +23,33 @@
 (declare-function clear-image-cache "image.c" (&optional filter))
 (require 'etaf)
 (require 'etaf-ui)
-(require 'etaf-md-preview-theme)
+(require 'etaf-md-theme)
 
-(defconst etaf-md-preview--alert-labels
+(defconst etaf-md--alert-labels
   '((note . "笔记") (tip . "提示") (important . "重要")
     (warning . "警告") (caution . "小心"))
   "Chinese labels of the GitHub alert kinds, for ENV's `:alert-labels'.")
 
-(defconst etaf-md-preview--video-extensions
+(defconst etaf-md--video-extensions
   '("mp4" "mov" "m4v" "webm" "avi" "mkv" "ogv" "mpg" "mpeg" "wmv" "flv" "3gp")
   "File extensions rendered as a video card.")
 
-(defun etaf-md-preview--env-color (env key)
+(defun etaf-md--env-color (env key)
   "Return ENV's color for semantic KEY.
 ENV's face-derived `:palette', when present, wins over the named theme; an
-unknown key in either source signals `etaf-md-preview-error'."
+unknown key in either source signals `etaf-md-error'."
   (if-let* ((palette (plist-get env :palette)))
       (or (cdr (assq key palette))
-          (signal 'etaf-md-preview-error
+          (signal 'etaf-md-error
                   (list (format "Unknown markdown preview color: %S" key))))
-    (etaf-md-preview-color key (plist-get env :theme))))
+    (etaf-md-color key (plist-get env :theme))))
 
-(defconst etaf-md-preview--meta-labels
+(defconst etaf-md--meta-labels
   '(("author" . "作者") ("date" . "日期") ("version" . "版本")
     ("license" . "许可") ("status" . "状态"))
   "Front matter keys shown in the document header, with their labels.")
 
-(defun etaf-md-preview--meta-tags (meta)
+(defun etaf-md--meta-tags (meta)
   "Return the tag list of front matter META.
 Both `[a, b]' and `a, b' spellings are accepted."
   (let ((raw (cdr (assoc "tags" meta))))
@@ -61,13 +61,13 @@ Both `[a, b]' and `a, b' spellings are accepted."
                           (unless (string-empty-p item) item)))
                       (split-string raw ",")))))))
 
-(defun etaf-md-preview--meta-node (document env)
+(defun etaf-md--meta-node (document env)
   "Return the document header for DOCUMENT's front matter, or nil.
 The header carries the title, tag chips and the labeled metadata line, so a
 document with front matter opens on a page-like header instead of raw text."
   (let* ((meta (plist-get document :meta))
          (title (cdr (assoc "title" meta)))
-         (tags (etaf-md-preview--meta-tags meta))
+         (tags (etaf-md--meta-tags meta))
          ;; A key the document leaves out must not leave its separator behind:
          ;; the header reads as one run of labels, not a row of floating dots.
          (labels (mapconcat
@@ -78,11 +78,11 @@ document with front matter opens on a page-like header instead of raw text."
                            (let ((value (cdr (assoc key meta))))
                              (when (and value (not (string-empty-p value)))
                                (format "%s %s"
-                                       (cdr (assoc key etaf-md-preview--meta-labels))
+                                       (cdr (assoc key etaf-md--meta-labels))
                                        value))))
                          '("author" "date" "version" "license" "status")))
                   "  ·  "))
-         (base (etaf-md-preview--base-pixels)))
+         (base (etaf-md--base-pixels)))
     (when title
       (etaf-node 'column
                  (list :width 'stretch :item-gap '(lh 1))
@@ -94,7 +94,7 @@ document with front matter opens on a page-like header instead of raw text."
                                     ;; level, so it takes the size a level 1
                                     ;; heading of the body would.
                                     :font-size (round (* base 2.0))
-                                    :color (etaf-md-preview--env-color env :heading))
+                                    :color (etaf-md--env-color env :heading))
                               (list title)))
                   (when tags
                     (list
@@ -107,28 +107,28 @@ document with front matter opens on a page-like header instead of raw text."
                                         tags))))
                   (when (and labels (not (string-empty-p labels)))
                     (list (etaf-node 'text
-                                     (list :color (etaf-md-preview--env-color env :muted))
+                                     (list :color (etaf-md--env-color env :muted))
                                      (list labels)))))))))
 
 ;;; ---------------------------------------------------------------------------
 ;;; Inline rendering
 ;;; ---------------------------------------------------------------------------
 
-(defun etaf-md-preview--spacer (&optional lines)
+(defun etaf-md--spacer (&optional lines)
   "Return an empty spacer Box LINES lines tall."
   (etaf-node 'box (list :height (list 'lh (or lines 1))) nil))
 
-(defun etaf-md-preview--divider (&optional label)
+(defun etaf-md--divider (&optional label)
   "Return a horizontal divider View, optionally labeled."
   (etaf-node 'etaf-divider (list :orientation 'horizontal :label label) nil))
 
-(defun etaf-md-preview--inline-image-view (node env)
+(defun etaf-md--inline-image-view (node env)
   "Return the inline chip View of image NODE in ENV."
   (let ((alt (or (plist-get node :alt) "图片"))
         (url (plist-get node :url)))
     (etaf-node 'text
-               (list :color (etaf-md-preview--env-color env :accent)
-                     :background-color (etaf-md-preview--env-color env :accent-soft)
+               (list :color (etaf-md--env-color env :accent)
+                     :background-color (etaf-md--env-color env :accent-soft)
                      :role 'link :tab-index 0
                      :help-echo (or url alt)
                      :on-press (lambda () (funcall (plist-get env :open-url) url)))
@@ -138,28 +138,28 @@ document with front matter opens on a page-like header instead of raw text."
 ;;; Media blocks
 ;;; ---------------------------------------------------------------------------
 
-(defun etaf-md-preview--media-kind (path)
+(defun etaf-md--media-kind (path)
   "Return `video' or `image' for PATH by extension."
   (if (member (downcase (or (file-name-extension path) ""))
-              etaf-md-preview--video-extensions)
+              etaf-md--video-extensions)
       'video
       'image))
 
-(defun etaf-md-preview--remote-url-p (url)
+(defun etaf-md--remote-url-p (url)
   "Return non-nil when URL points to a remote resource."
   (string-match-p "\\`[a-zA-Z][a-zA-Z0-9+.-]*://" url))
 
-(defun etaf-md-preview--absolute-media (path env)
+(defun etaf-md--absolute-media (path env)
   "Return PATH resolved against ENV's base directory."
   (let ((path (if (string-match-p "\\`file://" path)
                   (substring path 7)
                 path)))
     (expand-file-name path (or (plist-get env :dir) default-directory))))
 
-(defconst etaf-md-preview--media-pixels-cache-limit 256
+(defconst etaf-md--media-pixels-cache-limit 256
   "Maximum file pixel probes retained per process.")
 
-(defvar etaf-md-preview--media-pixels-cache (make-hash-table :test #'equal)
+(defvar etaf-md--media-pixels-cache (make-hash-table :test #'equal)
   "Media probes keyed by file identity (path, size, modification time and prober).
 Repeated previews of an unchanged file reuse the probe result; a changed
 size or timestamp re-probes the bytes on disk.  One file can be measured by
@@ -167,7 +167,7 @@ several probes (an image's pixel size, a video's pixel size and a video's
 playback metadata), so the prober is part of the key and a result never
 answers a different probe.")
 
-(defun etaf-md-preview--media-pixels-cached (path prober)
+(defun etaf-md--media-pixels-cached (path prober)
   "Return PATH's result from PROBER, reusing unchanged file probes.
 PATH without readable attributes is probed directly."
   (let* ((attributes (file-attributes path))
@@ -179,16 +179,16 @@ PATH without readable attributes is probed directly."
          (missing (make-symbol "missing-media-pixels")))
     (if (null key)
         (funcall prober path)
-      (let ((cached (gethash key etaf-md-preview--media-pixels-cache missing)))
+      (let ((cached (gethash key etaf-md--media-pixels-cache missing)))
         (if (not (eq cached missing))
             cached
-          (when (> (hash-table-count etaf-md-preview--media-pixels-cache)
-                   etaf-md-preview--media-pixels-cache-limit)
-            (clrhash etaf-md-preview--media-pixels-cache))
+          (when (> (hash-table-count etaf-md--media-pixels-cache)
+                   etaf-md--media-pixels-cache-limit)
+            (clrhash etaf-md--media-pixels-cache))
           (puthash key (funcall prober path)
-                   etaf-md-preview--media-pixels-cache))))))
+                   etaf-md--media-pixels-cache))))))
 
-(defun etaf-md-preview--svg-declared-size (path)
+(defun etaf-md--svg-declared-size (path)
   "Return the size PATH declares in its own header, or nil.
 A vector states the size it should occupy.  Reading that costs a few hundred
 bytes; asking the image loader for it rasterises the whole drawing instead, and
@@ -206,27 +206,27 @@ every time it published."
                             (string-to-number (match-string 1 tag)))))
           (and width height (> width 0) (> height 0) (cons width height)))))))
 
-(defun etaf-md-preview--probe-image-pixels (path)
+(defun etaf-md--probe-image-pixels (path)
   "Return PATH's image pixel size as (WIDTH . HEIGHT), or nil.
 Drop PATH's entry first so an updated file is measured from its bytes rather
 than the previous render."
   (if (string-suffix-p ".svg" (downcase path))
-      (etaf-md-preview--svg-declared-size path)
+      (etaf-md--svg-declared-size path)
     (ignore-errors
       (clear-image-cache path)
       (when-let* ((image (create-image path nil nil)))
         (let ((size (image-size image t)))
           (cons (car size) (cdr size)))))))
 
-(defun etaf-md-preview--image-pixels (path)
+(defun etaf-md--image-pixels (path)
   "Return PATH's pixel size as (WIDTH . HEIGHT), or nil.
 Pixel measurement needs a graphic frame; a terminal frame renders the media
 placeholder without probing.  Unchanged files reuse their cached probe."
   (when (display-graphic-p)
-    (etaf-md-preview--media-pixels-cached
-     path #'etaf-md-preview--probe-image-pixels)))
+    (etaf-md--media-pixels-cached
+     path #'etaf-md--probe-image-pixels)))
 
-(defun etaf-md-preview--probe-video-pixels (path)
+(defun etaf-md--probe-video-pixels (path)
   "Return PATH's video pixel size as (WIDTH . HEIGHT), or nil."
   (when-let* ((ffprobe (executable-find "ffprobe")))
     (ignore-errors
@@ -240,28 +240,28 @@ placeholder without probing.  Unchanged files reuse their cached probe."
               (cons (string-to-number (match-string 1 line))
                     (string-to-number (match-string 2 line))))))))))
 
-(defun etaf-md-preview--video-pixels (path)
+(defun etaf-md--video-pixels (path)
   "Return PATH's video pixel size as (WIDTH . HEIGHT), or nil.
 Unchanged files reuse their cached probe."
-  (etaf-md-preview--media-pixels-cached
-   path #'etaf-md-preview--probe-video-pixels))
+  (etaf-md--media-pixels-cached
+   path #'etaf-md--probe-video-pixels))
 
-(defun etaf-md-preview--probe-video-source (path)
+(defun etaf-md--probe-video-source (path)
   "Return PATH's native playback metadata, or nil when unsupported."
   (ignore-errors (etaf-video-source-info path)))
 
-(defun etaf-md-preview--native-video-source (path)
+(defun etaf-md--native-video-source (path)
   "Return PATH's playback metadata when the native player can run it.
 Needs ffmpeg on `exec-path' and an ffprobe-readable source; unchanged files
 reuse their cached probe."
   (when (executable-find "ffmpeg")
-    (etaf-md-preview--media-pixels-cached
-     path #'etaf-md-preview--probe-video-source)))
+    (etaf-md--media-pixels-cached
+     path #'etaf-md--probe-video-source)))
 
-(defun etaf-md-preview--media-grid-for-pixels (pixels max-columns)
+(defun etaf-md--media-grid-for-pixels (pixels max-columns)
   "Return the (COLUMNS . ROWS) grid for PIXELS capped by MAX-COLUMNS.
 A picture whose size could not be read keeps a card of a fixed shape rather than
-failing the whole page; `etaf-md-preview--media-grid-cells' sizes a measured
+failing the whole page; `etaf-md--media-grid-cells' sizes a measured
 one."
   (if (or (not (consp pixels))
           (not (numberp (car pixels)))
@@ -269,9 +269,9 @@ one."
       ;; A picture whose size could not be read keeps a card of a fixed shape
       ;; rather than failing the whole page.
       (cons (min max-columns 48) 14)
-    (etaf-md-preview--media-grid-cells pixels max-columns)))
+    (etaf-md--media-grid-cells pixels max-columns)))
 
-(defun etaf-md-preview--media-grid-cells (pixels max-columns)
+(defun etaf-md--media-grid-cells (pixels max-columns)
   "Return the (COLUMNS . ROWS) grid for measured PIXELS inside MAX-COLUMNS.
 A picture is drawn at its own size and scaled down as a whole only when it is
 wider than the reading measure.  The width decides first, because that is the
@@ -280,7 +280,7 @@ follows from those columns, keeps the drawing inside the column it starts in.
 Choosing the rows first and the columns from them rounded the height up to a
 whole cell and handed back a picture up to a few percent wider than the
 measure, which the window then cut off on the right."
-  (let* ((cell (etaf-md-preview--cell-metrics))
+  (let* ((cell (etaf-md--cell-metrics))
          (cell-width (car cell))
          (cell-height (cdr cell))
          (natural-width (float (car pixels)))
@@ -291,26 +291,26 @@ measure, which the window then cut off on the right."
          (rows (max 1 (round (/ fitted-height cell-height)))))
     (cons columns rows)))
 
-(defun etaf-md-preview--media-grid (path kind max-columns)
+(defun etaf-md--media-grid (path kind max-columns)
   "Return the (COLUMNS . ROWS) grid for media PATH of KIND.
 MAX-COLUMNS caps the width; the height follows the source aspect ratio and is
 capped to a third of the display so one figure cannot own the whole window.
 When the height cap applies, the width shrinks with it so the figure keeps the
 source aspect ratio instead of being squashed into a shorter box."
-  (etaf-md-preview--media-grid-for-pixels
+  (etaf-md--media-grid-for-pixels
    (pcase kind
-     ('video (etaf-md-preview--video-pixels path))
-     (_ (etaf-md-preview--image-pixels path)))
+     ('video (etaf-md--video-pixels path))
+     (_ (etaf-md--image-pixels path)))
    max-columns))
 
-(defun etaf-md-preview--media-card (url alt env)
+(defun etaf-md--media-card (url alt env)
   "Return a media card View for URL with ALT in ENV.
 Local images and videos render through the ETAF image Host, which owns the
 graphics/terminal adapters and the video poster frame; remote sources render
 as a bordered placeholder that opens in the browser."
-  (let* ((remote (etaf-md-preview--remote-url-p url))
-         (path (unless remote (etaf-md-preview--absolute-media url env)))
-         (kind (and path (etaf-md-preview--media-kind path)))
+  (let* ((remote (etaf-md--remote-url-p url))
+         (path (unless remote (etaf-md--absolute-media url env)))
+         (kind (and path (etaf-md--media-kind path)))
          (exists (and path (file-exists-p path)))
          (open (if (and path exists)
                    ;; Local media opens with the operating system's default
@@ -323,7 +323,7 @@ as a bordered placeholder that opens in the browser."
          (caption (or alt (and path (file-name-nondirectory path)) url)))
     (cond
      ((and exists (eq kind 'image))
-      (let* ((grid (etaf-md-preview--media-grid path kind (- columns 2)))
+      (let* ((grid (etaf-md--media-grid path kind (- columns 2)))
              (figure
               (etaf-node 'image
                          (list :src path
@@ -337,24 +337,24 @@ as a bordered placeholder that opens in the browser."
                    (list
                     (etaf-node 'box
                                (list :border (list '(px 1) 'solid
-                                                   (etaf-md-preview--env-color env :border))
+                                                   (etaf-md--env-color env :border))
                                      :on-press open :role 'button :tab-index 0
                                      :pointer 'hand
                                      :help-echo (format "%s（按 RET 打开）" caption))
                                (list figure))
-                    (etaf-md-preview--caption-view
+                    (etaf-md--caption-view
                      (format "%s%s" (if (string-empty-p caption) "" "▲ ") caption)
                      env)))))
      ((and exists (eq kind 'video))
-      (let* ((native (etaf-md-preview--native-video-source path))
+      (let* ((native (etaf-md--native-video-source path))
              (grid (if native
-                       (etaf-md-preview--media-grid-for-pixels
+                       (etaf-md--media-grid-for-pixels
                         (and (numberp (plist-get native :width))
                              (numberp (plist-get native :height))
                              (cons (plist-get native :width)
                                    (plist-get native :height)))
                         (- columns 2))
-                     (etaf-md-preview--media-grid path kind (- columns 2))))
+                     (etaf-md--media-grid path kind (- columns 2))))
              (card (funcall (plist-get env :video-card) path))
              (poster
               (etaf-node 'image
@@ -374,9 +374,9 @@ as a bordered placeholder that opens in the browser."
                      (list
                       (etaf-node 'box
                                  (list :border (list '(px 1) 'solid
-                                                     (etaf-md-preview--env-color env :border)))
+                                                     (etaf-md--env-color env :border)))
                                  (list poster))
-                      (etaf-md-preview--caption-view
+                      (etaf-md--caption-view
                        (format "▶ %s　·　按 RET 播放" caption)
                        env))))
          ((funcall (plist-get env :video-active-p) (car card))
@@ -391,7 +391,7 @@ as a bordered placeholder that opens in the browser."
                        (list
                         (etaf-node 'box
                                    (list :border (list '(px 1) 'solid
-                                                       (etaf-md-preview--env-color env :border)))
+                                                       (etaf-md--env-color env :border)))
                                    (list
                                     (etaf-node 'etaf-video
                                                (list :src path
@@ -401,7 +401,7 @@ as a bordered placeholder that opens in the browser."
                                                      :autoplay t
                                                      :handle handle)
                                                nil)))
-                        (etaf-md-preview--caption-view
+                        (etaf-md--caption-view
                          (format "▶ %s　·　按 RET 播放/暂停" caption)
                          env)))))
          (t
@@ -418,9 +418,9 @@ as a bordered placeholder that opens in the browser."
                        (list
                         (etaf-node 'box
                                    (list :border (list '(px 1) 'solid
-                                                       (etaf-md-preview--env-color env :border)))
+                                                       (etaf-md--env-color env :border)))
                                    (list poster))
-                        (etaf-md-preview--caption-view
+                        (etaf-md--caption-view
                          (format "▶ %s　·　按 RET 播放" caption)
                          env))))))))
      (t
@@ -429,40 +429,40 @@ as a bordered placeholder that opens in the browser."
                  (list
                   (etaf-node 'box
                              (list :border (list '(px 1) 'solid
-                                                 (etaf-md-preview--env-color env :border))
-                                   :background-color (etaf-md-preview--env-color env :panel)
+                                                 (etaf-md--env-color env :border))
+                                   :background-color (etaf-md--env-color env :panel)
                                    :padding '((lh 1) (ch 2))
                                    :on-press open :role 'button :tab-index 0
                                    :pointer 'hand
                                    :help-echo (format "%s（按 RET 打开）" url))
                              (list
                               (etaf-node 'text
-                                         (list :color (etaf-md-preview--env-color env :muted))
+                                         (list :color (etaf-md--env-color env :muted))
                                          (list (format "🖼 %s" caption)))
                               (etaf-node 'text
-                                         (list :color (etaf-md-preview--env-color env :faint)
-                                               :font-size (round (* (etaf-md-preview--base-pixels) 0.85)))
+                                         (list :color (etaf-md--env-color env :faint)
+                                               :font-size (round (* (etaf-md--base-pixels) 0.85)))
                                          (list (format "  %s" url)))))
-                  (etaf-md-preview--caption-view caption env)))))))
+                  (etaf-md--caption-view caption env)))))))
 
-(defun etaf-md-preview--caption-view (text env)
+(defun etaf-md--caption-view (text env)
   "Return a caption View for TEXT in ENV."
   (etaf-node 'text
-             (list :color (etaf-md-preview--env-color env :muted)
-                   :font-size (round (* (etaf-md-preview--base-pixels) 0.85)))
+             (list :color (etaf-md--env-color env :muted)
+                   :font-size (round (* (etaf-md--base-pixels) 0.85)))
              (list text)))
 
 ;;; ---------------------------------------------------------------------------
 ;;; Block rendering
 ;;; ---------------------------------------------------------------------------
 
-(declare-function etaf-md-preview--env "etaf-md-preview-model" (session))
-(declare-function etaf-md-preview--block-marker "etaf-md-preview-model" (block))
-(declare-function etaf-md-preview--block-empty-p "etaf-md-preview-model" (block text))
-(declare-function etaf-md-preview--session-text "etaf-md-preview-model" (session))
-(declare-function etaf-md-preview--card-env "etaf-md-preview-model" (session env scope))
+(declare-function etaf-md--env "etaf-md-model" (session))
+(declare-function etaf-md--block-marker "etaf-md-model" (block))
+(declare-function etaf-md--block-empty-p "etaf-md-model" (block text))
+(declare-function etaf-md--session-text "etaf-md-model" (session))
+(declare-function etaf-md--card-env "etaf-md-model" (session env scope))
 
-(etaf-define-component etaf-md-preview-block (&key session identity block)
+(etaf-define-component etaf-md-block (&key session identity block)
   "Render one published markdown BLOCK of SESSION under IDENTITY.
 The Component owns one block's hosts, and reads the session's environment in
 its own render.  Publishing another block, or a new value for this one,
@@ -470,13 +470,13 @@ therefore replaces only the changed block's output: a block whose published
 call is unchanged never renders again, so its Scope, hosts and video handles
 stay."
   :render
-  (let ((env (etaf-md-preview--card-env session
-                                        (etaf-md-preview--env session)
+  (let ((env (etaf-md--card-env session
+                                        (etaf-md--env session)
                                         identity)))
       ;; A block whose text is gone paints nothing, so the page would show a
       ;; gap where its marker still lives in the source.  Showing the marker
       ;; there is what lets a reader see what is left and type it back.
-      (let ((text (etaf-md-preview--session-text session)))
+      (let ((text (etaf-md--session-text session)))
         (cond
          ;; A blank source line renders nothing at all, yet it is a line a
          ;; reader types on.  One empty cell per blank line is enough for the
@@ -486,14 +486,14 @@ stay."
           (etaf-node 'column nil
                      (make-list (max 1 (or (plist-get block :lines) 1))
                                 (etaf-node 'text nil (list " ")))))
-         ((etaf-md-preview--block-empty-p block text)
+         ((etaf-md--block-empty-p block text)
           (etaf-node 'text
-                     (list :color (etaf-md-preview--env-color env :muted)
+                     (list :color (etaf-md--env-color env :muted)
                            :font-family (face-attribute 'fixed-pitch :family nil t))
-                     (list (etaf-md-preview--block-marker block))))
+                     (list (etaf-md--block-marker block))))
          (t (etaf-ui-markdown-view-block block env))))))
 
-(defun etaf-md-preview--page-widths (session width)
+(defun etaf-md--page-widths (session width)
   "Return (MEASURE . FIGURE) columns for SESSION's page, capped at WIDTH.
 MEASURE is the reading column: the session's cap, or the window when it is
 narrower.  FIGURE is the whole width the page may give a drawing, which is the
@@ -501,19 +501,19 @@ window itself: a diagram's own size is what decides how large it is drawn, and
 confining it to the prose measure shrank a wide one to half its type size."
   (let* ((buffer (plist-get session :buffer))
          (window (and (buffer-live-p buffer) (get-buffer-window buffer t)))
-         (gutter etaf-md-preview--measure-gutter)
+         (gutter etaf-md--measure-gutter)
          (available (if (window-live-p window)
                         (max 24 (- (window-body-width window) (* 2 gutter)))
                       width)))
     (cons (min width available) available)))
 
-(defun etaf-md-preview--figure-block-p (block)
+(defun etaf-md--figure-block-p (block)
   "Return non-nil when BLOCK is drawn as its own picture."
   (pcase (plist-get block :type)
     ('code-block (equal (plist-get block :lang) "mermaid"))
     ('math (and (plist-get block :display) t))))
 
-(defun etaf-md-preview--block-view (session key block ref widths)
+(defun etaf-md--block-view (session key block ref widths)
   "Return the keyed Component call that renders BLOCK of SESSION under KEY.
 WIDTHS is (MEASURE . FIGURE), the two widths the page lays out with.
 REF names the box that holds the block, so a command can map the point back to
@@ -522,14 +522,14 @@ list hands the runtime the unchanged value and costs one comparison per
 retained block."
   (etaf-node 'box
              (list :ref ref :width 'stretch
-                   :max-width (list 'ch (if (etaf-md-preview--figure-block-p block)
+                   :max-width (list 'ch (if (etaf-md--figure-block-p block)
                                             (cdr widths) (car widths))))
-             (list (etaf-node 'etaf-md-preview-block
+             (list (etaf-node 'etaf-md-block
                               (list :key key :session session :identity key
                                     :block block)
                               nil))))
 
-(defun etaf-md-preview--view-blocks (entries)
+(defun etaf-md--view-blocks (entries)
   "Return published ENTRIES as one keyed block Component each.
 Blocks are stacked without a gap of the layout's own: the blank lines the file
 holds between them are painted as empty rows, so the page keeps exactly the
@@ -542,13 +542,13 @@ lines the source has and a reader can type on each of them."
 ;;; Media rendering
 ;;; ---------------------------------------------------------------------------
 
-(defun etaf-md-preview--render-media (kind node env)
+(defun etaf-md--render-media (kind node env)
   "Return the media View for NODE of KIND in ENV.
 Inline images render as a compact chip; block images, videos and HTML media
 elements render as the full poster card with caption and activation."
   (pcase kind
-    ('inline-image (etaf-md-preview--inline-image-view node env))
-    (_ (etaf-md-preview--media-card (plist-get node :url)
+    ('inline-image (etaf-md--inline-image-view node env))
+    (_ (etaf-md--media-card (plist-get node :url)
                                     (plist-get node :alt) env))))
 
 ;;; ---------------------------------------------------------------------------
@@ -556,7 +556,7 @@ elements render as the full poster card with caption and activation."
 ;;; ---------------------------------------------------------------------------
 
 
-(defconst etaf-md-preview--measure-gutter 2
+(defconst etaf-md--measure-gutter 2
   "Character cells kept blank on each side of the reading measure.
 A window narrower than the measure fills the column, so centering alone
 leaves no margin there and text would start on the window edge.  The gutter
@@ -564,12 +564,12 @@ is padding, so it survives that case, and it also keeps a table's right
 border off the window's last column, where the renderer would extend its
 paint into the sub-cell remainder.")
 
-(defun etaf-md-preview--measured-view (width view)
+(defun etaf-md--measured-view (width view)
   "Return VIEW laid out in a reading column WIDTH cells wide."
   (etaf-node 'box (list :width 'stretch :max-width (list 'ch width))
              (list view)))
 
-(defun etaf-md-preview--view-document (session document env)
+(defun etaf-md--view-document (session document env)
   "Return the reading View of DOCUMENT, shown by SESSION, rendered in ENV.
 The body is one keyed Component per published block, so a publish that
 changes one block repaints that block instead of the document.  The page
@@ -580,15 +580,15 @@ keeps its type size instead of being squeezed into a column of text.  ENV's
 Emacs theme's own background."
   (let* (;; The window may be narrower than the session's cap, and the
          ;; blocks already state this measure, so the page uses it too.
-         (width (car (etaf-md-preview--page-widths session (or (plist-get env :width) 92))))
+         (width (car (etaf-md--page-widths session (or (plist-get env :width) 92))))
          (background (plist-get env :background))
-         (hero (etaf-md-preview--meta-node document env))
-         (measured (lambda (view) (etaf-md-preview--measured-view width view)))
+         (hero (etaf-md--meta-node document env))
+         (measured (lambda (view) (etaf-md--measured-view width view)))
          (body (append
                 ;; The blank lines after the front matter are the page's own:
                 ;; the header replaces those lines, not the gap under them.
                 (when hero (list (funcall measured hero)))
-                (list (etaf-md-preview--view-blocks
+                (list (etaf-md--view-blocks
                        (plist-get document :children)))
                 (when-let* ((footnotes (plist-get document :footnotes)))
                   (list (funcall measured
@@ -596,11 +596,11 @@ Emacs theme's own background."
                                             (list :width 'stretch :cross-align 'center
                                                   :item-gap '(lh 0))
                                             (append
-                                             (list (etaf-md-preview--spacer)
-                                                   (etaf-md-preview--divider "脚注")
-                                                   (etaf-md-preview--spacer))
+                                             (list (etaf-md--spacer)
+                                                   (etaf-md--divider "脚注")
+                                                   (etaf-md--spacer))
                                              (etaf-ui-markdown-view-blocks
-                                              footnotes (etaf-md-preview--card-env
+                                              footnotes (etaf-md--card-env
                                                          session env 'footnotes))))))))))
     (etaf-node 'column
                (append (list :width '(vw 100) :cross-align 'center
@@ -616,10 +616,10 @@ Emacs theme's own background."
                            (list :width 'stretch
                                  :cross-align 'center
                                  :padding (list (list 'lh 1)
-                                                (list 'ch etaf-md-preview--measure-gutter))
+                                                (list 'ch etaf-md--measure-gutter))
                                  :item-gap '(lh 0)
-                                 :color (etaf-md-preview--env-color env :ink))
+                                 :color (etaf-md--env-color env :ink))
                            body)))))
 
-(provide 'etaf-md-preview-views)
-;;; etaf-md-preview-views.el ends here
+(provide 'etaf-md-views)
+;;; etaf-md-views.el ends here

@@ -1,4 +1,4 @@
-;;; etaf-md-preview-live.el --- Keep a preview in step with its source  -*- lexical-binding: t; -*-
+;;; etaf-md-live.el --- Keep a preview in step with its source  -*- lexical-binding: t; -*-
 
 ;;; Commentary:
 
@@ -17,21 +17,21 @@
 
 (require 'cl-lib)
 (require 'etaf)
-(require 'etaf-md-preview-app)
-(require 'etaf-md-preview-model)
-(require 'etaf-md-preview-views)
+(require 'etaf-md-app)
+(require 'etaf-md-model)
+(require 'etaf-md-views)
 
 ;;;; What markdown alone knows
 
-(defun etaf-md-preview--block-marker-length (block text)
+(defun etaf-md--block-marker-length (block text)
   "Return how many characters BLOCK's painted marker covers in TEXT.
 An empty block paints its source skeleton, and the caret belongs after it:
 typing in front of the hashes would turn the heading into a paragraph."
-  (if (etaf-md-preview--block-empty-p block text)
-      (length (etaf-md-preview--block-marker block))
+  (if (etaf-md--block-empty-p block text)
+      (length (etaf-md--block-marker block))
     0))
 
-(defun etaf-md-preview--entries-around (entries offset)
+(defun etaf-md--entries-around (entries offset)
   "Return the entries of ENTRIES that answer for source OFFSET.
 That is the block holding OFFSET -- or the nearest one, since a position
 between two blocks belongs to whichever the page puts the caret on -- together
@@ -56,7 +56,7 @@ really stands on."
             (to (min (length entries) (+ chosen 2))))
         (seq-subseq entries from to)))))
 
-(defun etaf-md-preview--projection-entries (session &optional offset)
+(defun etaf-md--projection-entries (session &optional offset)
   "Return the source range each painted block of SESSION stands for.
 A block's range is the text it renders: its marker is skipped, because the
 render folds it away, and its trailing newline is dropped, because the line
@@ -65,7 +65,7 @@ break belongs between blocks rather than to either of them.
 With OFFSET, return only the block that answers for it: a caret move lands in
 one block, and a page of a thousand blocks would otherwise be mapped on every
 key."
-  (let* ((text (etaf-md-preview--session-text session))
+  (let* ((text (etaf-md--session-text session))
          (by-key (make-hash-table :test #'equal))
          (entries nil))
     ;; The session records each entry's box reference against its key, so a
@@ -80,7 +80,7 @@ key."
                 (begin (plist-get block :begin))
                 (end (plist-get block :end))
                 (blank (eq (plist-get block :type) 'blank))
-                (marker (etaf-md-preview--block-marker-length block text)))
+                (marker (etaf-md--block-marker-length block text)))
            ;; A blank row paints one cell for a line whose only character is its
            ;; newline; an empty document paints that cell for the start of an
            ;; empty file, so this range is the one place it may name no text.
@@ -99,22 +99,22 @@ key."
        (or (plist-get session :published) (make-hash-table :test #'equal))))
     (nreverse (if (null offset)
                   entries
-                (etaf-md-preview--entries-around entries offset)))))
+                (etaf-md--entries-around entries offset)))))
 
-(defun etaf-md-preview-projection (session)
+(defun etaf-md-projection (session)
   "Return SESSION's painted preview as ranges of its markdown source."
   (when-let* ((buffer (plist-get session :buffer))
               (runtime (and (buffer-live-p buffer)
                             (etaf-runtime-for-buffer buffer)))
-              (text (etaf-md-preview--session-text session)))
-    (etaf-projection runtime (etaf-md-preview--projection-entries session) text)))
+              (text (etaf-md--session-text session)))
+    (etaf-projection runtime (etaf-md--projection-entries session) text)))
 
 ;;;; Repainting the page
 
-(defun etaf-md-preview--live-repaint (session)
+(defun etaf-md--live-repaint (session)
   "Redraw SESSION's page from its markdown, now."
-  (let ((text (etaf-md-preview--session-text session)))
-    (etaf-md-preview--publish session text)
+  (let ((text (etaf-md--session-text session)))
+    (etaf-md--publish session text)
     ;; The text this page now shows, so a scheduled follow that finds the same
     ;; text knows there is nothing left to draw.
     (plist-put session :live-text text))
@@ -123,12 +123,12 @@ key."
                             (etaf-runtime-for-buffer buffer))))
     (etaf-runtime-flush runtime)))
 
-(defun etaf-md-preview--live-refresh (session text)
+(defun etaf-md--live-refresh (session text)
   "Redraw SESSION from TEXT, the current markdown."
   (unless (plist-get session :source-buffer)
     (plist-put session :text text))
-  (etaf-md-preview--live-repaint session))
+  (etaf-md--live-repaint session))
 
-(provide 'etaf-md-preview-live)
+(provide 'etaf-md-live)
 
-;;; etaf-md-preview-live.el ends here
+;;; etaf-md-live.el ends here

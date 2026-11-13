@@ -9,22 +9,22 @@
 ;; refit it across widths; every operation uses public APIs.  Run it with:
 ;;
 ;;   python3 scripts/performance.py run --mode batch \
-;;     --scenario-file etaf-md-preview/benchmarks/performance-scenarios.el \
+;;     --scenario-file etaf-md/benchmarks/performance-scenarios.el \
 ;;     --scenario md-preview.refit.width --diagnose
 
 ;;; Code:
 
 (require 'cl-lib)
 (require 'etaf)
-(require 'etaf-md-preview)
+(require 'etaf-md)
 (declare-function taf-benchmark-register "performance-driver" (id &rest properties))
 
-(defconst etaf-md-preview-benchmark--file
+(defconst etaf-md-benchmark--file
   (expand-file-name "../examples/sample.markdown"
                     (file-name-directory (or load-file-name buffer-file-name)))
   "The maintained manual the resize scenario refits.")
 
-(defconst etaf-md-preview-benchmark--widths
+(defconst etaf-md-benchmark--widths
   (vector 700 1100 800 1000 750 950)
   "Widths the resize scenario cycles through, in pixels.")
 
@@ -34,11 +34,11 @@
  :description "User manual width refit through the retained Ebox tree"
  :setup
  (lambda (_mode)
-   (let* ((session (etaf-md-preview-create :file etaf-md-preview-benchmark--file))
+   (let* ((session (etaf-md-create :file etaf-md-benchmark--file))
           (sink nil)
           (refits 0)
           (buffer (etaf-mount "*TAF md-preview refit*"
-                              (etaf-md-preview-view session)
+                              (etaf-md-view session)
                               (list :viewport-width 900 :viewport-height 50
                                     :observer (lambda (report)
                                                 (when sink (funcall sink report))))))
@@ -49,8 +49,8 @@
       (lambda (sample)
         (when (etaf-runtime-refit
                runtime
-               (aref etaf-md-preview-benchmark--widths
-                     (% sample (length etaf-md-preview-benchmark--widths)))
+               (aref etaf-md-benchmark--widths
+                     (% sample (length etaf-md-benchmark--widths)))
                50)
           (cl-incf refits)))
       :verify
@@ -83,9 +83,9 @@
       :buffer buffer
       :invoke
       (lambda (_sample)
-        (let ((session (etaf-md-preview-create :file etaf-md-preview-benchmark--file)))
+        (let ((session (etaf-md-create :file etaf-md-benchmark--file)))
           (etaf-mount
-           buffer (etaf-md-preview-view session)
+           buffer (etaf-md-view session)
            (append
             (when (eq mode 'batch) '(:viewport-width 900 :viewport-height 50))
             (list :observer

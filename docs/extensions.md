@@ -305,7 +305,7 @@ Interaction is the heaviest part of this design, so it gets its own rules:
 :::code-tabs
 :::tab
 ```elisp
-(etaf-md-preview-open)
+(etaf-md-open)
 ```
 :::tab
 ```python
@@ -347,7 +347,7 @@ The body is a list; the text before the first colon is the name:
 :::field
 - Version: 12.3.0
 - Renderer: Chromium, resident
-- Cache: `~/.cache/etaf-md-preview/typeset`
+- Cache: `~/.cache/etaf-md/typeset`
 :::
 ```
 
@@ -461,9 +461,9 @@ An `:::item` takes a `grow` parameter for its share; items without one split the
 ```markdown
 :::file-tree {title="lisp/"}
 - lisp/
-  - etaf-md-preview-model.el
-  - etaf-md-preview-views.el
-- etaf-md-preview.el
+  - etaf-md-model.el
+  - etaf-md-views.el
+- etaf-md.el
 :::
 ```
 
@@ -577,7 +577,7 @@ Nothing is dropped and no type size shrinks. The reason: shrinking type makes on
 A definition is data, not code inside a document. It looks like this:
 
 ```elisp
-(etaf-md-preview-define-container
+(etaf-md-define-container
  'card
  :summary "A titled card"
  :params '((title :string "" "Card title")
@@ -588,9 +588,9 @@ A definition is data, not code inside a document. It looks like this:
                     (list :width 'stretch
                           :gap '((lh 1) (ch 0))
                           :padding '((lh 1) (ch 2))
-                          :background-color (etaf-md-preview-token env 'panel)
+                          :background-color (etaf-md-token env 'panel)
                           :border-left (list '(px 3) 'solid
-                                             (etaf-md-preview-token env 'border)))
+                                             (etaf-md-token env 'border)))
                     (append
                      (when-let* ((title (plist-get params :title)))
                        (list (etaf-node 'text (list :weight 'bold) (list title))))
@@ -610,21 +610,21 @@ What `body` receives:
 
 - `params`: a validated plist. Omitted parameters hold their defaults and types are already converted, so a `number` is a number and a `bool` is `t` or `nil`.
 - `body`: the parsed content as a list of views, not a string. A definition decides placement and never touches parsing.
-- `env`: the rendering environment. Read a colour with `(etaf-md-preview-token env 'panel)` and the line height of the current type size with `(etaf-md-preview-token env 'lh)`.
+- `env`: the rendering environment. Read a colour with `(etaf-md-token env 'panel)` and the line height of the current type size with `(etaf-md-token env 'lh)`.
 
 ### 6.2 Where it lives, when it is read
 
-- Definitions are `.el` files in a user directory, named in `etaf-md-preview-container-directory`.
+- Definitions are `.el` files in a user directory, named in `etaf-md-container-directory`.
 - A session reads the registry once when it is created and does not touch the disk again. A changed definition needs `r` or a fresh preview.
 - Definitions load only from the configured directory. A document cannot register a container and cannot run Elisp. The reason: a Markdown file should carry no execution rights, and sharing a document must not mean sharing code.
 - A duplicate name is an error rather than a silent override. Replacing a shipped definition takes `:replace t`, and the error line names the definition being replaced.
 
 ### 6.3 Debugging
 
-- `etaf-md-preview-describe-containers` lists the registry: name, summary, parameters and the file it came from. Planned.
+- `etaf-md-describe-containers` lists the registry: name, summary, parameters and the file it came from. Planned.
 - The error line is always on the page, so no log has to be opened.
 - When a definition itself signals, that block degrades to its source plus a line reading "the `card` definition failed: …", and the rest of the page keeps rendering.
-- `etaf-md-preview-doctor` reports how many containers are registered and whether a definition file failed to load. Planned.
+- `etaf-md-doctor` reports how many containers are registered and whether a definition file failed to load. Planned.
 
 ### 6.4 Versions and portability
 

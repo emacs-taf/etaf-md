@@ -4,6 +4,17 @@
 
 ### Changed
 
+- The package is `etaf-md` and the library is `etaf-md.el`.  It renders
+  Markdown documents and the container syntax that extends them, so the old
+  name promised a preview and said nothing about the document vocabulary.  The
+  command keeps its action word: `M-x etaf-md-preview` still opens a preview
+  beside the source, and `etaf-md-open` still mounts one and returns its
+  buffer.  Migration: `(require 'etaf-md)`, and every `etaf-md-preview-`
+  symbol lost that segment, so `etaf-md-preview-open` is now `etaf-md-open`,
+  `etaf-md-preview-create` is now `etaf-md-create`, the option
+  `etaf-md-preview-theme` is now `etaf-md-theme`, and the error
+  `etaf-md-preview-error` is now `etaf-md-error`.  No aliases are kept.
+
 - A page with many diagrams opens and rescales quickly.  A vector used to be
   rasterised just to learn its size, and again whenever a text scale changed the
   grid it sits in: on a page of twenty-three diagrams that meant five seconds to
@@ -164,7 +175,7 @@ pixels below itself.  A picture now takes the size of the page it sits on.
   believed a fill stood off the page when it did not.
 
 
-- `etaf-md-preview-follow-scroll` makes the page move with the source window:
+- `etaf-md-follow-scroll` makes the page move with the source window:
   the block at the top of the markdown buffer becomes the first row of the
   preview as the source scrolls.  Only the source's scrolling follows, so the
   reader still scrolls the page freely, and typing follows as far as the
@@ -281,6 +292,6 @@ pixels below itself.  A picture now takes the size of the page it sits on.
 - A preview no longer accepts typing on the painted page.  The markdown is
   edited in its own buffer with the reader's own commands, and the page shows
   the result; the commands that typed through the page
-  (`etaf-md-preview-edit-document`, `etaf-md-preview-insert`,
-  `etaf-md-preview-delete-char`, `etaf-md-preview-editing-p`) are gone with
+  (`etaf-md-edit-document`, `etaf-md-insert`,
+  `etaf-md-delete-char`, `etaf-md-editing-p`) are gone with
   them.

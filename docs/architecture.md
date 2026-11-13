@@ -4,12 +4,12 @@
 
 | File | Responsibility |
 | --- | --- |
-| `etaf-md-preview.el` | Package entry: the public API inventory, the feature closure and the `lisp/` load-path bootstrap. |
-| `lisp/etaf-md-preview-parser.el` | Pure Elisp markdown parser: text to a semantic block/inline tree. |
-| `lisp/etaf-md-preview-theme.el` | Palettes, semantic color lookup, typography helpers and the ETAF UI token plist. |
-| `lisp/etaf-md-preview-model.el` | Session state, source reading, refresh, reading measure, outline navigation and target opening. |
-| `lisp/etaf-md-preview-views.el` | Presentation: markdown tree plus environment to ETAF views. |
-| `lisp/etaf-md-preview-app.el` | The Component, the buffer, the keymap and the interactive commands. |
+| `etaf-md.el` | Package entry: the public API inventory, the feature closure and the `lisp/` load-path bootstrap. |
+| `lisp/etaf-md-parser.el` | Pure Elisp markdown parser: text to a semantic block/inline tree. |
+| `lisp/etaf-md-theme.el` | Palettes, semantic color lookup, typography helpers and the ETAF UI token plist. |
+| `lisp/etaf-md-model.el` | Session state, source reading, refresh, reading measure, outline navigation and target opening. |
+| `lisp/etaf-md-views.el` | Presentation: markdown tree plus environment to ETAF views. |
+| `lisp/etaf-md-app.el` | The Component, the buffer, the keymap and the interactive commands. |
 
 Only ETAF and ETAF UI public interfaces are used by the application; the
 buffer is an ordinary Emacs buffer rendered by Ebox through ETAF. The
@@ -23,25 +23,25 @@ file or text → parser → document plist → session refs → views → ETAF m
                           theme / width / errors (reactive refs)
 ```
 
-- **Parser.** `etaf-md-preview--parse` is a pure function over a string. It
+- **Parser.** `etaf-md--parse` is a pure function over a string. It
   strips YAML front matter, reads block structure line by line, collects link
   reference and footnote definitions, then parses inline content. The output
   carries no presentation facts.
 - **Model.** A session is a plist of `etaf-ref`s: document, title, theme,
   reading measure and error text. Every displayed value is read through
-  `etaf-md-preview--read` while rendering, so a refresh, a theme change or a
+  `etaf-md--read` while rendering, so a refresh, a theme change or a
   measure change repaints the mounted preview through the ordinary ETAF
   reactive path; no code calls the renderer or the buffer directly. A window
   resize is not a session change: the column is viewport-relative and reflows
   through the renderer's own viewport update.
-- **Views.** `etaf-md-preview--view-document` composes a centered reading
+- **Views.** `etaf-md--view-document` composes a centered reading
   column from `etaf-node` values: flexible spacers center a column whose width
   stretches to the window up to the session's measure. Inline content becomes
   styled `text` runs; links and footnote references carry `:on-press`
   boundaries that ETAF turns into Ebox keymaps. Media blocks use the ETAF
   `image` Host, which owns graphics and terminal adapters and the video poster
   frame.
-- **Application.** `etaf-md-preview-app` is the only place that reads the
+- **Application.** `etaf-md-app` is the only place that reads the
   session's refs; it also provides the palette tokens for its subtree. The
   shell adds what a Component cannot own: the buffer, the keymap, the initial
   measure and the commands.
@@ -152,7 +152,7 @@ renderer that is not a browser - `rsvg-convert`, the engine Emacs draws SVG
 with - paints the same extent and a similar amount of ink.
 
 **Typing edits the source, never the page.** In-place editing is driven by
-`etaf-md-preview-projection`, which turns the published blocks into
+`etaf-md-projection`, which turns the published blocks into
 `etaf-projection` entries, one `(REF . (BEGIN . END))` per block. A block's
 range ends before its trailing newline, because the paint draws no break; a
 heading starts after the `#` markers the render folds away; a bullet or quote
@@ -209,7 +209,7 @@ not the number of Hosts.
 - Public behaviour tests mount real runtimes in batch Emacs and read the
   visible buffer back (text, faces, keymaps, placeholders). They are
   inventoried in `tests/acceptance.json` and run by `make acceptance`.
-- `scripts/md-preview-gui-probe.el` checks the frame-level invariants a batch
+- `scripts/etaf-md-gui-probe.el` checks the frame-level invariants a batch
   run cannot see: no line wider than its window, an interactive link present,
   a nonempty outline.
 - `benchmarks/render-large-document.el` prints parse, mount and refresh times
