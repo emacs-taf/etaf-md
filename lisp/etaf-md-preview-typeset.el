@@ -140,7 +140,7 @@ their own."
     (cons (if dark 'dark 'light)
           (etaf-md-preview--hex-color (etaf-md-preview--env-color env :ink)))))
 
-(defconst etaf-md-preview-typeset--picture-version 3
+(defconst etaf-md-preview-typeset--picture-version 5
   "Version of the drawing a cache key stands for.
 Raised when the renderer's own output changes - the size a picture is drawn
 at, or the part of the drawing it is cut from - so a picture drawn the old way
@@ -215,7 +215,11 @@ it.  The figure states the reading measure as its own width instead of filling
 its container: a block is a Component, and a stretch inside one resolves against
 the frame rather than the page, which left a figure centred for the frame and
 clipped by the page."
-  (let* ((width (max 24 (or (plist-get env :width) 92)))
+  (let* (;; A drawing may use the page's whole width: its own size decides how
+         ;; large it is painted, and the reading measure would shrink a wide
+         ;; one to half its type size.
+         (width (max 24 (or (plist-get env :figure-width)
+                            (plist-get env :width) 92)))
          ;; The picture is drawn at `--scale' device pixels per point, so its
          ;; own pixel size is that many times the size it should occupy; the
          ;; grid it is placed in comes from the size on the page, not the file.
@@ -239,7 +243,8 @@ clipped by the page."
         ;; still takes one, and that turned two formulas one blank line apart
         ;; into an 80-pixel gap.
         (etaf-node 'column
-                   (list :width (list 'ch width) :cross-align 'center)
+                   (list :width 'stretch :max-width (list 'ch width)
+                         :cross-align 'center)
                    (list image))
       (let ((open-file (plist-get env :open-file))
             (caption (format "%s（按 RET 打开）" (file-name-nondirectory path))))
@@ -247,7 +252,8 @@ clipped by the page."
         ;; under it names the file, so the page reads as one surface instead of
         ;; a card inside a card.
         (etaf-node 'column
-                   (list :width (list 'ch width) :cross-align 'center :item-gap '(lh 0)
+                   (list :width 'stretch :max-width (list 'ch width)
+                         :cross-align 'center :item-gap '(lh 0)
                          :on-press (lambda () (when open-file (funcall open-file path)))
                          :role 'button :tab-index 0 :pointer 'hand
                          :help-echo caption)

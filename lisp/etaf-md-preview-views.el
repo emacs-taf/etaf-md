@@ -473,14 +473,37 @@ stay."
                      (list (etaf-md-preview--block-marker block))))
          (t (etaf-ui-markdown-view-block block env))))))
 
-(defun etaf-md-preview--block-view (session key block ref)
+(defun etaf-md-preview--page-widths (session width)
+  "Return (MEASURE . FIGURE) columns for SESSION's page, capped at WIDTH.
+MEASURE is the reading column: the session's cap, or the window when it is
+narrower.  FIGURE is the whole width the page may give a drawing, which is the
+window itself: a diagram's own size is what decides how large it is drawn, and
+confining it to the prose measure shrank a wide one to half its type size."
+  (let* ((buffer (plist-get session :buffer))
+         (window (and (buffer-live-p buffer) (get-buffer-window buffer t)))
+         (gutter etaf-md-preview--measure-gutter)
+         (available (if (window-live-p window)
+                        (max 24 (- (window-body-width window) (* 2 gutter)))
+                      width)))
+    (cons (min width available) available)))
+
+(defun etaf-md-preview--figure-block-p (block)
+  "Return non-nil when BLOCK is drawn as its own picture."
+  (pcase (plist-get block :type)
+    ('code-block (equal (plist-get block :lang) "mermaid"))
+    ('math (and (plist-get block :display) t))))
+
+(defun etaf-md-preview--block-view (session key block ref widths)
   "Return the keyed Component call that renders BLOCK of SESSION under KEY.
+WIDTHS is (MEASURE . FIGURE), the two widths the page lays out with.
 REF names the box that holds the block, so a command can map the point back to
 the block under it.  A published block keeps this call, so re-rendering the
 list hands the runtime the unchanged value and costs one comparison per
 retained block."
   (etaf-node 'box
-             (list :ref ref :width 'stretch)
+             (list :ref ref :width 'stretch
+                   :max-width (list 'ch (if (etaf-md-preview--figure-block-p block)
+                                            (cdr widths) (car widths))))
              (list (etaf-node 'etaf-md-preview-block
                               (list :key key :session session :identity key
                                     :block block)
@@ -492,7 +515,7 @@ Blocks are stacked without a gap of the layout's own: the blank lines the file
 holds between them are painted as empty rows, so the page keeps exactly the
 lines the source has and a reader can type on each of them."
   (etaf-node 'column
-             (list :width 'stretch)
+             (list :width 'stretch :cross-align 'center)
              (mapcar (lambda (entry) (plist-get entry :view)) entries)))
 
 ;;; ---------------------------------------------------------------------------
@@ -521,31 +544,44 @@ is padding, so it survives that case, and it also keeps a table's right
 border off the window's last column, where the renderer would extend its
 paint into the sub-cell remainder.")
 
+(defun etaf-md-preview--measured-view (width view)
+  "Return VIEW laid out in a reading column WIDTH cells wide."
+  (etaf-node 'box (list :width 'stretch :max-width (list 'ch width))
+             (list view)))
+
 (defun etaf-md-preview--view-document (session document env)
   "Return the reading View of DOCUMENT, shown by SESSION, rendered in ENV.
-The body is one keyed Component per published block, so a publish that changes
-one block repaints that block instead of the document.  The reading column
-uses cross-axis centering and is capped by ENV's `:width', so wide frames keep
-a readable measure and narrow frames fill down to the measure gutter on both
-sides.  ENV's `:background', when set, paints the page; without it the buffer
-keeps the Emacs theme's own background."
-  (let* ((width (max 24 (or (plist-get env :width) 92)))
-         (gutter etaf-md-preview--measure-gutter)
+The body is one keyed Component per published block, so a publish that
+changes one block repaints that block instead of the document.  The page
+takes the window's width and centres its children; prose states ENV's
+reading measure, and a drawing states the page's whole width, so a wide one
+keeps its type size instead of being squeezed into a column of text.  ENV's
+`:background', when set, paints the page; without it the buffer keeps the
+Emacs theme's own background."
+  (let* (;; The window may be narrower than the session's cap, and the
+         ;; blocks already state this measure, so the page uses it too.
+         (width (car (etaf-md-preview--page-widths session (or (plist-get env :width) 92))))
          (background (plist-get env :background))
          (hero (etaf-md-preview--meta-node document env))
+         (measured (lambda (view) (etaf-md-preview--measured-view width view)))
          (body (append
                 ;; The blank lines after the front matter are the page's own:
                 ;; the header replaces those lines, not the gap under them.
-                (when hero (list hero))
+                (when hero (list (funcall measured hero)))
                 (list (etaf-md-preview--view-blocks
                        (plist-get document :children)))
                 (when-let* ((footnotes (plist-get document :footnotes)))
-                  (append
-                   (list (etaf-md-preview--spacer)
-                         (etaf-md-preview--divider "脚注")
-                         (etaf-md-preview--spacer))
-                   (etaf-ui-markdown-view-blocks
-                    footnotes (etaf-md-preview--card-env session env 'footnotes)))))))
+                  (list (funcall measured
+                                 (etaf-node 'column
+                                            (list :width 'stretch :cross-align 'center
+                                                  :item-gap '(lh 0))
+                                            (append
+                                             (list (etaf-md-preview--spacer)
+                                                   (etaf-md-preview--divider "脚注")
+                                                   (etaf-md-preview--spacer))
+                                             (etaf-ui-markdown-view-blocks
+                                              footnotes (etaf-md-preview--card-env
+                                                         session env 'footnotes))))))))))
     (etaf-node 'column
                (append (list :width '(vw 100) :cross-align 'center
                              :aria-label "Markdown 预览"
@@ -553,11 +589,14 @@ keeps the Emacs theme's own background."
                        (when background
                          (list :background-color background)))
                (list
+                ;; The page is as wide as the window.  Prose states the reading
+                ;; measure and is centred in it; a drawing states the whole
+                ;; width, so a wide one is not squeezed into a column of text.
                 (etaf-node 'column
                            (list :width 'stretch
-                                 :max-width (list 'ch (+ width (* 2 gutter)))
-                                 :overflow 'hidden
-                                 :padding (list (list 'lh 1) (list 'ch gutter))
+                                 :cross-align 'center
+                                 :padding (list (list 'lh 1)
+                                                (list 'ch etaf-md-preview--measure-gutter))
                                  :item-gap '(lh 0)
                                  :color (etaf-md-preview--env-color env :ink))
                            body)))))

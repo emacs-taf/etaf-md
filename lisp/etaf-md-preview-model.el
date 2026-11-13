@@ -360,6 +360,8 @@ list costs one comparison for it instead of a new call."
   (let ((counts (make-hash-table :test #'equal))
         (blank-index 0)
         (entries nil)
+        (widths (etaf-md-preview--page-widths
+                 session (etaf-md-preview--read session :width)))
         (env (when (fboundp 'etaf-md-preview-typeset-attach)
                (etaf-md-preview--env session))))
     (dolist (block (etaf-md-preview--paintable-blocks
@@ -407,7 +409,7 @@ list costs one comparison for it instead of a new call."
                (t (list :key key :block block
                         :ref ref
                         :view (etaf-md-preview--block-view
-                               session key block ref))))
+                               session key block ref widths))))
               entries)))
     (nreverse entries)))
 
@@ -971,6 +973,8 @@ re-render after a theme switch instead of keeping the faces it first read."
     (list :theme (etaf-md-preview--read session :theme)
           :source source
           :width (etaf-md-preview--read session :width)
+          :columns (cdr (etaf-md-preview--page-widths
+                            session (etaf-md-preview--read session :width)))
           :background (etaf-md-preview--page-background session)
           :surface (and face-derived (etaf-md-preview--frame-surface frame))
           :appearance (and face-derived (etaf-appearance))
@@ -987,6 +991,8 @@ re-render after a theme switch instead of keeping the faces it first read."
   (list :theme (etaf-md-preview--read session :theme)
         :palette (etaf-md-preview--session-palette session)
         :width (etaf-md-preview--read session :width)
+        :figure-width (cdr (etaf-md-preview--page-widths
+                              session (etaf-md-preview--read session :width)))
         :background (etaf-md-preview--page-background session)
         :dir (plist-get session :dir)
         :features (plist-get session :features)
