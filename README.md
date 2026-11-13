@@ -127,4 +127,7 @@ make mermaid-check    # draw every mermaid fixture in each page palette
 
 See [docs/manual.md](docs/manual.md) for workflows, the supported syntax and
 scripting, and [docs/architecture.md](docs/architecture.md) for the module
-layout and the rendering decisions.
+layout and the rendering decisions.  The extension syntax the package plans to
+support is specified in [docs/extensions.md](docs/extensions.md), with a
+Chinese version in [docs/extensions.zh-CN.md](docs/extensions.zh-CN.md);
+GitHub alerts are what a page renders today.
