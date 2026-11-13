@@ -229,8 +229,25 @@ clipped by the page."
                          (/ (cdr natural) (float etaf-md-preview-typeset--scale)))))
          (grid (or (etaf-md-preview--media-grid-for-pixels pixels (- width 2))
                    (cons width 8)))
+         ;; A zoom changes the grid, and a vector drawn to the new size costs a
+         ;; whole rasterisation: librsvg paints gradients and component
+         ;; transfers, roughly eighty milliseconds a drawing, and a page
+         ;; measures every slice it holds.  The raster beside the vector is
+         ;; the same drawing at twice the size it is shown at, so while it
+         ;; still has the pixels a zoom needs, it is shown instead: loading it
+         ;; is a decode, not a drawing.  A grid that outgrows it goes back to
+         ;; the vector, which stays sharp at any size.
+         (raster (concat (file-name-sans-extension path) ".png"))
+         (shown (if (and (string-suffix-p ".svg" path)
+                         (file-exists-p raster)
+                         (when-let* ((declared (ignore-errors
+                                                 (etaf-md-preview--image-pixels raster))))
+                           (<= (* (car grid) (car (etaf-md-preview--cell-metrics)))
+                               (car declared))))
+                    raster
+                  path))
          (image (etaf-node 'image
-                           (list :src path
+                           (list :src shown
                                  :columns (car grid)
                                  :rows (cdr grid)
                                  :adapter 'auto)
