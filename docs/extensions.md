@@ -127,11 +127,8 @@ Every fact is written in one place, by one role, and read by one consumer. Anyth
 | Fact | Written by | Lives in | Read by |
 | --- | --- | --- | --- |
 | Body text | The author | The node's children | The paint |
-| Document attributes `title`, `href` | The author | Node attributes | The paint, via `attr` |
-| Appearance attributes `surface`, `accent` | Author sets the default, reader may override | Node attributes and style rules | The paint, via `attr` |
-| Reader attributes `prefix`, `color` | The reader | Style rules | The paint, via `attr`; `numbering` by derive |
-| Parser facts `level`, `language` | The parser | Node attributes | Rule selectors, the paint |
-| Document-wide facts `number` | Derive | Node attributes | The paint |
+| Ordinary attributes `title`, `accent`, `prefix` | The document sets a default; the reader overrides with `set-attr` | Node attributes and style rules | The paint, via `attr` |
+| Derived attributes `level`, `language`, `number` | The parser and the derive step | Node attributes | Rule selectors, the paint |
 | Theme colours | The theme | The token table | Style rules only |
 | The contract | The declaration | The registry | Validation, `describe-nodes` |
 | Block state | Reader interaction | The block's state cell | The paint |
@@ -183,7 +180,7 @@ Vocabulary is split by who speaks it, not by package. A new name must fit one of
 | --- | --- | --- |
 | The person writing a document | HTML attribute names, plus props mainstream component libraries share | `title`, `href`, `selected`, `columns`, `padding` |
 | The person configuring appearance | CSS property names | `background`, `color`, `font-weight`, `prefix`, `margin-top` |
-| The person writing a definition | JSON Schema type names, plus this document's declaration fields | `string`, `length`, `:from reader`, `:default` |
+| The person writing a definition | JSON Schema type names, plus this document's declaration fields | `string`, `length`, `:derived`, `:default` |
 
 Five rules.
 
@@ -257,9 +254,18 @@ A parent type must handle three edge cases without crashing or painting half a b
 
 ### 3.3 Attributes
 
-Eight types. Every attribute states five things: name, type, value domain, who writes it, and its default.
+Nine types. Attributes come in two classes, separated by one flag.
 
-| Type | Spelling | Value domain | Invalid |
+| Class | Who writes it | Who may change it | How it is marked |
+| --- | --- | --- | --- |
+| Derived | The parser or the derive step | Neither; a reader may only select on it | `:derived t` |
+| Ordinary | The document, in the braces, with `:default` when omitted | The reader, with `set-attr` | No flag |
+
+The test is one sentence: **does this value have a spelling in the Markdown text?** If it does, it is ordinary; if it does not, it is derived.
+
+Nine types.
+
+| Type | Spelling | Domain | Invalid |
 | --- | --- | --- | --- |
 | `string` | `title="Cache hit"` | An optional `:pattern` | `title=cache hit` |
 | `number` | `start=2` | Optional `:min`, `:max`, `:integer` | `start=two` |
@@ -269,29 +275,19 @@ Eight types. Every attribute states five things: name, type, value domain, who w
 | `accent` | `accent=warning` | `neutral`, `primary`, `success`, `warning`, `danger`, `important` | `accent=urgent` |
 | `align` | `text-align=center` | `start`, `center`, `end` | `text-align=middle` |
 | `enum` | `list-style=decimal` | The declaration's `:one-of`, which is required | `list-style=number` |
-| `color` | Style rules only | A token name, or a literal colour | `color=blue` |
-
-`color` appears only inside style rules, and a document cannot write it: a document writes `surface` and `accent`, and the token resolves in the style layer.
+| `color` | `color=primary` | A token name, or a literal colour | `color=blue` |
 
 The three semantic types keep their word lists as constants of the package, see 4.1, so a declaration never repeats them. A type that wants only some of the words narrows them right there:
 
 ```elisp
-(accent :type accent :from document :one-of (neutral warning) :doc "Two accents only")
+(accent :type accent :one-of (neutral warning) :doc "Two accents only")
 ```
-
-`:from` records who decides the value, and takes three values.
-
-| `:from` | Who may write | Examples |
-| --- | --- | --- |
-| `document` | The author, inside the braces | `title`, `href`, `accent` |
-| `reader` | The reader's style rules | `prefix`, `color`, `font-weight`, `numbering` |
-| `machine` | The parser and the derive step | `level`, `number`, `language` |
 
 Validation converts each value into the shape the renderer wants, so a declaration never parses a unit itself.
 
 | Type | Written as | The value a paint receives |
 | --- | --- | --- |
-| `string` | `title="Cache hit"` | The string `"Cache hit"` |
+| `string` | `title="Cache Hit"` | The string `"Cache Hit"` |
 | `number` | `start=2` | The number `2` |
 | `boolean` | `selected=true` | `t` or `nil` |
 | `length` | `padding="1lh"` | ETAF's length `(lh 1)`, ready to pass as a property |
@@ -299,6 +295,7 @@ Validation converts each value into the shape the renderer wants, so a declarati
 | `accent` | `accent=warning` | The symbol `warning` |
 | `align` | `text-align=center` | The symbol `center` |
 | `enum` | `list-style=decimal` | The symbol `decimal` |
+| `color` | Tokens only | The resolved colour |
 
 Three conventions.
 
@@ -308,7 +305,9 @@ Three conventions.
 
 Writing the same attribute twice is an error, not a last-one-wins. A duplicate usually means the author changed half of it, and silently picking one hides the problem.
 
-The shared attribute table is Appendix A, split into three by `:from`. How a declaration writes them is 10.2.
+**Derived attributes come from the built-in syntax, and none of them may be guessed.** A.2 lists every one per type, and that table is `etaf-md-node-definitions` in code; read one type's derived attributes with `(etaf-md-derived-attributes TYPE)`, see 10.7.
+
+The shared attribute table is Appendix A, one table for ordinary attributes and one for derived. How a declaration writes them is 10.2.
 
 ### 3.4 Validation, degradation and the failure catalogue
 
@@ -336,7 +335,7 @@ Failures come in seventeen kinds. Each has a determined page result; none is "it
 | Value outside its domain | Source, and the line gives the domain | This block |
 | Required attribute missing | Source, and the line names it | This block |
 | The same attribute written twice | Source, and the line names the duplicate | This block |
-| A machine attribute written by the document | Source, and the line says the parser or derive fills it | This block |
+| A derived attribute written by the document | Source, and the line says it has no spelling in the text and is filled by the parser or derive | This block |
 | A parent with no children | Empty state, no error | This block |
 | A child's attribute unknown or invalid | That child degrades; the others render | This child |
 | Two children declare `selected` | Only the first counts, with one line | This group |
@@ -347,7 +346,7 @@ Failures come in seventeen kinds. Each has a determined page result; none is "it
 | A definition signals | Source, and the line names the definition and its error | This block |
 | Contract version mismatch | Source, and the line names the version it needs | This block |
 | A style rule selects on an undeclared attribute | The whole rule is ignored, with one line | The page |
-| A style rule's key is not an attribute of that type | That key is ignored, with one line | The page |
+| A style rule's key is a derived attribute | That key is ignored, with a line saying it can only be a selector | The page |
 
 Four rules that hold everywhere.
 
@@ -409,7 +408,7 @@ Three places it cannot help, recorded here so it is never mistaken for a promise
 
 ### 4.1 Surface and accent
 
-Appearance has two attributes: `surface` for the fill, `accent` for the accent colour. They are separate words because they are separate things. Every value of both maps onto exactly one token, with no exceptions; see Appendix B.
+A document writes two appearance attributes: `surface` for the fill, `accent` for the accent colour. They are separate words because they are separate things. Every value of both maps onto exactly one token, with no exceptions; see Appendix B.
 
 | `surface` | Token | Used for |
 | --- | --- | --- |
@@ -494,9 +493,8 @@ The declaration decides which keys are legal.
 
 | Legal key | Basis |
 | --- | --- |
-| A `:from reader` attribute of that type | `prefix`, `color`, `font-weight`, `numbering` |
-| An appearance attribute of that type, `:from document` | `surface`, `accent`, `text-align` |
-| Anything else | Not a key; writing one costs a line that lists the legal keys |
+| An ordinary attribute of that type | `title`, `accent`, `prefix`, `color`, `font-weight`, `numbering` |
+| A derived attribute | Never a key, only a selector; writing one costs a line that lists the legal keys |
 
 Three special values.
 
@@ -515,7 +513,7 @@ Editing the table repaints the page and recomputes the derive step, but never re
 
 A literal costs something: it stops following the theme. A blue chosen on a dark page may be unreadable on a paper one, so a document never writes a literal, and that is a hard rule.
 
-For appearance attributes (the `surface`, `accent` and `align` types) the document's value is a default and a reader's rule overrides it. Every other attribute answers to the author or the parser alone; a reader's key there fails validation instead of being ignored.
+For an ordinary attribute the document's value is a default and one reader rule overrides it. A derived attribute answers to the parser and the derive step alone, and a reader using it as a key gets an error.
 
 A token name appears only inside a style rule, never in a paint. A paint always receives a resolved colour, so switching themes needs no change to any declaration.
 
@@ -1072,8 +1070,8 @@ A type definition writes three things, and no more.
 ```elisp
 (etaf-md-define-node 'card
   :name "card"
-  :attrs '((title  :type string :from document :required t :pattern "\\S" :doc "Card title")
-           (accent :type accent :from document :default neutral          :doc "Emphasis"))
+  :attrs '((title  :type string :required t :pattern "\\S" :doc "Card title")
+           (accent :type accent :default neutral          :doc "Emphasis"))
   :view (lambda (env)
           (etaf-view
            (etaf-card :title (etaf-md-attr env :title)
@@ -1102,7 +1100,7 @@ Two counter-examples: a `:markdown-level` inside a component, which leaks syntax
 | A component's own baseline | The component |
 | Colours | Tokens, one set per palette |
 
-Two places able to change one fact is a bug. A component's default is only a baseline and a definition may override it; a definition's value is the document default and an appearance attribute may still be overridden by the reader, see 10.3.
+Two places able to change one fact is a bug. A component's default is only a baseline and a definition may override it; a definition's value is the document default and an ordinary attribute may still be overridden by the reader, see 10.3.
 
 ### 9.6 Two uses promote a widget
 
@@ -1131,12 +1129,12 @@ A definition is data plus one function, not code inside a document.
 ```elisp
 (etaf-md-define-node 'heading
   :summary "A heading whose level comes from the number of #"
-  :attrs '((level  :type number :from machine :min 1 :max 6 :integer t :doc "Number of # characters")
-           (number :type string :from machine         :doc "Section number such as 1.1; absent when numbering is off")
-           (font-weight :type enum :from reader :one-of (normal bold)     :default bold    :doc "Weight")
-           (color      :type color :from reader                           :default heading :doc "Ink")
-           (prefix     :type string :from reader                          :default ""      :doc "Display prefix")
-           (numbering  :type enum  :from reader :one-of (none decimal lower-roman upper-alpha)
+  :attrs '((level  :type number :derived t :min 1 :max 6 :integer t :doc "Number of # characters")
+           (number :type string :derived t                            :doc "Section number such as 1.1; absent when numbering is off")
+           (font-weight :type enum :one-of (normal bold)     :default bold    :doc "Weight")
+           (color      :type color                           :default heading :doc "Ink")
+           (prefix     :type string                          :default ""      :doc "Display prefix")
+           (numbering  :type enum  :one-of (none decimal lower-roman upper-alpha)
                        :default decimal :doc "Section number format, read by derive"))
   :view (lambda (env) …))
 ```
@@ -1146,7 +1144,7 @@ A definition is data plus one function, not code inside a document.
 | The name | A symbol, the first argument | The type name, the registry key |
 | `:name` | A string | The spelling a document writes; `"card"` is `:::card`. Omitted means a document cannot |
 | `:summary` | A string | One line, used in help and errors |
-| `:attrs` | An attribute table | Every attribute of the type, each with `:from` |
+| `:attrs` | An attribute table | Every attribute; a derived one writes `:derived t` |
 | `:accepts` | A child table | Which children it takes; with it the type is a parent |
 | `:contract` | An integer, `1` today | The version of the document-side table, see 10.6 |
 | `:view` | A function | `(lambda (env) VIEW)`, the default paint |
@@ -1179,18 +1177,18 @@ Twelve, no thirteenth. `etaf-md-format-number` is not among them: it takes no `e
 Each entry states five things: name, type, value domain, who writes it, default. Missing one is a load error.
 
 ```elisp
-(title  :type string :from document :required t :pattern "\\S" :doc "Card title")
-(accent :type accent :from document :default neutral :one-of (neutral warning) :doc "Emphasis")
-(level  :type number :from machine  :min 1 :max 6 :integer t :doc "Number of # characters")
-(prefix :type string :from reader   :default "" :doc "Display prefix")
+(title  :type string :required t :pattern "\\S" :doc "Card title")
+(accent :type accent :default neutral :one-of (neutral warning) :doc "Emphasis")
+(level  :type number :derived t :min 1 :max 6 :integer t :doc "Number of # characters")
+(prefix :type string :default "" :doc "Display prefix")
 ```
 
 | Field | Required | Meaning |
 | --- | --- | --- |
 | `:type` | Yes | `string`, `number`, `boolean`, `length`, `surface`, `accent`, `align`, `enum`, `color` |
-| `:from` | Yes | `document`, `reader`, `machine` |
-| `:default` | No | Omitted means `nil`. A `:from machine` attribute usually has none |
-| `:required` | No | Document attributes only, and exclusive with `:default` |
+| `:derived` | No | `t` marks a derived attribute with no spelling in the text; absent means ordinary |
+| `:default` | No | Omitted means `nil`. A derived attribute needs none; parse or derive supplies it |
+| `:required` | No | Ordinary attributes only, and exclusive with `:default` |
 | `:pattern` | No | `string` only |
 | `:min`, `:max`, `:integer` | No | `number` only |
 | `:one-of` | No | Required for `enum`; the three semantic types use it to narrow |
@@ -1198,9 +1196,8 @@ Each entry states five things: name, type, value domain, who writes it, default.
 
 Four rules.
 
-- **A `:from machine` attribute**: a document cannot write it, a reader cannot change it, and a rule selector may match on it.
-- **A `:from reader` attribute**: a document cannot write it, and it may appear only inside style rules.
-- **An appearance attribute** (`surface`, `accent`, `align`) must be `:from document`, and a reader's rule overrides it.
+- **A derived attribute** (`:derived t`): a document cannot write it, a reader cannot change it, and a rule selector may match on it.
+- **An ordinary attribute**: a document writes it, and a reader may override it with `set-attr`.
 - **A child table** entry, `:accepts`, is written the same way with one extra `title` supplied by the renderer, never redeclared here.
 
 ### 10.3 How one value is decided
@@ -1214,7 +1211,7 @@ Four layers, in a fixed order. A paint calls `attr` once and never learns which 
 | 3 | The declaration's `:default` | `neutral` |
 | 4 | The value the parser or derive wrote | `level=2`, `number="1.1"` |
 
-The first three answer for `:from document` and `:from reader` attributes. The fourth is the only source for a `:from machine` attribute, and the other three layers never touch it.
+The first three answer for ordinary attributes. The fourth is the only source for a derived attribute, and the other three layers never touch it.
 
 ### 10.4 A paint uses the DSL by default
 
@@ -1238,7 +1235,7 @@ Exactly one case drops to `etaf-node`: a tag or a property that is only known at
      (box :background-color (etaf-md-surface env (etaf-md-attr env :background))
        (expr (etaf-md-default-view env)))))
   :extends t
-  :style-keys '((background :type surface :from reader :default none :doc "Heading fill")))
+  :style-keys '((background :type surface :default none :doc "Heading fill")))
 ```
 
 | Part | Meaning |
@@ -1290,6 +1287,8 @@ Removing a shipped type restores the shipped definition; removing a user type ma
 - A session reads the registry once when created and does not touch the disk again. A changed definition needs `r` or a fresh preview.
 - A document cannot register a type and cannot run Elisp. Sharing a document is not sharing code.
 - **The document declares its contract version.** Front matter may carry `contract: 1`; without it the current version is assumed.
+- **The registry is a variable, not something hidden in a function.** `etaf-md-node-definitions` holds the type-to-definition table, shipped and user definitions alike, one entry per type.
+- **Derived attributes are read from the registry.** `(etaf-md-derived-attributes 'heading)` gives `(level number)`; derive fills values from it, validation refuses document spellings with it, and `describe-nodes` prints it. A.2 is the printed form of that table.
 
 ### 10.8 Debugging
 
@@ -1370,72 +1369,85 @@ A phase is done only when all three hold.
 
 ## Appendix A: attribute reference
 
-Three tables, split by `:from`. A type selects names from here and never invents a synonym.
+Two tables. An ordinary attribute is written by the document and overridden by the reader; a derived attribute comes from the parser or the derive step and nobody writes it. A type selects names from here and never invents a synonym.
 
-### A.1 Document attributes (`:from document`)
+### A.1 Ordinary attributes
 
-| Attribute | Type | Domain | Meaning | On |
-| --- | --- | --- | --- | --- |
-| `title` | string | optional `:pattern` | Title text | Callouts, card, steps, timeline, file-tree, accordion, table, window, and children |
-| `description` | string | | Summary under the title | card |
-| `surface` | surface | five surfaces | Fill | box, card |
-| `accent` | accent | six accents | Emphasis | box, card, callouts |
-| `text-align` | align | three positions | Horizontal position of content | box, card |
-| `width` | length | `ch`, `lh`, `%` | Own width; omitted means full | box, card |
-| `height` | length | same | Content height; omitted follows content | window |
-| `padding` | length | same | Inner padding | box, columns |
-| `gap` | length | same | Gap between children | columns |
-| `columns` | number | `:min 1`, `:max 6`, `:integer t` | Column count | columns, stats |
-| `min-width` | length | | Minimum column width | columns |
-| `align-items` | enum | start center end stretch | Cross-axis alignment | columns |
-| `justify-content` | enum | start center end between | Main-axis alignment | columns |
-| `align-self` | enum | start center end | Its own position in the parent | columns |
-| `wrap` | boolean | | Wrap when it does not fit | columns |
-| `list-style` | enum | decimal bullet none | Marker | steps, timeline |
-| `start` | number | `:integer t` | First number | steps |
-| `open` | boolean | | Starts expanded | Callouts, the collapse child |
-| `collapsible` | boolean | | May be folded | Callouts |
-| `selected` | boolean | | This child starts selected | The tab child |
-| `href` | string | | Target | card |
-| `label-width` | length | | Width of the label column | field |
-| `separator` | enum | colon none | Separator between label and value | field |
-| `self` | enum | left right | Which side is you | chat |
-| `highlight-rows` | string | space-separated row numbers | Rows to highlight | table |
-| `highlight-columns` | string | space-separated column numbers | Columns to highlight | table |
-| `highlight` | accent | six accents | Which accent the highlight uses | table |
-| `lines` | boolean | | Draw tree lines | file-tree |
-| `id` | string | `:pattern "^[^\\s]+$"` | Stable anchor | every block |
+| Attribute | Type | Domain | Default | Meaning | On |
+| --- | --- | --- | --- | --- | --- |
+| `title` | string | optional `:pattern` | none | Title text | Callouts, card, steps, timeline, file-tree, accordion, table, window, and children |
+| `description` | string | | none | Summary under the title | card |
+| `href` | string | | none | Target | card |
+| `id` | string | `:pattern "^[^\\s]+$"` | none | Stable anchor | every block |
+| `surface` | surface | five surfaces | see 6.x | Fill | box, card |
+| `accent` | accent | six accents | see 6.x | Emphasis | box, card, callouts |
+| `text-align` | align | three positions | start | Horizontal position of content | box, card |
+| `width` | length | `ch`, `lh`, `%` | omitted means full | Own width | box, card |
+| `height` | length | same | omitted follows content | Content height | window |
+| `padding` | length | same | none | Inner padding | box, columns |
+| `gap` | length | same | 2ch | Gap between children | columns |
+| `columns` | number | `:min 1`, `:max 6`, `:integer t` | 2 | Column count | columns, stats |
+| `min-width` | length | | 24ch | Minimum column width | columns |
+| `align-items` | enum | start center end stretch | stretch | Cross-axis alignment | columns |
+| `justify-content` | enum | start center end between | start | Main-axis alignment | columns |
+| `align-self` | enum | start center end | start | Its own position in the parent | columns |
+| `wrap` | boolean | | false | Wrap when it does not fit | columns |
+| `list-style` | enum | decimal bullet none | bullet | List marker | steps, timeline |
+| `start` | number | `:integer t` | 1 | First number | steps |
+| `open` | boolean | | false | Starts expanded | Callouts, the collapse child |
+| `collapsible` | boolean | | false | May be folded | Callouts |
+| `selected` | boolean | | false | This child starts selected | The tab child |
+| `label-width` | length | | automatic | Width of the label column | field |
+| `separator` | enum | colon none | colon | Separator between label and value | field |
+| `self` | enum | left right | left | Which side is you | chat |
+| `highlight-rows` | string | space-separated row numbers | none | Rows to highlight | table |
+| `highlight-columns` | string | space-separated column numbers | none | Columns to highlight | table |
+| `highlight` | accent | six accents | warning | Which accent the highlight uses | table |
+| `lines` | boolean | | true | Draw tree lines | file-tree |
+| `background` | surface or colour | five surfaces, or a literal | none | Fill | quote, code, table, callout |
+| `color` | color | a token, or a literal | heading | Ink | heading, strong, em, link, code |
+| `font-weight` | enum | normal bold | bold | Weight | heading, strong |
+| `font-style` | enum | normal italic | normal | Slant | em, quote |
+| `text-decoration` | enum | none underline | none | Decoration | link, strong |
+| `prefix` | string | | `""` | Heading prefix, never the anchor | heading |
+| `numbering` | enum | none decimal lower-roman upper-alpha | decimal | Section number format, read by derive | heading, table |
+| `margin-top` | length | | `0` | Space above | heading, quote, code, table |
+| `margin-bottom` | length | | `0` | Space below | heading, quote, code, table |
+| `border-left-width` | length | | `1ch` | Width of the left rule | quote, callout |
+| `label-color` | color | | muted | Fence language label | code |
+| `header-background` | surface or colour | | table-header | Table header fill | table |
+| `stripe-background` | surface or colour | | table-stripe | Table stripe fill | table |
 
-### A.2 Reader attributes (`:from reader`)
+A type declares only the ones it reads; the rest need not appear.
 
-| Attribute | Type | Domain | Default | Meaning |
-| --- | --- | --- | --- | --- |
-| `background` | surface or colour | five surfaces, or a literal | none | Fill |
-| `color` | color | a token, or a literal | heading | Ink |
-| `font-weight` | enum | normal bold | bold | Weight |
-| `font-style` | enum | normal italic | normal | Slant |
-| `text-decoration` | enum | none underline | none | Decoration |
-| `prefix` | string | | `""` | Heading prefix, never the anchor |
-| `numbering` | enum | none decimal lower-roman upper-alpha | decimal | Section number format, read by derive |
-| `margin-top` | length | | `0` | Space above |
-| `margin-bottom` | length | | `0` | Space below |
-| `border-left-width` | length | | `1ch` | Width of the left rule |
-| `label-color` | color | | muted | Fence language label |
-| `header-background` | surface or colour | | table-header | Table header fill |
-| `stripe-background` | surface or colour | | table-stripe | Table stripe fill |
-| `list-style` | enum or character | decimal bullet none, or one character 4.6 allows | bullet | List marker |
+### A.2 Derived attributes
 
-A type declares only the ones it reads, and `describe-nodes` prints them.
+A document cannot write these, a reader cannot change them, but a style rule may select on them.
 
-### A.3 Machine attributes (`:from machine`)
+| Type | Derived attributes | Filled by |
+| --- | --- | --- |
+| `heading` | `level`, `number` | The parser fills `level`, derive fills `number` |
+| `code` | `language` | The parser |
+| `table` | `number` | Derive |
+| Every other type | None | — |
 
-| Attribute | Type | Meaning | On |
-| --- | --- | --- | --- |
-| `level` | number | Number of `#`, 1 to 6 | heading |
-| `language` | string | The language name of a fenced block | code |
-| `number` | string | The section number derive computed, such as `1.1` | heading, table |
+That table is a variable in code, and the shipped definitions live inside it, so nothing has to be guessed:
 
-A document cannot write these and a reader cannot change them, but a style rule may select on them.
+```elisp
+;; The registry: type -> definition. Shipped and user definitions both live here, one per type
+(defvar etaf-md-node-definitions
+  '((heading . (:summary "A heading whose level comes from the number of #"
+                :attrs ((level  :type number :derived t :min 1 :max 6 :integer t)
+                        (number :type string :derived t)
+                        (prefix :type string :default ""))
+                :view my-heading-view))
+    (code    . (:attrs ((language :type string :derived t))
+                :view my-code-view))))
+
+;; Read one type's derived attribute names; derive and validation both do
+(etaf-md-derived-attributes 'heading)   ; => (level number)
+(etaf-md-derived-attributes 'paragraph) ; => nil
+```
 
 ## Appendix B: surfaces, accents and tokens
 
@@ -1473,7 +1485,7 @@ A selector has two forms, both lists: `(type)` covers everything, `(type :attr v
 | --- | --- |
 | The final value | Matching rules accumulate in table order and a later rule wins per key; no rule mentioning the key means the node's attribute value; no attribute either means the declaration's `:default` |
 | What a selector may name | Every attribute in the selector must be declared by that type; a bad one drops the whole rule with one line |
-| Which keys are legal | A `:from reader` attribute, or an appearance attribute (`surface`, `accent`, `align`) |
+| Which keys are legal | An ordinary attribute of that type; a derived attribute may only appear in a selector |
 
 Three special values.
 
@@ -1606,7 +1618,7 @@ This table is the ground for naming. A new name is looked up here first; if it i
 | `:extends` / `:replace` | General | Which shipped definition is overridden | `:override`, `:merge` |
 | `:style-keys` | Naming rule of this table | Attributes added with a new paint | `:keys` |
 | `:type` | JSON Schema | The attribute's type | `:kind`, `:value-type` |
-| `:from` | Naming rule of this table | Who writes the value | `:source`, `:read-only` |
+| `:derived` | Naming rule of this table | A derived attribute with no spelling in the text | `:read-only`, `:computed`, `:source` |
 | `:default` | JSON Schema | The default value | `:fallback` |
 | `:required` | JSON Schema | Must be written | `:mandatory` |
 | `:pattern` | JSON Schema | A regular expression for `string` | `:regex` |
@@ -1626,6 +1638,8 @@ This table is the ground for naming. A new name is looked up here first; if it i
 | `etaf-md-describe-nodes` | List the registry |
 | `etaf-md-doctor` | Diagnose |
 | `etaf-md-node-directory` | Where user definitions live |
+| `etaf-md-node-definitions` | The registry: type to definition, shipped and user alike |
+| `etaf-md-derived-attributes` | Read one type's derived attribute names |
 | `etaf-md-styles` | The style rule table |
 | `etaf-md-attr` | Read one attribute's final value |
 | `etaf-md-type` | Read the type name |
@@ -1661,8 +1675,8 @@ Images and figures scale with the page instead of being redrawn.
 (etaf-md-define-node 'card
   :name "card"
   :summary "A card with a title"
-  :attrs '((title  :type string :from document :required t :pattern "\\S" :doc "Card title")
-           (accent :type accent :from document :default neutral          :doc "Emphasis"))
+  :attrs '((title  :type string :required t :pattern "\\S" :doc "Card title")
+           (accent :type accent :default neutral          :doc "Emphasis"))
   :view (lambda (env)
           (etaf-view
            (etaf-card :title (etaf-md-attr env :title)
@@ -1722,12 +1736,12 @@ The `#` characters leave no trace and become `level`; document order yields `num
 ```elisp
 (etaf-md-define-node 'heading
   :summary "A heading whose level comes from the number of #"
-  :attrs '((level  :type number :from machine :min 1 :max 6 :integer t :doc "Number of # characters")
-           (number :type string :from machine                             :doc "Section number; absent when numbering is off")
-           (font-weight :type enum  :from reader :one-of (normal bold)     :default bold    :doc "Weight")
-           (color      :type color  :from reader                          :default heading :doc "Ink")
-           (prefix     :type string :from reader                          :default ""      :doc "Display prefix")
-           (numbering  :type enum  :from reader :one-of (none decimal lower-roman upper-alpha)
+  :attrs '((level  :type number :derived t :min 1 :max 6 :integer t :doc "Number of # characters")
+           (number :type string :derived t                            :doc "Section number; absent when numbering is off")
+           (font-weight :type enum :one-of (normal bold)     :default bold    :doc "Weight")
+           (color      :type color                           :default heading :doc "Ink")
+           (prefix     :type string                          :default ""      :doc "Display prefix")
+           (numbering  :type enum  :one-of (none decimal lower-roman upper-alpha)
                        :default decimal :doc "Section number format, read by derive"))
   :view (lambda (env)
           (etaf-view

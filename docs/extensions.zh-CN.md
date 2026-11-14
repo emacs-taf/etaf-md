@@ -127,11 +127,8 @@
 | 事实 | 谁写 | 存在哪 | 谁读 |
 | --- | --- | --- | --- |
 | 正文文字 | 作者 | 节点子节点 | 画法 |
-| 文档属性 `title`、`href` | 作者 | 节点属性 | 画法，经 `attr` |
-| 外观属性 `surface`、`accent` | 作者给默认，读者可盖 | 节点属性与样式规则 | 画法，经 `attr` |
-| 读者属性 `prefix`、`color` | 读者 | 样式规则 | 画法，经 `attr`；`numbering` 由派生读 |
-| 解析器事实 `level`、`language` | 解析器 | 节点属性 | 规则选择器、画法 |
-| 整篇事实 `number` | 派生 | 节点属性 | 画法 |
+| 普通属性 `title`、`accent`、`prefix` | 文档给默认，读者可用 `set-attr` 盖掉 | 节点属性与样式规则 | 画法，经 `attr` |
+| 派生属性 `level`、`language`、`number` | 解析器与派生阶段 | 节点属性 | 规则选择器、画法 |
 | 主题色值 | 主题 | 令牌表 | 只有样式规则 |
 | 契约 | 声明 | 注册表 | 校验、`describe-nodes` |
 | 块状态 | 读者交互 | 块状态格子 | 画法 |
@@ -183,7 +180,7 @@
 | --- | --- | --- |
 | 写文档的人 | HTML 属性名，加主流组件库共用的 prop 名 | `title`、`href`、`selected`、`columns`、`padding` |
 | 配外观的人 | CSS 属性名 | `background`、`color`、`font-weight`、`prefix`、`margin-top` |
-| 写定义的人 | JSON Schema 的类型名，加本文的声明字段 | `string`、`length`、`:from reader`、`:default` |
+| 写定义的人 | JSON Schema 的类型名，加本文的声明字段 | `string`、`length`、`:derived`、`:default` |
 
 五条规矩。
 
@@ -257,7 +254,16 @@
 
 ### 3.3 属性
 
-八种类型。每个属性都写清五件事：名字、类型、值域、谁写、默认值。
+九种类型。属性只有两类，用一个标记分开。
+
+| 类别 | 谁写 | 谁能改 | 怎么标 |
+| --- | --- | --- | --- |
+| 派生属性 | 解析器或派生阶段 | 谁都不能改，读者只能拿它当选择器 | `:derived t` |
+| 普通属性 | 文档写在花括号里，省略就取 `:default` | 读者用 `set-attr` 盖掉 | 不写标记 |
+
+判断只需一句话：**这个值在 Markdown 文本里有没有写法。** 有，就是普通属性；没有，就是派生属性。
+
+九种类型。
 
 | 类型 | 写法 | 值域 | 非法示例 |
 | --- | --- | --- | --- |
@@ -269,23 +275,13 @@
 | `accent` | `accent=warning` | `neutral`、`primary`、`success`、`warning`、`danger`、`important` | `accent=urgent` |
 | `align` | `text-align=center` | `start`、`center`、`end` | `text-align=middle` |
 | `enum` | `list-style=decimal` | 声明里的 `:one-of`，必写 | `list-style=number` |
-| `color` | 只在样式规则里用 | 令牌名，或色值字面量 | `color=blue` |
-
-`color` 只出现在样式规则里，文档写不了它：文档只写 `surface` 与 `accent`，令牌的解析在样式层完成。
+| `color` | `color=primary` | 令牌名，或色值字面量 | `color=blue` |
 
 三个语义类型的词表是包里的常量，见 4.1，声明里不必重复。某个类型只想收其中几个，就在声明里收窄：
 
 ```elisp
-(accent :type accent :from document :one-of (neutral warning) :doc "只收两种强调")
+(accent :type accent :one-of (neutral warning) :doc "只收两种强调")
 ```
-
-`:from` 写这个值归谁定，三个值。
-
-| `:from` | 谁能写 | 例子 |
-| --- | --- | --- |
-| `document` | 作者，写在花括号里 | `title`、`href`、`accent` |
-| `reader` | 读者的样式规则 | `prefix`、`color`、`font-weight`、`numbering` |
-| `machine` | 解析器与派生阶段 | `level`、`number`、`language` |
 
 校验时值会换成渲染器要的形态，声明里不用自己解析单位。
 
@@ -299,6 +295,7 @@
 | `accent` | `accent=warning` | 符号 `warning` |
 | `align` | `text-align=center` | 符号 `center` |
 | `enum` | `list-style=decimal` | 符号 `decimal` |
+| `color` | 只用令牌名 | 已经解析好的颜色 |
 
 三条约定。
 
@@ -308,7 +305,9 @@
 
 同一个属性写两次是错误，不取后者。重复通常意味着作者改了一半，静默取一个会把问题藏起来。
 
-共享属性表在附录 A，按 `:from` 分成三张。声明里怎么写，见 10.2。
+**派生属性由内置语法产生，一份都不能靠猜。** 附录 A.2 按类型列全，代码里那张表就是 `etaf-md-node-definitions`，取某个类型的派生属性用 `(etaf-md-derived-attributes TYPE)`，见 10.7。
+
+共享属性表在附录 A，普通属性与派生属性各一张。声明里怎么写，见 10.2。
 
 ### 3.4 校验、降级与失败目录
 
@@ -336,7 +335,7 @@ line 44: 第 9 层嵌套超过上限 8 层
 | 属性值不在值域 | 源码原样，说明给出值域 | 这一块 |
 | 必填属性缺失 | 源码原样，说明点名缺哪个 | 这一块 |
 | 属性写了两遍 | 源码原样，说明点名重复的那个 | 这一块 |
-| 机器属性被文档写 | 源码原样，说明它由解析或派生填 | 这一块 |
+| 派生属性被文档写 | 源码原样，说明它没有文本写法，由解析或派生填 | 这一块 |
 | 父类型没有子块 | 画空状态，不报错 | 这一块 |
 | 子块属性不认识或不合法 | 这一项降级，别的项照常 | 这一项 |
 | 两个子块都声明 selected | 只认第一项，报一行 | 这一组 |
@@ -347,7 +346,7 @@ line 44: 第 9 层嵌套超过上限 8 层
 | 定义自己报错 | 源码原样，说明是哪个定义、报了什么 | 这一块 |
 | 契约版本不符 | 源码原样，说明要哪个版本 | 这一块 |
 | 样式规则的选择器引用了没声明的属性 | 这条规则整条忽略，报一行 | 整篇 |
-| 样式规则的键不是该类型的属性 | 这个键忽略，报一行 | 整篇 |
+| 样式规则的键是一个派生属性 | 这个键忽略，报一行，说明只能当选择器 | 整篇 |
 
 四条通则。
 
@@ -409,7 +408,7 @@ line 44: 第 9 层嵌套超过上限 8 层
 
 ### 4.1 底色与强调
 
-外观只有两个属性：`surface` 管底色，`accent` 管强调色。两套词分开，因为它们是两件事。两个属性的值和令牌一一对应，没有例外，见附录 B。
+文档写得进的外观属性只有两个：`surface` 管底色，`accent` 管强调色。两套词分开，因为它们是两件事。两个属性的值和令牌一一对应，没有例外，见附录 B。
 
 | `surface` | 落到哪个令牌 | 用在哪 |
 | --- | --- | --- |
@@ -494,9 +493,8 @@ line 44: 第 9 层嵌套超过上限 8 层
 
 | 能写什么键 | 依据 |
 | --- | --- |
-| 该类型 `:from reader` 的属性 | `prefix`、`color`、`font-weight`、`numbering` |
-| 该类型 `:from document` 的外观属性 | `surface`、`accent`、`text-align` |
-| 其余属性 | 不能当键，写错报一行并列出可用的键 |
+| 该类型的普通属性 | `title`、`accent`、`prefix`、`color`、`font-weight`、`numbering` |
+| 派生属性 | 不能当键，只能当选择器；写错报一行并列出可用的键 |
 
 三个值的特殊写法。
 
@@ -515,7 +513,7 @@ line 44: 第 9 层嵌套超过上限 8 层
 
 写字面值有一个代价：它不跟随主题切换。暗色页上选的蓝，换到纸色页可能读不清。所以文档里永远不写字面值，这条是硬规矩。
 
-外观属性（`surface`、`accent`、`align` 三种类型）的文档值是默认值，读者的规则可以盖掉它。其余属性只认作者或解析器，读者写了不生效，键校验会直接报错。
+普通属性的文档值是默认值，读者的一条规则可以盖掉它。派生属性只认解析器与派生阶段，读者拿它当键会直接报错。
 
 令牌名只出现在样式规则里，不进画法。画法读到的永远是解析好的色值，所以换主题不需要改任何声明。
 
@@ -1072,8 +1070,8 @@ print("hi")
 ```elisp
 (etaf-md-define-node 'card
   :name "card"
-  :attrs '((title  :type string :from document :required t :pattern "\\S" :doc "卡片标题")
-           (accent :type accent :from document :default neutral          :doc "强调"))
+  :attrs '((title  :type string :required t :pattern "\\S" :doc "卡片标题")
+           (accent :type accent :default neutral          :doc "强调"))
   :view (lambda (env)
           (etaf-view
            (etaf-card :title (etaf-md-attr env :title)
@@ -1102,7 +1100,7 @@ print("hi")
 | 组件自己的基线 | 组件 |
 | 配色 | 令牌，三套配色各一份 |
 
-两处都能改同一个事实，就是 bug。组件的默认值只是基线，定义可以覆盖；定义的值是文档默认，外观属性还能被读者盖掉，见 10.3。
+两处都能改同一个事实，就是 bug。组件的默认值只是基线，定义可以覆盖；定义的值是文档默认，普通属性的值还能被读者盖掉，见 10.3。
 
 ### 9.6 用够两次就上移
 
@@ -1131,12 +1129,12 @@ print("hi")
 ```elisp
 (etaf-md-define-node 'heading
   :summary "标题，级别由 # 的个数决定"
-  :attrs '((level  :type number :from machine :min 1 :max 6 :integer t :doc "井号个数")
-           (number :type string :from machine                             :doc "章节号，例如 1.1；不编号时没有")
-           (font-weight :type enum :from reader :one-of (normal bold)     :default bold    :doc "字重")
-           (color      :type color :from reader                           :default heading :doc "字色")
-           (prefix     :type string :from reader                          :default ""      :doc "显示前缀")
-           (numbering  :type enum  :from reader :one-of (none decimal lower-roman upper-alpha)
+  :attrs '((level  :type number :derived t :min 1 :max 6 :integer t :doc "井号个数")
+           (number :type string :derived t                            :doc "章节号，不编号时没有")
+           (font-weight :type enum :one-of (normal bold)     :default bold    :doc "字重")
+           (color      :type color                           :default heading :doc "字色")
+           (prefix     :type string                          :default ""      :doc "显示前缀")
+           (numbering  :type enum  :one-of (none decimal lower-roman upper-alpha)
                        :default decimal :doc "章节号的格式，派生阶段读"))
   :view (lambda (env) …))
 ```
@@ -1146,7 +1144,7 @@ print("hi")
 | 名字 | 符号，第一个参数 | 类型名，注册表里的键 |
 | `:name` | 字符串 | 文档写得出的写法，`"card"` 对应 `:::card`。省略表示文档写不出 |
 | `:summary` | 字符串 | 一行说明，进帮助与报错 |
-| `:attrs` | 属性表 | 这个类型的全部属性，每项带 `:from` |
+| `:attrs` | 属性表 | 这个类型的全部属性，派生的写 `:derived t` |
 | `:accepts` | 子块表 | 收哪些子块。有它就是父类型，没有就是任意块 |
 | `:contract` | 整数，当前 `1` | 文档侧属性表的版本，见 10.6 |
 | `:view` | 函数 | `(lambda (env) VIEW)`，默认画法 |
@@ -1179,18 +1177,18 @@ print("hi")
 每项写五件事：名字、类型、值域、谁写、默认值。缺一件就是加载错误。
 
 ```elisp
-(title  :type string :from document :required t :pattern "\\S" :doc "卡片标题")
-(accent :type accent :from document :default neutral :one-of (neutral warning) :doc "强调")
-(level  :type number :from machine  :min 1 :max 6 :integer t :doc "井号个数")
-(prefix :type string :from reader   :default "" :doc "显示前缀")
+(title  :type string :required t :pattern "\\S" :doc "卡片标题")
+(accent :type accent :default neutral :one-of (neutral warning) :doc "强调")
+(level  :type number :derived t :min 1 :max 6 :integer t :doc "井号个数")
+(prefix :type string :default "" :doc "显示前缀")
 ```
 
 | 字段 | 必写 | 说明 |
 | --- | --- | --- |
 | `:type` | 是 | `string`、`number`、`boolean`、`length`、`surface`、`accent`、`align`、`enum`、`color` |
-| `:from` | 是 | `document`、`reader`、`machine` |
-| `:default` | 否 | 不写就是 `nil`。`:from machine` 的通常不写 |
-| `:required` | 否 | 只对 `:from document` 有效，与 `:default` 互斥 |
+| `:derived` | 否 | 写 `t` 表示派生属性，文本里没有写法；不写就是普通属性 |
+| `:default` | 否 | 不写就是 `nil`。派生属性不用写，值由解析或派生给 |
+| `:required` | 否 | 只对普通属性有效，与 `:default` 互斥 |
 | `:pattern` | 否 | 只对 `string` |
 | `:min`、`:max`、`:integer` | 否 | 只对 `number` |
 | `:one-of` | 否 | `enum` 必写；三个语义类型可用来收窄 |
@@ -1198,9 +1196,8 @@ print("hi")
 
 四条规则。
 
-- **`:from machine` 的属性**：文档写不出，读者也改不了，但样式规则的选择器可以按它选。
-- **`:from reader` 的属性**：文档写不出，只能出现在样式规则里。
-- **外观属性**（`surface`、`accent`、`align`）必须是 `:from document`，读者的规则可以盖掉它。
+- **派生属性**（`:derived t`）：文档写不出，读者改不了，但样式规则的选择器可以按它选。
+- **普通属性**：文档写得进，读者也能用 `set-attr` 盖掉。
 - **子块表** `:accepts` 的每项写法相同，只多一个 `title`，由渲染器提供，定义不要重复声明。
 
 ### 10.3 一个值怎么定下来
@@ -1214,7 +1211,7 @@ print("hi")
 | 3 | 声明里的 `:default` | `neutral` |
 | 4 | 解析或派生写的值 | `level=2`、`number="1.1"` |
 
-前三条对 `:from document` 与 `:from reader` 的属性生效。第 4 条是 `:from machine` 属性的唯一来源，其余三层对它不生效。
+前三条对普通属性生效。第 4 条是派生属性的唯一来源，其余三层对它不生效。
 
 ### 10.4 画法默认用 DSL
 
@@ -1238,7 +1235,7 @@ print("hi")
      (box :background-color (etaf-md-surface env (etaf-md-attr env :background))
        (expr (etaf-md-default-view env)))))
   :extends t
-  :style-keys '((background :type surface :from reader :default none :doc "标题底色")))
+  :style-keys '((background :type surface :default none :doc "标题底色")))
 ```
 
 | 部分 | 含义 |
@@ -1290,6 +1287,8 @@ print("hi")
 - 一个 session 创建时读一次注册表，之后不再读盘。改了定义要 `r` 重载，或者重开预览。
 - 文档不能注册类型，也不能执行 Elisp。分享文档不等于分享代码。
 - **契约版本由文档自己声明。** front matter 里可以写 `contract: 1`；不写就按当前版本处理。
+- **注册表是一个变量，不是藏在函数里。** `etaf-md-node-definitions` 存着类型到定义的表，内置定义与用户定义都在其中，一个类型一条。
+- **派生属性从注册表读。** `(etaf-md-derived-attributes 'heading)` 给出 `(level number)`，派生阶段按它填值，校验按它拒绝文档写法，`describe-nodes` 按它打印。附录 A.2 就是这张表的印刷版。
 
 ### 10.8 调试
 
@@ -1370,72 +1369,85 @@ heading            内置语法，文档写不出名字
 
 ## 附录 A：属性参考
 
-三张表，按 `:from` 分。类型只从这里挑名字，不发明同义词。
+两张表。普通属性文档写得进、读者盖得掉；派生属性由解析或派生阶段给，谁都写不进。类型只从这里挑名字，不发明同义词。
 
-### A.1 文档属性（`:from document`）
+### A.1 普通属性
 
-| 属性 | 类型 | 值域 | 含义 | 用在 |
-| --- | --- | --- | --- | --- |
-| `title` | string | 可选 `:pattern` | 标题文字 | 提示块、card、steps、timeline、file-tree、accordion、table、window；子块里是 tab、step、event、stat、collapse |
-| `description` | string | | 标题下的摘要 | card |
-| `surface` | surface | 五个面 | 底色 | box、card |
-| `accent` | accent | 六个强调 | 强调 | box、card、提示块 |
-| `text-align` | align | 三个位置 | 内容水平位置 | box、card |
-| `width` | length | `ch`、`lh`、`%` | 自身宽度，省略即占满 | box、card |
-| `height` | length | 同上 | 内容区高度，省略即由内容决定 | window |
-| `padding` | length | 同上 | 内边距 | box、columns |
-| `gap` | length | 同上 | 项间距 | columns |
-| `columns` | number | `:min 1`、`:max 6`、`:integer t` | 栏数 | columns、stats |
-| `min-width` | length | | 最小栏宽 | columns |
-| `align-items` | enum | start center end stretch | 项的交叉轴对齐 | columns |
-| `justify-content` | enum | start center end between | 项的主轴对齐 | columns |
-| `align-self` | enum | start center end | 自身在父级里的位置 | columns |
-| `wrap` | boolean | | 放不下时换行 | columns |
-| `list-style` | enum | decimal bullet none | 列表记号 | steps、timeline |
-| `start` | number | `:integer t` | 起始编号 | steps |
-| `open` | boolean | | 默认展开 | 提示块、collapse 子块 |
-| `collapsible` | boolean | | 允许收起 | 提示块 |
-| `selected` | boolean | | 这一项默认选中 | tab 子块 |
-| `href` | string | | 跳转地址 | card |
-| `label-width` | length | | 名称列宽 | field |
-| `separator` | enum | colon none | 名称与值的分隔 | field |
-| `self` | enum | left right | 自己一侧 | chat |
-| `highlight-rows` | string | 空格分隔的行号 | 高亮行 | table |
-| `highlight-columns` | string | 空格分隔的列号 | 高亮列 | table |
-| `highlight` | accent | 六个强调 | 高亮用哪个强调 | table |
-| `lines` | boolean | | 画不画树线 | file-tree |
-| `id` | string | `:pattern "^[^\\s]+$"` | 稳定锚点 | 所有块 |
+| 属性 | 类型 | 值域 | 默认 | 含义 | 用在 |
+| --- | --- | --- | --- | --- | --- |
+| `title` | string | 可选 `:pattern` | 无 | 标题文字 | 提示块、card、steps、timeline、file-tree、accordion、table、window；子块里是 tab、step、event、stat、collapse |
+| `description` | string | | 无 | 标题下的摘要 | card |
+| `href` | string | | 无 | 跳转地址 | card |
+| `id` | string | `:pattern "^[^\\s]+$"` | 无 | 稳定锚点 | 所有块 |
+| `surface` | surface | 五个面 | 见 6.x | 底色 | box、card |
+| `accent` | accent | 六个强调 | 见 6.x | 强调 | box、card、提示块 |
+| `text-align` | align | 三个位置 | start | 内容水平位置 | box、card |
+| `width` | length | `ch`、`lh`、`%` | 省略即占满 | 自身宽度 | box、card |
+| `height` | length | 同上 | 省略即由内容决定 | 内容区高度 | window |
+| `padding` | length | 同上 | 无 | 内边距 | box、columns |
+| `gap` | length | 同上 | 2ch | 项间距 | columns |
+| `columns` | number | `:min 1`、`:max 6`、`:integer t` | 2 | 栏数 | columns、stats |
+| `min-width` | length | | 24ch | 最小栏宽 | columns |
+| `align-items` | enum | start center end stretch | stretch | 项的交叉轴对齐 | columns |
+| `justify-content` | enum | start center end between | start | 项的主轴对齐 | columns |
+| `align-self` | enum | start center end | start | 自身在父级里的位置 | columns |
+| `wrap` | boolean | | false | 放不下时换行 | columns |
+| `list-style` | enum | decimal bullet none | bullet | 列表记号 | steps、timeline |
+| `start` | number | `:integer t` | 1 | 起始编号 | steps |
+| `open` | boolean | | false | 默认展开 | 提示块、collapse 子块 |
+| `collapsible` | boolean | | false | 允许收起 | 提示块 |
+| `selected` | boolean | | false | 这一项默认选中 | tab 子块 |
+| `label-width` | length | | 自动 | 名称列宽 | field |
+| `separator` | enum | colon none | colon | 名称与值的分隔 | field |
+| `self` | enum | left right | left | 自己一侧 | chat |
+| `highlight-rows` | string | 空格分隔的行号 | 无 | 高亮行 | table |
+| `highlight-columns` | string | 空格分隔的列号 | 无 | 高亮列 | table |
+| `highlight` | accent | 六个强调 | warning | 高亮用哪个强调 | table |
+| `lines` | boolean | | true | 画不画树线 | file-tree |
+| `background` | surface 或色值 | 五个面，或字面色 | none | 底色 | quote、code、table、callout |
+| `color` | color | 令牌，或字面色 | heading | 字色 | heading、strong、em、link、code |
+| `font-weight` | enum | normal bold | bold | 字重 | heading、strong |
+| `font-style` | enum | normal italic | normal | 倾斜 | em、quote |
+| `text-decoration` | enum | none underline | none | 装饰线 | link、strong |
+| `prefix` | string | | `""` | 标题前缀，不影响锚点 | heading |
+| `numbering` | enum | none decimal lower-roman upper-alpha | decimal | 章节号的格式，派生阶段读 | heading、table |
+| `margin-top` | length | | `0` | 上间距 | heading、quote、code、table |
+| `margin-bottom` | length | | `0` | 下间距 | heading、quote、code、table |
+| `border-left-width` | length | | `1ch` | 左侧竖条宽度 | quote、callout |
+| `label-color` | color | | muted | 围栏语言标签 | code |
+| `header-background` | surface 或色值 | | table-header | 表头底 | table |
+| `stripe-background` | surface 或色值 | | table-stripe | 条纹底 | table |
 
-### A.2 读者属性（`:from reader`）
+一个类型只声明它用得上的那几个，其余不必出现。
 
-| 属性 | 类型 | 值域 | 默认 | 含义 |
-| --- | --- | --- | --- | --- |
-| `background` | surface 或色值 | 五个面，或字面色 | none | 底色 |
-| `color` | color | 令牌，或字面色 | heading | 字色 |
-| `font-weight` | enum | normal bold | bold | 字重 |
-| `font-style` | enum | normal italic | normal | 倾斜 |
-| `text-decoration` | enum | none underline | none | 装饰线 |
-| `prefix` | string | | `""` | 标题前缀，不影响锚点 |
-| `numbering` | enum | none decimal lower-roman upper-alpha | decimal | 章节号格式，派生读 |
-| `margin-top` | length | | `0` | 上间距 |
-| `margin-bottom` | length | | `0` | 下间距 |
-| `border-left-width` | length | | `1ch` | 左侧竖条宽度 |
-| `label-color` | color | | muted | 围栏语言标签 |
-| `header-background` | surface 或色值 | | table-header | 表头底 |
-| `stripe-background` | surface 或色值 | | table-stripe | 条纹底 |
-| `list-style` | enum 或字符 | decimal bullet none，或 4.6 允许的单个字符 | bullet | 列表记号 |
+### A.2 派生属性
 
-一个类型只声明它用得上的那几个，`describe-nodes` 打印出来。
+文档写不出，读者改不了，但样式规则的选择器可以按它选。
 
-### A.3 机器属性（`:from machine`）
+| 类型 | 派生属性 | 谁填 |
+| --- | --- | --- |
+| `heading` | `level`、`number` | 解析器给 `level`，派生给 `number` |
+| `code` | `language` | 解析器 |
+| `table` | `number` | 派生 |
+| 其余类型 | 没有 | — |
 
-| 属性 | 类型 | 含义 | 用在 |
-| --- | --- | --- | --- |
-| `level` | number | 井号个数，1 到 6 | heading |
-| `language` | string | 围栏代码的语言名 | code |
-| `number` | string | 派生算好的章节号，例如 `1.1` | heading、table |
+这张表在代码里是一个变量，内置定义就写在其中，所以代码不用猜：
 
-机器属性文档写不出、读者改不了，但样式规则的选择器可以按它选。
+```elisp
+;; 注册表：类型 → 定义。内置定义与用户定义都在这里，一个类型一条
+(defvar etaf-md-node-definitions
+  '((heading . (:summary "标题，级别由 # 的个数决定"
+                :attrs ((level  :type number :derived t :min 1 :max 6 :integer t)
+                        (number :type string :derived t)
+                        (prefix :type string :default ""))
+                :view my-heading-view))
+    (code    . (:attrs ((language :type string :derived t))
+                :view my-code-view))))
+
+;; 取某个类型的派生属性名，派生阶段与校验都读它
+(etaf-md-derived-attributes 'heading)   ; => (level number)
+(etaf-md-derived-attributes 'paragraph) ; => nil
+```
 
 ## 附录 B：底色、强调与令牌
 
@@ -1473,7 +1485,7 @@ heading            内置语法，文档写不出名字
 | --- | --- |
 | 最终值 | 命中的规则按表顺序叠加，同一个键后者赢；没有规则提到这个键，取节点属性值；属性也没有，取声明里的 `:default` |
 | 选择范围 | 选择器里的属性必须在该类型声明过，写错整条规则忽略并报一行 |
-| 键的合法性 | 键必须是 `:from reader` 的属性，或外观属性（`surface`、`accent`、`align`） |
+| 键的合法性 | 键必须是该类型的普通属性；派生属性只能出现在选择器里 |
 
 三种特殊值。
 
@@ -1606,7 +1618,7 @@ heading            内置语法，文档写不出名字
 | `:extends` / `:replace` | 通用 | 覆盖的内置定义 | `:override`、`:merge` |
 | `:style-keys` | 本表命名规矩 | 换画法时新加的属性 | `:keys` |
 | `:type` | JSON Schema | 属性的类型 | `:kind`、`:value-type` |
-| `:from` | 本表命名规矩 | 谁写这个值 | `:source`、`:read-only` |
+| `:derived` | 本表命名规矩 | 派生属性，文本里没有写法 | `:read-only`、`:computed`、`:source` |
 | `:default` | JSON Schema | 默认值 | `:fallback` |
 | `:required` | JSON Schema | 必填 | `:mandatory` |
 | `:pattern` | JSON Schema | `string` 的正则 | `:regex` |
@@ -1626,6 +1638,8 @@ heading            内置语法，文档写不出名字
 | `etaf-md-describe-nodes` | 列出注册表 |
 | `etaf-md-doctor` | 诊断 |
 | `etaf-md-node-directory` | 用户定义的目录 |
+| `etaf-md-node-definitions` | 注册表：类型 → 定义，内置与用户都在里面 |
+| `etaf-md-derived-attributes` | 取一个类型的派生属性名 |
 | `etaf-md-styles` | 样式规则表 |
 | `etaf-md-attr` | 读一个属性的最终值 |
 | `etaf-md-type` | 读类型名 |
@@ -1661,8 +1675,8 @@ heading            内置语法，文档写不出名字
 (etaf-md-define-node 'card
   :name "card"
   :summary "一张带标题的卡片"
-  :attrs '((title  :type string :from document :required t :pattern "\\S" :doc "卡片标题")
-           (accent :type accent :from document :default neutral          :doc "强调"))
+  :attrs '((title  :type string :required t :pattern "\\S" :doc "卡片标题")
+           (accent :type accent :default neutral          :doc "强调"))
   :view (lambda (env)
           (etaf-view
            (etaf-card :title (etaf-md-attr env :title)
@@ -1722,13 +1736,13 @@ heading            内置语法，文档写不出名字
 ```elisp
 (etaf-md-define-node 'heading
   :summary "标题，级别由 # 的个数决定"
-  :attrs '((level  :type number :from machine :min 1 :max 6 :integer t :doc "井号个数")
-           (number :type string :from machine                             :doc "章节号，不编号时没有")
-           (font-weight :type enum  :from reader :one-of (normal bold)     :default bold    :doc "字重")
-           (color      :type color  :from reader                          :default heading :doc "字色")
-           (prefix     :type string :from reader                          :default ""      :doc "显示前缀")
-           (numbering  :type enum  :from reader :one-of (none decimal lower-roman upper-alpha)
-                       :default decimal :doc "章节号格式，派生阶段读"))
+  :attrs '((level  :type number :derived t :min 1 :max 6 :integer t :doc "井号个数")
+           (number :type string :derived t                            :doc "章节号，不编号时没有")
+           (font-weight :type enum :one-of (normal bold)     :default bold    :doc "字重")
+           (color      :type color                           :default heading :doc "字色")
+           (prefix     :type string                          :default ""      :doc "显示前缀")
+           (numbering  :type enum  :one-of (none decimal lower-roman upper-alpha)
+                       :default decimal :doc "章节号的格式，派生阶段读"))
   :view (lambda (env)
           (etaf-view
            (text :font-weight (etaf-md-attr env :font-weight)
