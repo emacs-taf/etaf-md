@@ -349,6 +349,14 @@ pixels below itself.  A picture now takes the size of the page it sits on.
 - A table caption stands on its own line: one blank row separates it from the
   header, so a caption no longer reads as part of the first row.
 
+- The callout family reads `info` and `danger` as well, and `:::details`
+  folds one block at a time.  A `collapse` child takes an `index` for its
+  order, and the group takes `expand` and `accordion` so it can open every
+  fold or allow several at once.
+- `:::left`, `:::center`, `:::right` and `:::justify` align a body the way
+  their names say; `card` takes an `icon`; and `window` takes `gap` and
+  `no-padding` for its content area.
+
 - The site component catalog joins the prose containers: `home-box`,
   `image-card`, `link-card`, `npm-badge`, `qrcode`, `swiper`,
   `code-tree` and `npm-to`.  `swiper` and `code-tree` use the same `@name`

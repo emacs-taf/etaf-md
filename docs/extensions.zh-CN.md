@@ -663,7 +663,7 @@ line 44: 第 9 层嵌套超过上限 8 层
 > 这段只在 Emacs 30 及以上可用。
 ```
 
-计划中的容器写法，五条定义共用一套属性和一份画法。
+容器写法已实现：七个名字共用一套属性和一份画法，`details` 是同一族里的单块折叠，见 6.13。
 
 | 属性 | 类型 | 默认 | 说明 |
 | --- | --- | --- | --- |
@@ -679,7 +679,7 @@ line 44: 第 9 层嵌套超过上限 8 层
 :::
 ```
 
-两个写法渲染成同一个东西，画法只有一份。名字到强调值的映射是固定的：`note` 对 `primary`，`tip` 对 `success`，`important` 对 `important`，`warning` 对 `warning`，`caution` 对 `danger`。
+两个写法渲染成同一个东西，画法只有一份。名字到强调值的映射是固定的：`note` 与 `info` 对 `primary`，`tip` 对 `success`，`important` 对 `important`，`warning` 对 `warning`，`caution` 与 `danger` 对 `danger`。固定标题分别是 Note、Info、Tip、Important、Warning、Caution、Danger。
 
 为什么两条路都留。GitHub 上的文档粘贴过来就能用，这是最常见的入口；写长文档时容器写法能和别的容器对齐，也能带属性。
 
@@ -688,6 +688,7 @@ line 44: 第 9 层嵌套超过上限 8 层
 | 属性 | 类型 | 默认 | 说明 |
 | --- | --- | --- | --- |
 | `title` | string | 无 | 标题，省略就不画标题行 |
+| `icon` | string | 无 | 标题前的图标名，取自图标集 |
 | `description` | string | 无 | 标题下一行灰色摘要 |
 | `accent` | accent | `neutral` | 见 4.1 |
 | `href` | string | 无 | 整张卡片可点，跳到这个地址 |
@@ -699,6 +700,8 @@ line 44: 第 9 层嵌套超过上限 8 层
 组件：`etaf-card`，默认槽接正文，`title` 和 `description` 直接对应。卡片底色就是组件的面板色，所以 `card` 不再声明 `surface`。
 
 ### 6.4 盒子
+
+四个对齐容器：`:::left`、`:::center`、`:::right`、`:::justify`。它们只做一件事，把整段正文按名字对齐；正文里照常写块。
 
 | 属性 | 类型 | 默认 | 说明 |
 | --- | --- | --- | --- |
@@ -892,7 +895,11 @@ print("hi")
 
 子块是 `collapse`，放在 `:::accordion` 里，同时只开一块。只有一项时就是普通的一折。
 
-子块的属性：`title` 必填（收起时的标题），`open` 可选（布尔，默认 `false`）。
+子块的属性：`title` 必填（收起时的标题），`open` 可选（布尔，默认 `false`），`index` 可选（显示顺序，省略按书写顺序）。
+
+组本身的属性：`expand` 可选（布尔，默认 `false`，打开时所有块都展开），`accordion` 可选（布尔，默认 `true`，同时只开一块；写成 `false` 可以开多块）。
+
+`:::details` 是同一族里的单块折叠，默认收起，属性是 `title` 与 `open`。
 
 ````markdown
 :::accordion
@@ -960,6 +967,8 @@ print("hi")
 | --- | --- | --- | --- |
 | `title` | string | 无 | 标题栏文字 |
 | `height` | length | 省略即由内容决定 | 内容区高度 |
+| `gap` | length | 省略即不留 | 标题栏与内容之间的空行 |
+| `no-padding` | boolean | `false` | 内容区不留内边距 |
 
 ```markdown
 :::window {title="etaf-md-preview"}

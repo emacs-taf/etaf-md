@@ -97,6 +97,7 @@ Vertical space is a whole number of lines, so a width unit draws none."
   :name "card"
   :summary "带标题与摘要的卡片"
   :attrs '((title       :type string :required t :pattern "[^[:space:]]" :doc "卡片标题")
+           (icon        :type string                          :doc "标题前的图标名")
            (description :type string                          :doc "标题下的一行")
            (href        :type string                          :doc "整张卡片可点")
            (accent      :type accent  :default neutral        :doc "标题的强调色")
@@ -106,6 +107,7 @@ Vertical space is a whole number of lines, so a width unit draws none."
           (let ((href (etaf-md-attr env :href)))
             (etaf-view
              (etaf-card :title (etaf-md-attr env :title)
+                        :icon (etaf-md-attr env :icon)
                         :description (etaf-md-attr env :description)
                         :variant (etaf-md-attr env :accent)
                         :width (or (etaf-md-attr env :width) 'stretch)
@@ -237,15 +239,17 @@ its own `fr' share or fixed size."
   "Return the accent word a callout TYPE fixes."
   (pcase type
     ('note 'primary)
+    ('info 'primary)
     ('tip 'success)
     ('important 'important)
     ('warning 'warning)
     ('caution 'danger)
+    ('danger 'danger)
     (_ 'neutral)))
 
 (defconst etaf-md--callout-titles
-  '((note . "Note") (tip . "Tip") (important . "Important")
-    (warning . "Warning") (caution . "Caution"))
+  '((note . "Note") (info . "Info") (tip . "Tip") (important . "Important")
+    (warning . "Warning") (caution . "Caution") (danger . "Danger"))
   "The fixed title each callout name draws when the document gives none.")
 
 (defconst etaf-md--callout-attrs
@@ -298,12 +302,47 @@ COMMAND runs when the line is activated."
                     (list title))))
       (when open (list (etaf-md-content env)))))))
 
-(dolist (type '(note tip important warning caution))
+(dolist (type '(note info tip important warning caution danger))
   (etaf-md--define-shipped type
     :name (symbol-name type)
     :summary "提示块，一个名字一个固定强调色"
     :attrs etaf-md--callout-attrs
     :view #'etaf-md--callout-view))
+
+;;; A single fold and the alignment containers
+
+(etaf-md--define-shipped 'details
+  :name "details"
+  :summary "一整块的折叠区，默认收起"
+  :attrs '((title :type string  :doc "收起时的标题")
+           (open  :type boolean :default nil :doc "默认展开"))
+  :view
+  (lambda (env)
+    (let* ((block (etaf-md--block-identity env))
+           (title (or (etaf-md-attr env :title) "详情"))
+           (open (etaf-md-block-state env :open (etaf-md-attr env :open))))
+      (etaf-view
+        (etaf-accordion
+         :items (list (list :key 0
+                            :ref (intern (format "etaf-md-details-%s" block))
+                            :label title
+                            :content (lambda () (etaf-md-content env))))
+         :open (when open '(0))
+         :multiple t
+         :on-toggle (lambda (opened)
+                      (etaf-md-set-block-state env :open opened)))))))
+
+(defun etaf-md--align-view (env)
+  "Paint ENV's body with the alignment its own container name asks for."
+  (etaf-view
+    (box :width 'stretch :text-align (etaf-md-type env)
+      (expr (etaf-md-content env)))))
+
+(dolist (type '(left center right justify))
+  (etaf-md--define-shipped type
+    :name (symbol-name type)
+    :summary "把正文按这个方向对齐"
+    :view #'etaf-md--align-view))
 
 ;;; Sequences
 
@@ -604,15 +643,26 @@ frame and its colours; only the language row is left out."
 
 (etaf-md--define-shipped 'accordion
   :name "accordion"
-  :summary "折叠组，同时只开一块"
+  :summary "折叠组，默认同时只开一块"
+  :attrs '((expand    :type boolean :default nil :doc "打开时所有块都展开")
+           (accordion :type boolean :default t   :doc "同时只开一块；false 可以开多块"))
   :accepts '((collapse :attrs ((title :type string :required t :doc "收起时的标题")
-                               (open  :type boolean :default nil :doc "默认展开"))))
+                               (open  :type boolean :default nil :doc "默认展开")
+                               (index :type number :integer t :min 0
+                                      :doc "显示顺序，省略按书写顺序"))))
   :view (lambda (env)
-          (let* ((collapses (etaf-md-children env))
-                 ;; The header Hosts carry stable refs, so a repaint of the
-                 ;; page updates a title in place instead of leaving the
-                 ;; previous header above the open one.
-                 (block (etaf-md--block-identity env)))
+          (let* ((block (etaf-md--block-identity env))
+                 (expand (etaf-md-attr env :expand))
+                 ;; A document may number its folds; the display order follows
+                 ;; those numbers and unnumbered folds keep their own order.
+                 (collapses (seq-sort-by
+                             (lambda (collapse)
+                               (or (etaf-md-attr env :index collapse)
+                                   most-positive-fixnum))
+                             #'<
+                             (etaf-md-children env)))
+                 (count (length collapses))
+                 (all (number-sequence 0 (1- count))))
             (etaf-view
              (etaf-accordion
               :items (seq-map-indexed
@@ -624,10 +674,13 @@ frame and its colours; only the language row is left out."
                               :content (lambda () (etaf-md--child-view env collapse))))
                       collapses)
               :open (or (etaf-md-block-state env :open)
-                        (seq-filter (lambda (index)
-                                      (etaf-md-attr env :open (nth index collapses)))
-                                    (number-sequence 0 (1- (length collapses)))))
-              :multiple nil
+                        (if expand
+                            all
+                          (seq-filter
+                           (lambda (index)
+                             (etaf-md-attr env :open (nth index collapses)))
+                           all)))
+              :multiple (not (etaf-md-attr env :accordion))
               :on-toggle (lambda (open)
                            (etaf-md-set-block-state env :open open)))))))
 
@@ -732,25 +785,32 @@ frame and its colours; only the language row is left out."
 (etaf-md--define-shipped 'window
   :name "window"
   :summary "带标题栏的演示窗口"
-  :attrs '((title  :type string :doc "标题栏文字")
-           (height :type length :doc "内容区高度"))
+  :attrs '((title      :type string  :doc "标题栏文字")
+           (height     :type length  :doc "内容区高度")
+           (gap        :type length  :doc "标题栏与内容之间的空行")
+           (no-padding :type boolean :default nil :doc "内容区不留内边距"))
   :view (lambda (env)
-          (etaf-view
-           (column :width 'stretch :item-gap '(lh 0)
-                   :border (etaf-md--hairline env)
-                   :overflow 'hidden
-             ;; The title bar is the catalog's own window chrome, so the
-             ;; traffic lights are the same Mac-style control the desktop
-             ;; applications use instead of three look-alike glyphs.
-             (etaf-window-chrome
-              :title (or (etaf-md-attr env :title) "")
-              :active t
-              :show-minimize t :show-maximize t :show-close t)
-             (box :width 'stretch
-                  :padding '((lh 1) (ch 2))
-                  :height (etaf-md-attr env :height)
-                  :overflow (and (etaf-md-attr env :height) 'hidden)
-               (expr (etaf-md-content env)))))))
+          (let ((padded (not (etaf-md-attr env :no-padding)))
+                (gap (etaf-md--vertical-length (etaf-md-attr env :gap))))
+            (etaf-view
+             (column :width 'stretch :item-gap '(lh 0)
+                     :border (etaf-md--hairline env)
+                     :overflow 'hidden
+               ;; The title bar is the catalog's own window chrome, so the
+               ;; traffic lights are the same Mac-style control the desktop
+               ;; applications use instead of three look-alike glyphs.
+               (etaf-window-chrome
+                :title (or (etaf-md-attr env :title) "")
+                :active t
+                :show-minimize t :show-maximize t :show-close t)
+               ;; GAP is space the document asked for; it belongs between the
+               ;; bar and the content, not inside the content's padding.
+               (box :width 'stretch
+                    :margin-top gap
+                    :padding (when padded '((lh 1) (ch 2)))
+                    :height (etaf-md-attr env :height)
+                    :overflow (and (etaf-md-attr env :height) 'hidden)
+                 (expr (etaf-md-content env))))))))
 
 
 ;;; Text blocks

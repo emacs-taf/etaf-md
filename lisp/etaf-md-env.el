@@ -105,7 +105,7 @@ edge.  The palette supplies the fallback for a page mounted without a Theme."
 A style rule wins over the document, the document over the declaration's
 default, and a derived attribute has only the value the parser or the derive
 step wrote."
-  (etaf-md--value (or node (etaf-md-env-node env)) key))
+  (etaf-md--value (or node (etaf-md-env-node env)) key env))
 
 (defun etaf-md-type (env)
   "Return the type name of ENV's node."

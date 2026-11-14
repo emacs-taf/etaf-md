@@ -1652,6 +1652,54 @@ carries both titles and each card keeps its own body."
         (should (string-match-p "左栏正文" text))
         (should (string-match-p "右栏正文" text))))))
 
+(ert-deftest etaf-md-tests-folds-details-and-alignment-paint ()
+  "The catalog's later containers paint their own text.
+The eight callout names share one view, a details block starts closed and
+opens when its attribute says so, an alignment container paints its body,
+and the window's spacing attributes do not break its content."
+  (let ((session (etaf-md-create
+                  :text (concat
+                         ":::info\n信息正文。\n:::\n\n"
+                         ":::danger\n危险正文。\n:::\n\n"
+                         ":::details {title=\"收起的详情\"}\n详情正文。\n:::\n\n"
+                         ":::details {title=\"展开的详情\" open=true}\n展开的正文。\n:::\n\n"
+                         ":::center\n居中正文。\n:::\n\n"
+                         ":::right\n靠右正文。\n:::\n\n"
+                         ":::window {title=\"示例窗口\" gap=\"1lh\" height=\"3lh\" no-padding=true}\n窗口正文。\n:::\n")
+                  :theme 'dark)))
+    (etaf-md-tests--with-mount session
+      (switch-to-buffer (current-buffer))
+      (etaf-runtime-flush (etaf-runtime-for-buffer (current-buffer)))
+      (let ((text (buffer-string)))
+        (should (string-match-p "Info" text))
+        (should (string-match-p "Danger" text))
+        (should (string-match-p "信息正文" text))
+        (should (string-match-p "危险正文" text))
+        (should (string-match-p "收起的详情" text))
+        (should-not (string-match-p "详情正文" text))
+        (should (string-match-p "展开的正文" text))
+        (should (string-match-p "居中正文" text))
+        (should (string-match-p "靠右正文" text))
+        (should (string-match-p "示例窗口" text))
+        (should (string-match-p "窗口正文" text))))))
+
+(ert-deftest etaf-md-tests-a-child-boolean-set-to-false-is-off ()
+  "A collapse written `open=false' starts closed.
+The attribute belongs to the container's `:accepts', so its type is read
+there; a raw string would open the section instead."
+  (let ((session (etaf-md-create
+                  :text (concat ":::accordion\n"
+                                ":::collapse {title=\"甲\" open=false}\n隐藏正文。\n:::\n"
+                                ":::collapse {title=\"乙\" open=true}\n可见正文。\n:::\n"
+                                ":::\n")
+                  :theme 'dark)))
+    (etaf-md-tests--with-mount session
+      (switch-to-buffer (current-buffer))
+      (etaf-runtime-flush (etaf-runtime-for-buffer (current-buffer)))
+      (let ((text (buffer-string)))
+        (should (string-match-p "可见正文" text))
+        (should-not (string-match-p "隐藏正文" text))))))
+
 (ert-deftest etaf-md-tests-tab-keys-open-the-next-page ()
   "TAB enters the strip, Right moves focus, RET opens the page."
   (let ((session (etaf-md-create

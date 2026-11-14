@@ -101,6 +101,105 @@ Plume 的 `flex` 和 `card-grid` 在这套语法里都是 `columns`：数字是�
 :::
 :::
 
+## 提示块
+
+八个名字共用同一个视图，只是强调色和固定标题不同。
+
+:::note {title="Note 是默认标题"}
+标题可以覆盖。
+:::
+
+:::info
+info 与 note 同色，名字不同。
+:::
+
+:::tip {title="提示"}
+成功色。
+:::
+
+:::important
+重要色。
+:::
+
+:::warning
+警告色。
+:::
+
+:::caution
+注意色。
+:::
+
+:::danger {title="危险"}
+危险色。
+:::
+
+:::note {collapsible=true title="可收起的提示"}
+点标题收起或展开。
+:::
+
+## 对齐
+
+:::center
+这一行居中。
+:::
+
+:::right
+这一行靠右。
+:::
+
+:::justify
+两端对齐适合较长的说明文字。它会把每一行的两端都排齐，只在最后一行留出自然的空隙，读起来像排过版的正文而不是随手写的段落。
+:::
+
+## 折叠与详情
+
+:::details {title="默认收起的一块"}
+这里的正文只在展开后出现。
+:::
+
+:::details {title="默认展开的一块" open=true}
+打开页面时就能看到这段正文。
+:::
+
+:::accordion
+:::collapse {title="第二块"}
+这里同时只开一块。
+:::
+:::collapse {title="第一块" index=1 open=true}
+`index` 决定显示顺序。
+:::
+:::
+
+:::accordion {accordion=false}
+:::collapse {title="可以同时打开的一"}
+:::
+:::collapse {title="可以同时打开的二" open=true}
+这一块默认就展开，可以和上面那块一起开着。
+:::
+:::
+
+## 卡片图标与窗口
+
+:::columns {columns=2 divider=false}
+:::col
+:::card {title="带图标的卡片" icon="check" description="图标跟标题在同一行。"}
+卡片正文。
+:::
+:::
+:::col
+:::card {title="没有图标的卡片" description="默认什么都不画。"}
+:::
+:::
+:::
+
+:::window {title="带间距的窗口" gap="1lh" height="6lh"}
+窗口内容区可以定高，`gap` 在标题栏下留一行。
+:::
+
+:::window {title="不留内边距" no-padding=true height="4lh"}
+`no-padding` 让内容贴着边框。
+:::
+
 ## 链接卡片
 
 :::link-card {href="https://etaf.top/" title="ETAF 主页" description="整张卡片都可以点，箭头下面是目标地址。"}

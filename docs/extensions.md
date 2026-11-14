@@ -692,6 +692,8 @@ Component: `etaf-card`, whose default slot takes the body and whose `title` and 
 
 ### 6.4 Box
 
+Four alignment containers: `:::left`, `:::center`, `:::right` and `:::justify`.  Each does one thing, aligning the whole body the way its name says; blocks inside are written as usual.
+
 | Attribute | Type | Default | Meaning |
 | --- | --- | --- | --- |
 | `surface` | surface | `none` | See 4.1 |

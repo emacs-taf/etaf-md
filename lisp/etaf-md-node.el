@@ -448,12 +448,31 @@ Later rules win, as the table is kept in order."
         (plist-get (etaf-md-node-definition type) :derived) key)
        t))
 
-(defun etaf-md--value (node key)
-  "Return KEY's final value on NODE, following article 10.3."
+(defun etaf-md--parent-declaration (parent node key)
+  "Return KEY's declaration for NODE among PARENT's accepted children.
+A child block is declared by the container that accepts it; the child's own
+type has no definition to read from."
+  (let* ((definition (etaf-md-node-definition
+                      (etaf-md-node-type (etaf-md-env-node parent))))
+         (accepts (plist-get definition :accepts))
+         (entry (and accepts (assq (etaf-md-node-type node) accepts)))
+         (decls (and (consp (cdr-safe entry))
+                     (etaf-md--declarations (plist-get (cdr entry) :attrs)))))
+    (and decls (etaf-md--declaration decls key))))
+
+(defun etaf-md--value (node key &optional parent)
+  "Return KEY's final value on NODE, following article 10.3.
+PARENT, when given, is the environment node whose `:accepts' declares NODE's
+attributes; a child block is declared by its container, so its type has no
+definition of its own to read the declaration from."
   (let* ((type (etaf-md-node-type node))
          (definition (etaf-md-node-definition type))
          (derived (etaf-md--declaration (plist-get definition :derived) key))
+         (child-decl
+          (when (and parent (not (eq node (etaf-md-env-node parent))))
+            (etaf-md--parent-declaration parent node key)))
          (decl (or derived
+                   child-decl
                    (etaf-md--declaration (plist-get definition :attrs) key)))
          (rule (etaf-md--rule-value node key))
          (raw (cond
