@@ -154,32 +154,35 @@ in both palettes."
            (title (etaf-md-attr env :title))
            (description (etaf-md-attr env :description))
            (href (etaf-md-attr env :href))
-           (max-columns (min (or (etaf-md-attr env :width) 46)
-                             (max 20 (- (etaf-md-env-width env) 2))))
            (view-env (etaf-md--component-view-env env))
+           (max-columns (min (or (etaf-md-attr env :width) 46)
+                             (max 20 (- (etaf-md-env-width env) 4))))
            (grid (etaf-md--media-picture-size src view-env max-columns 14))
            (columns (if grid (car grid) max-columns))
+           (body (list 'ch columns))
            (muted (etaf-md--component-ink env :muted)))
-      ;; A frame around a picture cannot line up: the picture is drawn in
-      ;; whole character cells and the box is measured in ch, so one edge
-      ;; always loses a pixel or a cell.  The picture is the card; its title
-      ;; and copy sit under it, inset by the cell the picture itself keeps.
       (etaf-view
-        (column :width 'max-content
+        (column :width (list 'ch (+ columns 2))
+                :cross-align 'start
                 :item-gap '(lh 0)
+                :background-color (etaf-md-surface env 'raised)
+                :border (etaf-md--hairline env)
+                :padding '((lh 1) (ch 1))
                 :on-press (when href
                             (lambda () (etaf-md-follow-link env href)))
           (expr (list (etaf-md--media-picture src view-env columns 14)))
-          (expr (when title
-                  (list (etaf-node 'text
-                                   (list :font-weight 'bold)
-                                   (list title)))))
           (expr (when (or title description)
                   (list (etaf-node 'text nil (list " ")))))
+          (expr (when title
+                  (list (etaf-node 'box (list :width body)
+                                   (list (etaf-node 'text
+                                                    (list :font-weight 'bold)
+                                                    (list title)))))))
           (expr (when description
-                  (list (etaf-node 'text
-                                   (list :color muted)
-                                   (list description))))))))))
+                  (list (etaf-node 'box (list :width body)
+                                   (list (etaf-node 'text
+                                                    (list :color muted)
+                                                    (list description))))))))))))
 
 (etaf-md--define-shipped 'link-card
   :name "link-card"
@@ -416,22 +419,27 @@ A directory is `(dir . NAME)' and appears when it changes; a file is
   "Return NODE's code drawn for ENV's tree."
   (when node
     (etaf-ui-markdown-view-block
-     ;; The scroll area around the code is the visible frame, so the fence
-     ;; leaves its own border off and the card keeps one edge for both halves.
-     (plist-put (copy-sequence (etaf-md-node-block node)) :frame nil)
+     ;; The card draws the frame and the language row; the fence contributes
+     ;; only its highlighted body, so scrolling moves the code alone.
+     (plist-put (plist-put (copy-sequence (etaf-md-node-block node))
+                           :frame nil)
+                :header nil)
      (etaf-md--component-view-env env))))
 
 (defun etaf-md--code-tree-view (env)
   "Paint a file list beside the selected file's code.
-The list is its own panel and the code keeps its own frame, so the two
-halves read as separate things rather than one surface with a rule."
+The list and the code are the two panels of one card; the code keeps its
+language row fixed above the body that scrolls under it."
   (let* ((files (etaf-md--code-tree-files env))
          (count (length files))
          (active (min (or (etaf-md-block-state env :active 0) 0)
                       (max 0 (1- count))))
          (selected (nth active files))
+         (lang (and selected
+                    (plist-get (etaf-md-node-block (cdr selected)) :lang)))
          (rows (etaf-md--code-tree-rows files))
          (height (max 4 (or (etaf-md-attr env :height) 18)))
+         (total (+ height 1))
          (width (min 40
                      (max 14
                           (+ 7 (seq-max
@@ -446,8 +454,6 @@ halves read as separate things rather than one surface with a rule."
                           (etaf-md-surface env 'sunken)))
          (muted (etaf-md--component-ink env :muted))
          (faint (etaf-md--component-ink env :faint))
-         ;; A scroll Host needs a name of its own: the block's ref is stable
-         ;; across publishes, so the keyboard and the wheel find the same one.
          (scroll-ref
           (let* ((table (plist-get (etaf-md-env-session env) :block-refs))
                  (base (and (hash-table-p table)
@@ -456,12 +462,9 @@ halves read as separate things rather than one surface with a rule."
     (etaf-view
       (row :width 'stretch :item-gap '(ch 1)
         (box :width (list 'ch width)
-             ;; Both halves hold the same fixed rows: the list's panel must
-             ;; end where the code's area ends, not where its own files do,
-             ;; and neither may shrink back to its content.
-             :height (list 'lh height)
-             :min-height (list 'lh height)
-             :max-height (list 'lh height)
+             :height (list 'lh total)
+             :min-height (list 'lh total)
+             :max-height (list 'lh total)
              :flex-shrink 0
              :border (etaf-md--hairline env)
              :background-color (etaf-md-surface env 'raised)
@@ -492,45 +495,53 @@ halves read as separate things rather than one surface with a rule."
                                                  (etaf-md-set-block-state
                                                   env :active index)))
                                (list (etaf-node 'text
-                                                ;; The fill is the text's own
-                                                ;; line; a box fill stretches
-                                                ;; over the rows it is given.
+                                                ;; The fill belongs to the name's
+                                                ;; own line, not to the box.
                                                 (list :background-color (when chosen accent-soft)
                                                       :color (if chosen accent muted)
                                                       :font-weight (when chosen 'bold))
                                                 (list name)))))))
               rows))))
-        (box :width 'stretch
-             :height (list 'lh height)
-             :min-height (list 'lh height)
-             :max-height (list 'lh height)
-             :flex-shrink 0
-             :border (etaf-md--hairline env)
-             ;; The bare code block inside paints the same surface, so the
-             ;; short-content rows and the scroll area read as one panel.
-             :background-color (or (etaf-md--palette-value
-                                    (etaf-md-env-palette env) :code-bg)
-                                   (etaf-md--palette-value
-                                    (etaf-md-env-palette env) :panel))
-             :overflow 'scroll
-             :tab-index 0
-             :ref scroll-ref
-             :padding-inline '(ch 1)
-             ;; A Host registered for scroll owns the wheel; the keyboard
-             ;; moves the same Host, so the page around it stays put.
-             :on-scroll (lambda (_offset) nil)
-             :on-direction
-             (lambda (direction)
-               (when (memq direction '(up down))
-                 ;; `etaf-scroll-to' clamps to the content, so the last rows
-                 ;; stop at the last rows instead of scrolling past them.
-                 (let ((runtime (etaf-runtime-for-buffer (current-buffer))))
-                   (etaf-scroll-to runtime scroll-ref
-                                   (+ (etaf-scroll-offset runtime scroll-ref)
-                                      (if (eq direction 'up) -1 1)))))
-               'handled)
-             :aria-label "代码，滚动查看"
-          (expr (list (etaf-md--code-tree-code env (cdr selected)))))))))
+        (column :width 'stretch
+                :height (list 'lh total)
+                :min-height (list 'lh total)
+                :max-height (list 'lh total)
+                :flex-shrink 0
+                :border (etaf-md--hairline env)
+                :background-color (or (etaf-md--palette-value
+                                       (etaf-md-env-palette env) :code-bg)
+                                      (etaf-md--palette-value
+                                       (etaf-md-env-palette env) :panel))
+          (box :width 'stretch
+               :height (list 'lh 1)
+               :border-bottom (etaf-md--hairline env)
+               :padding-inline '(ch 2)
+            (expr (list (etaf-node 'text
+                                   (list :color muted)
+                                   (list (or lang ""))))))
+          (box :width 'stretch
+               :height (list 'lh height)
+               :min-height (list 'lh height)
+               :max-height (list 'lh height)
+               :overflow 'scroll
+               :tab-index 0
+               :ref scroll-ref
+               :padding-inline '(ch 1)
+               ;; A Host registered for scroll owns the wheel; the keyboard
+               ;; moves the same Host, so the page around it stays put.
+               :on-scroll (lambda (_offset) nil)
+               :on-direction
+               (lambda (direction)
+                 (when (memq direction '(up down))
+                   ;; `etaf-scroll-to' clamps to the content, so the last rows
+                   ;; stop at the last rows instead of scrolling past them.
+                   (let ((runtime (etaf-runtime-for-buffer (current-buffer))))
+                     (etaf-scroll-to runtime scroll-ref
+                                     (+ (etaf-scroll-offset runtime scroll-ref)
+                                        (if (eq direction 'up) -1 1)))))
+                 'handled)
+               :aria-label "代码，滚动查看"
+            (expr (list (etaf-md--code-tree-code env (cdr selected))))))))))
 
 (etaf-md--define-shipped 'code-tree
   :name "code-tree"
