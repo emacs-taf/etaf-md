@@ -822,6 +822,11 @@ frame and its colours; only the language row is left out."
   :attrs '((title             :type string :doc "表格上方一行标题")
            (highlight-rows    :type string :doc "高亮的行号，空格分隔")
            (highlight-columns :type string :doc "高亮的列号，空格分隔")
+           (highlight-cells   :type string :doc "高亮的单元格，写成 行:列，空格分隔")
+           (align             :type enum :one-of (left center right)
+                              :doc "整张表的对齐，盖过 text-align")
+           (max-content       :type boolean :default nil :doc "按内容收窄，不铺满页面")
+           (copy              :type boolean :default nil :doc "在标题下画一个复制整表的一行")
            (highlight         :type accent :default warning :doc "高亮用哪个强调值")
            (background        :type surface :default page :doc "表格底色")
            (color             :type color :default "foreground" :doc "表格文字色")
@@ -838,6 +843,25 @@ frame and its colours; only the language row is left out."
                 (etaf-md--child-view env table-node)
               (etaf-md--table-view env rows)))))
 
+(defun etaf-md--table-cells (text)
+  "Return the `row:column' pairs written in TEXT as conses."
+  (delq nil
+        (mapcar (lambda (word)
+                  (when (string-match "\\`\\([0-9]+\\):\\([0-9]+\\)\\'" word)
+                    (cons (string-to-number (match-string 1 word))
+                          (string-to-number (match-string 2 word)))))
+                (split-string (or text "") "[ \t]+" t))))
+
+(defun etaf-md--table-text (env rows)
+  "Return ROWS as tab separated lines, the form a spreadsheet pastes."
+  (mapconcat
+   (lambda (row)
+     (mapconcat (lambda (cell)
+                  (or (etaf-md-attr env :text cell) ""))
+                (etaf-md-children env row)
+                "\t"))
+   rows "\n"))
+
 (defun etaf-md--table-view (env rows)
   "Paint ROWS of the table container in ENV."
   (let* ((first-row (car rows))
@@ -845,7 +869,10 @@ frame and its colours; only the language row is left out."
          (hit-rows (etaf-md--number-list (etaf-md-attr env :highlight-rows)))
          (hit-columns (etaf-md--number-list
                        (etaf-md-attr env :highlight-columns)))
+         (hit-cells (etaf-md--table-cells (etaf-md-attr env :highlight-cells)))
          (hit (etaf-md-accent env (etaf-md-attr env :highlight)))
+         (table-align (etaf-md-attr env :align))
+         (table-width (if (etaf-md-attr env :max-content) 'max-content 'stretch))
          (header-fill (etaf-md-surface env (etaf-md-attr env :header-background)))
          (stripe-fill (etaf-md-surface env (etaf-md-attr env :stripe-background)))
          (tracks (cl-loop for column below columns
@@ -868,7 +895,8 @@ frame and its colours; only the language row is left out."
         (dolist (cell (etaf-md-children env row))
           (setq column (1+ column))
           (let ((highlighted (or (memq row-number hit-rows)
-                                 (memq column hit-columns))))
+                                 (memq column hit-columns)
+                                 (member (cons row-number column) hit-cells))))
             (push (etaf-node
                    'box
                    (list :width (nth (1- column) tracks)
@@ -876,6 +904,7 @@ frame and its colours; only the language row is left out."
                          :overflow 'hidden
                          :wrap-mode 'word
                          :text-align (or (etaf-md-attr env :align cell)
+                                         table-align
                                          (etaf-md-attr env :text-align))
                          :background-color
                          (cond ((= row-number 1) header-fill)
@@ -894,12 +923,12 @@ frame and its colours; only the language row is left out."
                                     (list (or (etaf-md-attr env :text cell)
                                               "")))))
                   cell-views)))
-        (push (etaf-node 'flex (list :width 'stretch)
+        (push (etaf-node 'flex (list :width table-width)
                          (nreverse cell-views))
               row-views)))
     (etaf-node
      'column
-     (list :width 'stretch
+     (list :width table-width
            :background-color (etaf-md-surface env (etaf-md-attr env :background))
            :margin-top (etaf-md--vertical-length (etaf-md-attr env :margin-top))
            :margin-bottom (etaf-md--vertical-length (etaf-md-attr env :margin-bottom))
@@ -910,6 +939,16 @@ frame and its colours; only the language row is left out."
               ;; A title that sits on the header row reads as part of it;
               ;; one blank row separates the caption from the table.
               (etaf-node 'text nil (list " "))))
+      (when (etaf-md-attr env :copy)
+        (let ((content (etaf-md--table-text env rows)))
+          (list (etaf-node 'text
+                           (list :color (etaf-md-accent env 'primary)
+                                 :font-weight 'bold
+                                 :role 'button :tab-index 0
+                                 :help-echo "把整张表复制成制表符分隔的文本"
+                                 :on-press (lambda () (kill-new content)))
+                           (list "复制表格"))
+                (etaf-node 'text nil (list " ")))))
       (nreverse row-views)))))
 
 (etaf-md--define-shipped 'window

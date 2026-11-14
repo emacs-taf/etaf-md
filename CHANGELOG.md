@@ -349,6 +349,11 @@ pixels below itself.  A picture now takes the size of the page it sits on.
 - A table caption stands on its own line: one blank row separates it from the
   header, so a caption no longer reads as part of the first row.
 
+- A table marks single cells with `highlight-cells="2:3"`, aligns its whole
+  body with `align`, shrinks to its content with `max-content`, and offers a
+  copy line with `copy` that puts the table on the kill ring as tab separated
+  text.
+
 - `:::` field` describes one parameter: `name`, `type`, `type-link`, `default`,
   `required`, `deprecated`, `experimental`, `enum`, `unit`, `format`,
   `constraint` and `since` become a card with its state chips, a metadata row

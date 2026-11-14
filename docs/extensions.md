@@ -944,7 +944,7 @@ Component: `etaf-accordion`, controlled, with `open` and `multiple` supplied by 
 
 ### 6.14 Table
 
-A plain pipe table already works. This container owns the table's **presentation**, never the table itself: it sets one title line and marks the rows and columns to look at. Without it the table renders as usual, just without a title or emphasis.
+A plain pipe table already works. This container owns the table's **presentation**, never the table itself: it sets one title line, marks the rows, columns and single cells to look at, can shrink to its content, align the whole table, and copy it as tab separated text. Without it the table renders as usual, just without a title or emphasis.
 
 With a title as its only job, the name would belong to captions. It also carries highlighting, and a table's alignment and footnotes would land here too, so its duty is wider than a caption and the name stays `table`.
 
@@ -953,6 +953,10 @@ With a title as its only job, the name would belong to captions. It also carries
 | `title` | string | none | One title line above the table |
 | `highlight-rows` | string | none | Highlighted row numbers, space separated, e.g. `2 3` |
 | `highlight-columns` | string | none | Highlighted column numbers, space separated, e.g. `1` |
+| `highlight-cells` | string | none | Highlighted cells written `row:column`, space separated, e.g. `2:3 3:1` |
+| `align` | enum | inherits `text-align` | Table-wide alignment: `left`, `center`, `right`; wins over a cell's own |
+| `max-content` | boolean | `false` | Shrink to the content instead of filling the page |
+| `copy` | boolean | `false` | Draw a copy line under the title that puts the table on the kill ring as tab separated text |
 | `highlight` | accent | `warning` | Which accent the highlight uses |
 | `background` | surface | `page` | Table fill |
 | `color` | color | `foreground` | Table ink |

@@ -54,6 +54,30 @@
 - 缓存：`~/.cache/etaf-md/typeset`
 :::
 
+## 表格
+
+:::table {title="三个版本的打开耗时" align=center}
+| 版本 | 耗时 | 内存 |
+| --- | --- | --- |
+| 0.1.9 | 5.4 s | 380 MB |
+| 0.2.0 | 0.33 s | 92 MB |
+| 0.3.0 | 0.18 s | 74 MB |
+:::
+
+:::table {title="高亮一行、一列和一个格子" highlight-rows="2" highlight-columns="3" highlight-cells="3:1" copy=true}
+| 版本 | 耗时 | 内存 |
+| --- | --- | --- |
+| 0.1.9 | 5.4 s | 380 MB |
+| 0.2.0 | 0.33 s | 92 MB |
+| 0.3.0 | 0.18 s | 74 MB |
+:::
+
+:::table {title="按内容收窄" max-content=true}
+| 名称 | 值 |
+| --- | --- |
+| 缓存 | 命中 |
+:::
+
 ## 图片卡片
 
 :::image-card {src="etaf-md-preview-wide.png" title="完整的预览" description="图片在上，标题和说明在下；整张卡片都能点。" href="https://etaf.top/"}

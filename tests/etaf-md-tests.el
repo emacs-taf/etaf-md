@@ -1732,6 +1732,31 @@ its name and value rows."
         (should (string-match-p "版本" text))
         (should (string-match-p "12.3.0" text))))))
 
+(ert-deftest etaf-md-tests-a-table-copies-itself-when-asked ()
+  "A table written `copy=true' offers a line that copies it as TSV.
+The table keeps its cells and the copy line puts the header and the rows on
+the kill ring as tab separated text, which is what a spreadsheet pastes."
+  (let ((session (etaf-md-create
+                  :text (concat ":::table {title=\"耗时\" copy=true}\n"
+                                "| 版本 | 耗时 |\n"
+                                "| --- | --- |\n"
+                                "| 0.1.9 | 5.4 s |\n"
+                                "| 0.2.0 | 0.33 s |\n"
+                                ":::\n")
+                  :theme 'dark)))
+    (etaf-md-tests--with-mount session
+      (switch-to-buffer (current-buffer))
+      (etaf-runtime-flush (etaf-runtime-for-buffer (current-buffer)))
+      (let ((text (buffer-string)))
+        (should (string-match-p "复制表格" text))
+        (should (string-match-p "0.33 s" text)))
+      (execute-kbd-macro (kbd "TAB"))
+      (execute-kbd-macro (kbd "RET"))
+      (should (equal (current-kill 0)
+                     (concat "版本\t耗时\n"
+                             "0.1.9\t5.4 s\n"
+                             "0.2.0\t0.33 s"))))))
+
 (ert-deftest etaf-md-tests-tab-keys-open-the-next-page ()
   "TAB enters the strip, Right moves focus, RET opens the page."
   (let ((session (etaf-md-create
