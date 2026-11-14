@@ -323,7 +323,52 @@
     {
       "name": "etaf-md-tests-tabs-draw-only-the-selected-page",
       "file": "tests/etaf-md-tests.el",
-      "purpose": "A :::tabs block draws every label and only the selected tab's body, with no failure line."
+      "purpose": "A tabs block writes one @tab marker per page, draws every label and only the selected page's body, with no failure line."
+    },
+    {
+      "name": "etaf-md-tests-a-marker-attribute-selects-a-page",
+      "file": "tests/etaf-md-tests.el",
+      "purpose": "A selected=true attribute on an @tab marker opens that page, so the first page drawn is the author's choice."
+    },
+    {
+      "name": "etaf-md-tests-tab-keys-open-the-next-page",
+      "file": "tests/etaf-md-tests.el",
+      "purpose": "TAB enters the tab strip, Right moves focus to the next tab and RET opens that page, so the keyboard changes the body instead of ringing."
+    },
+    {
+      "name": "etaf-md-tests-a-tab-body-keeps-a-marker-inside-a-fence",
+      "file": "tests/etaf-md-tests.el",
+      "purpose": "An @tab line inside a fenced block in a tab body stays code and does not split the page."
+    },
+    {
+      "name": "etaf-md-tests-a-tab-body-can-hold-a-block-container",
+      "file": "tests/etaf-md-tests.el",
+      "purpose": "A tab body can contain a :::note container, so a marker page is not limited to prose."
+    },
+    {
+      "name": "etaf-md-tests-a-marker-container-rejects-a-block-child",
+      "file": "tests/etaf-md-tests.el",
+      "purpose": "A :::tab child inside a marker-written tabs container is reported as an error instead of being silently dropped."
+    },
+    {
+      "name": "etaf-md-tests-prose-before-the-first-marker-is-an-error",
+      "file": "tests/etaf-md-tests.el",
+      "purpose": "Text before the first @tab marker is reported, so a tabs container cannot lose a paragraph."
+    },
+    {
+      "name": "etaf-md-tests-markers-mean-nothing-in-a-block-container",
+      "file": "tests/etaf-md-tests.el",
+      "purpose": "An @tab line inside a note is ordinary text; the marker grammar applies only to the container that declares it."
+    },
+    {
+      "name": "etaf-md-tests-code-tabs-name-pages-by-fence-language",
+      "file": "tests/etaf-md-tests.el",
+      "purpose": "A code-tabs page without a title is labelled by its fence language, and only the selected page's code is drawn."
+    },
+    {
+      "name": "etaf-md-tests-a-definition-declares-its-child-syntax",
+      "file": "tests/etaf-md-tests.el",
+      "purpose": "A definition that declares marker children parses one @item per child, an extension keeps that grammar, and the block form is rejected in the same container."
     }
   ]
 }

@@ -20,16 +20,14 @@
 :::
 ````
 
-一个父类型。子块的名字由它解释，所以 `:::tab` 只在 `tabs` 里有意义：
+一个父类型。子块的名字与写法都由它解释，`tabs` 用 `@tab` 一行一个子块：
 
 ````markdown
 :::tabs
-:::tab {title="Emacs 29"}
+@tab Emacs 29
 用 `image-size` 的旧签名。
-:::
-:::tab {title="Emacs 30+" selected=true}
+@tab {title="Emacs 30+" selected=true}
 直接传 buffer。
-:::
 :::
 ````
 
@@ -116,7 +114,7 @@
 
 区别只有一处：**文档写得出来的类型有名字**（`:name`）。`heading` 没有，所以 `:::heading` 不存在，它只能由 `###` 产生。
 
-收固定子块的类型写 `:accepts`，例如 `columns` 只收 `col`；不写就是任意块。**子块不是类型，它没有自己的声明**，名字由父类型的 `:accepts` 解释，解析器不认。所以 `:::tab` 在 `tabs` 里是一个标签，在页面顶层只是一行没法解释的文字，按失败规则报出来。
+收固定子块的类型写 `:accepts`，例如 `columns` 只收 `col`；不写就是任意块。**子块不是类型，它没有自己的声明**，名字和写法都由父类型解释。默认写法是 `:::name`，`tabs` 与 `code-tabs` 用 `@name` 一行一个。所以 `@tab` 只在声明了 `markers` 的容器里是标记，在提示块里是普通文字；`:::tab` 在 `tabs` 里则是一个错误。
 
 父子关系不跨层。`tabs` 里的 `tab` 可以再装一个 `card`，但 `tab` 不能再装一个 `tab`。要嵌套就再包一层 `tabs`。
 
@@ -233,7 +231,7 @@
 
 ### 3.2 子块
 
-子块的写法和普通容器一样，只是名字由父类型解释。父类型通过 `:accepts` 决定它收哪些子块、子块上哪些属性有效。
+子块的名字和写法都由父类型解释。父类型通过 `:accepts` 决定它收哪些子块、子块上哪些属性有效，通过 `:child-syntax` 声明子块怎么写。
 
 ````markdown
 :::columns {columns="2fr 1fr" gap="2ch"}
@@ -252,6 +250,20 @@
 - **子块顺序不对**：按出现顺序解释，不重排。
 - **子块缺必填属性**：那一块降级，别的子块照常。
 
+一个容器只用一种子块写法：
+
+| `:child-syntax` | 写法 | 用于 |
+| --- | --- | --- |
+| `blocks`（默认） | `:::name` 一个子块一段 | 结构、集合、大部分交互容器 |
+| `markers` | `@name 标题` 或 `@name {attrs}` 一行一个 | `tabs`、`code-tabs` |
+
+`markers` 的作用域是声明它的容器自己的层级：
+
+- 提示块、卡片里的 `@tab` 是普通文字；围栏里的 `@tab` 保持代码。
+- 第一个标记之前不能有正文，否则页面报一行。
+- 标记的正文里可以继续写 `:::` 容器；解析器把 `@` 展开成同样的子块，`:accepts` 与渲染不变。
+- 一个容器只认一种写法：`tabs` 里写 `:::tab` 会报错，不会悄悄变成第二页。
+
 ### 3.3 属性
 
 九种类型。属性只有两类，用一个标记分开。
@@ -269,7 +281,7 @@
 | `number` | `start=2` | 可选 `:min`、`:max`、`:integer` | `start=two` |
 | `boolean` | `open=true` | 只认 `true` 和 `false` | `open=yes` |
 | `length` | `gap="2ch"` | 单位 `ch`、`lh`、`%` | `gap=2` |
-| `surface` | `surface=raised` | `none`、`page`、`raised`、`sunken`、`quote` | `surface="#24262a"` |
+| `surface` | `surface=raised` | `none`、`page`、`raised`、`sunken`、`quote`、`table-header`、`table-stripe` | `surface="#24262a"` |
 | `accent` | `accent=warning` | `neutral`、`primary`、`success`、`warning`、`danger`、`important` | `accent=urgent` |
 | `align` | `text-align=center` | `start`、`center`、`end` | `text-align=middle` |
 | `enum` | `list-style=decimal` | 声明里的 `:one-of`，必写 | `list-style=number` |
@@ -828,18 +840,20 @@ line 44: 第 9 层嵌套超过上限 8 层
 
 ### 6.11 标签页
 
-子块是 `tab`，属性 `title` 必填，`selected` 可选（布尔，一组里只能一项写）。
+子块是 `tab`，用 `@tab` 一行一个。`title` 必填，也可以直接把标题写在标记后面；`selected` 可选（布尔，一组里只能一项写）。
 
 ````markdown
 :::tabs
-:::tab {title="Emacs 29"}
+@tab Emacs 29
 用 `image-size` 的旧签名。
-:::
-:::tab {title="Emacs 30+" selected=true}
+@tab {title="Emacs 30+" selected=true}
 直接传 buffer。
 :::
-:::
 ````
+
+`@tab 标题` 是 `@tab {title="标题"}` 的简写；带别的属性时写花括号。`tabs` 只认这一种写法，`:::tab` 会报错，见 3.2。
+
+键盘：`TAB` 进入标签条并停在选中项，左右移动焦点，`RET` 打开。到两端时按键被吃掉，不响铃也不循环。
 
 两处都写 `selected` 时只认第一项，页面报一行，见 3.4。
 
@@ -849,20 +863,18 @@ line 44: 第 9 层嵌套超过上限 8 层
 
 ### 6.12 代码标签页
 
-子块也是 `tab`，但 `title` 可省，省略时用围栏的语言名。所以 `code-tabs` 有自己的 `:accepts`，不是照抄 `tabs`。
+子块也是 `tab`，也用 `@tab` 一行一个；`title` 可省，省略时用围栏的语言名。所以 `code-tabs` 有自己的 `:accepts`，不是照抄 `tabs`。
 
 ````markdown
 :::code-tabs
-:::tab
+@tab
 ```elisp
 (etaf-md-open)
 ```
-:::
-:::tab
+@tab
 ```python
 print("hi")
 ```
-:::
 :::
 ````
 
@@ -1263,6 +1275,7 @@ print("hi")
 | `:attrs` | 属性表 | 普通属性：文档写得进，读者盖得掉 |
 | `:derived` | 属性表 | 派生属性：解析或派生阶段填，谁都不能写 |
 | `:accepts` | 子块表 | 收哪些子块。有它就是父类型，没有就是任意块 |
+| `:child-syntax` | `blocks` 或 `markers` | 子块写法：默认 `:::name`，`markers` 用 `@name` 一行一个 |
 | `:contract` | 整数，当前 `1` | 文档侧属性表的版本，见 10.6 |
 | `:view` | 函数 | `(lambda (env) VIEW)`，默认画法 |
 | `:extends t` | 标记 | 保留内置的声明与画法，你的追加 |

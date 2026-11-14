@@ -21,6 +21,8 @@
 (require 'etaf-md-theme)
 (require 'etaf-md-views)
 
+(declare-function etaf-md--child-syntax "etaf-md-node" (type))
+
 (define-error 'etaf-md-error "Markdown preview error")
 
 (defcustom etaf-md-width-min 40
@@ -172,6 +174,90 @@ without `=' is a flag set to t."
        copy))
    blocks))
 
+(defconst etaf-md--child-marker
+  "\\`@\\([[:alpha:]][[:alnum:]-]*\\)\\(?:[ \t]+\\(.*\\)\\)?\\'"
+  "Shape of a child marker: a name, then a title or `{attrs}'.")
+
+(defun etaf-md--child-marker-attrs (rest)
+  "Return the attribute plist the rest of a child marker line writes.
+`{...}' is the ordinary attribute body; any other text is the child's title,
+which is the one attribute every child type names its own line with."
+  (cond
+   ((or (null rest) (string-empty-p (string-trim rest))) nil)
+   ((string-match "\\`[ \t]*{\\(.*\\)}[ \t]*\\'" rest)
+    (etaf-md--parse-attributes (match-string 1 rest)))
+   (t (list :title (string-trim rest)))))
+
+(defun etaf-md--parse-marker-children (name text flavor base)
+  "Return NAME's children from TEXT, one per `@type' marker.
+A marker starts a line at the container's own level; its rest is the child's
+title or `{attrs}', and the child runs to the next marker or to the end of
+TEXT.  A `:::' inside a child is nested content, never a sibling, and a marker
+inside a fence stays code.  BASE is where TEXT starts in the page."
+  (let ((offset 0) (line-number 0) (fence nil) (depth 0)
+        (markers nil) (preamble nil))
+    (dolist (line (split-string text "\n"))
+      (setq line-number (1+ line-number))
+      (let ((line-start offset)
+            (line-end (+ offset (length line))))
+        (cond
+         ((string-match "\\`[ \t]*\\(```+\\|~~~+\\)" line)
+          (let ((marker (match-string 1 line)))
+            (if fence
+                (when (string= fence marker) (setq fence nil))
+              (setq fence marker))))
+         (fence nil)
+         ((and (zerop depth) (string-match etaf-md--child-marker line))
+          (push (list :name (match-string 1 line)
+                      :attrs (etaf-md--child-marker-attrs (match-string 2 line))
+                      :start line-start
+                      :end line-end)
+                markers))
+         ((and (null markers)
+               (not (string-empty-p (string-trim line))))
+          (unless preamble
+            (setq preamble (cons line-number line))))
+         ((string-match etaf-md--container-close line)
+          (when (> depth 0) (cl-decf depth)))
+         ((string-match etaf-md--container-open line)
+          (cl-incf depth)))
+        (setq offset (1+ line-end))))
+    (setq markers (nreverse markers))
+    (cond
+     ((null markers)
+      (signal 'etaf-md-error
+              (list (if preamble
+                        (format "%s: line %d comes before its first @ marker: %S"
+                                name (car preamble) (cdr preamble))
+                      (format "%s needs at least one @ marker" name)))))
+     (preamble
+      (signal 'etaf-md-error
+              (list (format "%s: line %d comes before its first @ marker: %S"
+                            name (car preamble) (cdr preamble)))))
+     (t
+      (cl-loop
+       for rest on markers
+       for marker = (car rest)
+       for next = (cadr rest)
+       for body-start = (min (length text) (1+ (plist-get marker :end)))
+       for body-end = (if next (plist-get next :start) (length text))
+       for parsed = (etaf-md--parse (substring text body-start body-end) flavor)
+       collect (list :type 'container
+                     :name (plist-get marker :name)
+                     :attrs (plist-get marker :attrs)
+                     :children (plist-get parsed :children)
+                     :begin (+ base (plist-get marker :start))
+                     :end (+ base body-end)
+                     :source (substring text
+                                        (plist-get marker :start)
+                                        body-end)))))))
+
+(defun etaf-md--parse-container-body (name text flavor base)
+  "Return NAME's children parsed from TEXT, which starts at BASE in the page."
+  (if (eq (etaf-md--child-syntax (intern name)) 'markers)
+      (etaf-md--parse-marker-children name text flavor base)
+    (plist-get (etaf-md--parse text flavor) :children)))
+
 (defun etaf-md--parse-containers (text flavor)
   "Parse TEXT with FLAVOR, reading `:::name {attrs}' containers.
 A container runs to the matching close, or to the end of the file for the last
@@ -214,10 +300,10 @@ their block ranges move to where the stretch sits in TEXT."
                                (list (list :type 'container
                                            :name (plist-get container :name)
                                            :attrs (plist-get container :attrs)
-                                           :children (plist-get (etaf-md--parse
-                                                                 (substring text inner-start line-start)
-                                                                 flavor)
-                                                                :children)
+                                           :children (etaf-md--parse-container-body
+                                                      (plist-get container :name)
+                                                      (substring text inner-start line-start)
+                                                      flavor inner-start)
                                            :begin (plist-get container :begin)
                                            :end line-end
                                            :source (substring text (plist-get container :begin)
@@ -234,9 +320,10 @@ their block ranges move to where the stretch sits in TEXT."
                          (list (list :type 'container
                                      :name (plist-get container :name)
                                      :attrs (plist-get container :attrs)
-                                     :children (plist-get (etaf-md--parse
-                                                           (substring text inner-start) flavor)
-                                                          :children)
+                                     :children (etaf-md--parse-container-body
+                                                (plist-get container :name)
+                                                (substring text inner-start)
+                                                flavor inner-start)
                                      :begin (plist-get container :begin)
                                      :end (length text)
                                      :source (substring text (plist-get container :begin)))))))
@@ -624,6 +711,10 @@ plist may toggle individual extensions."
                         ;; Box reference to block key, so a command can find
                         ;; the block the point sits in.
                         :block-refs (make-hash-table :test #'eq)
+                        ;; Display state of the interactive blocks, keyed by
+                        ;; block identity.  It is a ref because a write must
+                        ;; repaint the block that read it, not rebuild the page.
+                        :block-state (etaf-ref nil :name 'etaf-md-block-state)
                         ;; The rendering environment shared by the blocks of
                         ;; one appearance.
                         :env-cache nil

@@ -1580,8 +1580,7 @@ a session text that is not published yet would paint a skeleton over its data."
 
 (ert-deftest etaf-md-tests-tabs-draw-only-the-selected-page ()
   (etaf-md-tests--with-preview-source
-      ":::tabs\n:::tab {title=\"第一页\"}\n第一页正文。\n:::\n\
-:::tab {title=\"第二页\"}\n第二页正文。\n:::\n:::\n"
+      ":::tabs\n@tab 第一页\n第一页正文。\n@tab 第二页\n第二页正文。\n:::\n"
     (with-current-buffer preview
       (etaf-runtime-flush (etaf-runtime-for-buffer preview))
       (should (string-match-p "第一页" (buffer-string)))
@@ -1589,3 +1588,103 @@ a session text that is not published yet would paint a skeleton over its data."
       (should (string-match-p "第一页正文" (buffer-string)))
       (should-not (string-match-p "第二页正文" (buffer-string)))
       (should-not (string-match-p "没有" (buffer-string))))))
+
+(ert-deftest etaf-md-tests-tab-keys-open-the-next-page ()
+  "TAB enters the strip, Right moves focus, RET opens the page."
+  (let ((session (etaf-md-create
+                  :text ":::tabs\n@tab 第一页\n第一页正文。\n@tab 第二页\n第二页正文。\n:::\n"
+                  :theme 'dark)))
+    (etaf-md-tests--with-mount session
+      (switch-to-buffer (current-buffer))
+      (etaf-runtime-flush (etaf-runtime-for-buffer (current-buffer)))
+      (execute-kbd-macro (kbd "TAB"))
+      (execute-kbd-macro (kbd "<right>"))
+      (execute-kbd-macro (kbd "RET"))
+      (etaf-runtime-flush (etaf-runtime-for-buffer (current-buffer)))
+      (should (string-match-p "第二页正文" (buffer-string)))
+      (should-not (string-match-p "第一页正文" (buffer-string))))))
+
+(ert-deftest etaf-md-tests-a-marker-attribute-selects-a-page ()
+  (etaf-md-tests--with-preview-source
+      ":::tabs\n@tab 第一页\n第一页正文。\n\
+@tab {title=\"第二页\" selected=true}\n第二页正文。\n:::\n"
+    (with-current-buffer preview
+      (etaf-runtime-flush (etaf-runtime-for-buffer preview))
+      (should-not (string-match-p "第一页正文" (buffer-string)))
+      (should (string-match-p "第二页正文" (buffer-string))))))
+
+(ert-deftest etaf-md-tests-a-tab-body-keeps-a-marker-inside-a-fence ()
+  (let ((session (etaf-md-create
+                  :text ":::tabs\n@tab 只有一页\n```\n@tab 不是标记\n```\n:::\n"
+                  :theme 'dark)))
+    (etaf-md-tests--with-mount session
+      (should (string-match-p "@tab 不是标记" (buffer-string)))
+      (should-not (string-match-p "没有" (buffer-string))))))
+
+(ert-deftest etaf-md-tests-a-tab-body-can-hold-a-block-container ()
+  (let ((session (etaf-md-create
+                  :text ":::tabs\n@tab 一\n:::note\n提示正文。\n:::\n:::\n"
+                  :theme 'dark)))
+    (etaf-md-tests--with-mount session
+      (should (string-match-p "提示正文" (buffer-string)))
+      (should (string-match-p "Note" (buffer-string)))
+      (should-not (string-match-p "没有" (buffer-string))))))
+
+(ert-deftest etaf-md-tests-a-marker-container-rejects-a-block-child ()
+  (should-error
+   (etaf-md-create
+    :text ":::tabs\n:::tab {title=\"一\"}\n正文。\n:::\n:::\n")
+   :type 'etaf-md-error))
+
+(ert-deftest etaf-md-tests-prose-before-the-first-marker-is-an-error ()
+  (should-error
+   (etaf-md-create
+    :text ":::tabs\n先说话。\n@tab 一\n正文。\n:::\n")
+   :type 'etaf-md-error))
+
+(ert-deftest etaf-md-tests-markers-mean-nothing-in-a-block-container ()
+  (let ((session (etaf-md-create
+                  :text ":::note\n@tab 只是文字\n:::\n"
+                  :theme 'dark)))
+    (etaf-md-tests--with-mount session
+      (should (string-match-p "@tab 只是文字" (buffer-string))))))
+
+(ert-deftest etaf-md-tests-a-definition-declares-its-child-syntax ()
+  (unwind-protect
+      (progn
+        (etaf-md-define-node 'marker-probe
+          :name "marker-probe"
+          :accepts '((item :attrs ((title :type string :required t))))
+          :child-syntax 'markers
+          :view (lambda (env)
+                  (etaf-view
+                   (text (expr (number-to-string
+                                (length (etaf-md-children env))))))))
+        (let ((session (etaf-md-create
+                        :text ":::marker-probe\n@item 甲\n正文甲。\n@item 乙\n正文乙。\n:::\n"
+                        :theme 'dark)))
+          (etaf-md-tests--with-mount session
+            (should (string-match-p "2" (buffer-string)))))
+        ;; An extension keeps the grammar it did not restate.
+        (etaf-md-define-node 'marker-probe :extends t :summary "still markers")
+        (let ((session (etaf-md-create
+                        :text ":::marker-probe\n@item 甲\n正文甲。\n:::\n"
+                        :theme 'dark)))
+          (etaf-md-tests--with-mount session
+            (should (string-match-p "1" (buffer-string)))))
+        (should-error
+         (etaf-md-create
+          :text ":::marker-probe\n:::item {title=\"甲\"}\n正文。\n:::\n:::\n")
+         :type 'etaf-md-error))
+    (etaf-md-undefine-node 'marker-probe)))
+
+(ert-deftest etaf-md-tests-code-tabs-name-pages-by-fence-language ()
+  (etaf-md-tests--with-preview-source
+      ":::code-tabs\n@tab\n```elisp\n(open)\n```\n\
+@tab\n```python\nprint(1)\n```\n:::\n"
+    (with-current-buffer preview
+      (etaf-runtime-flush (etaf-runtime-for-buffer preview))
+      (should (string-match-p "elisp" (buffer-string)))
+      (should (string-match-p "python" (buffer-string)))
+      (should (string-match-p "(open)" (buffer-string)))
+      (should-not (string-match-p "print(1)" (buffer-string))))))

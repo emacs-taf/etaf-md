@@ -94,12 +94,115 @@
 ## 标签页
 
 :::tabs
-:::tab {title="第一页"}
+@tab 第一页
 第一页的正文。
-:::
-:::tab {title="第二页"}
+@tab 第二页
 第二页的正文。
 :::
+
+## 步骤
+
+:::steps {start=1}
+:::step {title="定位"}
+先用 `sample` 抓栈，别先猜。
+:::
+:::step {title="改因"}
+改产生现象的那一层，不改它的结果。
+:::
+:::step {title="复验"}
+同一个输入再跑一遍。
+:::
+:::
+
+## 时间线
+
+:::timeline
+:::event {time="2026-11-12" title="定位到慢在画图"}
+`image-size` 会真的把图画出来。
+:::
+:::event {time="2026-11-13" title="改成读文件头"}
+打开从 5.4 秒降到 0.33 秒。
+:::
+:::
+
+## 数字组
+
+:::stats
+:::stat {title="打开" value="0.33 s"}
+:::
+:::stat {title="缩放" value="0.18 s"}
+:::
+:::stat {title="内存" value="349 MB"}
+:::
+:::
+
+## 字段表
+
+:::field
+- 版本：12.3.0
+- 渲染器：Chromium，常驻
+- 缓存：`~/.cache/etaf-md/typeset`
+:::
+
+## 文件树
+
+:::file-tree {title="lisp/"}
+- lisp/
+  - etaf-md-model.el
+  - etaf-md-views.el
+- etaf-md.el
+:::
+
+## 对话
+
+:::chat
+:::message {from="问" time="14:20"}
+预览为什么不刷新？
+:::
+:::message {from="答" time="14:21"}
+保存之后才刷新，改到一半不重排。
+:::
+:::
+
+## 代码标签页
+
+:::code-tabs
+@tab
+```elisp
+(etaf-md-open)
+```
+@tab
+```python
+print("hi")
+```
+:::
+
+## 折叠
+
+:::accordion
+:::collapse {title="完整的报错"}
+```
+后面的长文本放这里。
+```
+:::
+:::collapse {title="版本差异"}
+第二折的正文。
+:::
+:::
+
+## 表格容器
+
+:::table {title="打开耗时" highlight-rows="3" highlight=warning}
+| 版本 | 耗时 |
+| --- | --- |
+| 0.1.9 | 5.4 s |
+| 0.2.0 | 0.33 s |
+:::
+
+## 演示窗口
+
+:::window {title="etaf-md-preview"}
+一段界面截图或者一段文字。
 :::
 
 ## 嵌套

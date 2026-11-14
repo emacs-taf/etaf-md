@@ -20,16 +20,14 @@ Images and figures scale with the page instead of being redrawn.
 :::
 ````
 
-A parent container. A child name is interpreted by its parent, so `:::tab` means nothing outside `tabs`:
+A parent container. A child's name and spelling are both interpreted by its parent; `tabs` writes one `@tab` per child:
 
 ````markdown
 :::tabs
-:::tab {title="Emacs 29"}
+@tab Emacs 29
 Uses the old `image-size` signature.
-:::
-:::tab {title="Emacs 30+" selected=true}
+@tab {title="Emacs 30+" selected=true}
 Passes the buffer directly.
-:::
 :::
 ````
 
@@ -116,7 +114,7 @@ The system has one kind of thing: the node type. Text types and container types 
 
 The only difference is that **a type a document can write has a name** (the `:name`). `heading` has none, so `:::heading` does not exist and only `###` makes one.
 
-A type that takes a fixed set of children declares `:accepts`, such as `columns` taking `col`; without it the content is any block. **A child is not a type and has no declaration of its own**; its name is interpreted by the parent's `:accepts`, and the parser does not recognise it. So `:::tab` inside `tabs` is a tab, and `:::tab` at the top of a page is a line nothing can explain, reported by the failure rule.
+A type that takes a fixed set of children declares `:accepts`, such as `columns` taking `col`; without it the content is any block. **A child is not a type and has no declaration of its own**; its name and spelling are interpreted by the parent. The default spelling is `:::name`; `tabs` and `code-tabs` use one `@name` line per child. So `@tab` is a marker only inside a container that declares `markers`; inside a note it is plain text, and `:::tab` inside `tabs` is an error.
 
 The relationship does not cross layers. A `tab` may hold a `card`, but a `tab` may not hold another `tab`. To nest, wrap another `tabs`.
 
@@ -233,7 +231,7 @@ One cost is worth stating: **a child with no content still needs its own closing
 
 ### 3.2 Children
 
-A child is written exactly like a container; only its name is interpreted by the parent type. The parent type declares `:accepts`, which decides the names it takes and the attributes that apply.
+A child's name and spelling are both interpreted by the parent type. The parent declares `:accepts`, which decides the names it takes and the attributes that apply, and `:child-syntax`, which decides how a child is written.
 
 ````markdown
 :::columns {columns="2fr 1fr" gap="2ch"}
@@ -252,6 +250,20 @@ A parent type must handle three edge cases without crashing or painting half a b
 - **Children out of order**: interpret them in source order, never reorder.
 - **A child missing a required attribute**: that child degrades; the others still render.
 
+One container has one spelling of its children:
+
+| `:child-syntax` | Spelling | Used by |
+| --- | --- | --- |
+| `blocks` (default) | `:::name`, one block per child | Structure, collections, most interactive containers |
+| `markers` | `@name Title` or `@name {attrs}`, one line per child | `tabs`, `code-tabs` |
+
+`markers` is scoped to the container that declares it:
+
+- An `@tab` inside a note or card is ordinary text; an `@tab` inside a fence stays code.
+- Nothing but blank lines may come before the first marker; otherwise the page reports a line.
+- A marker's body may hold `:::` containers; the parser expands `@` into the same child blocks, so `:accepts` and rendering are unchanged.
+- A container recognises only one spelling: `:::tab` inside `tabs` is an error, never a silent second page.
+
 ### 3.3 Attributes
 
 Nine types. Attributes come in two classes, separated by one flag.
@@ -269,7 +281,7 @@ The test is one sentence: **does this value have a spelling in the Markdown text
 | `number` | `start=2` | Optional `:min`, `:max`, `:integer` | `start=two` |
 | `boolean` | `open=true` | `true` or `false`, nothing else | `open=yes` |
 | `length` | `gap="2ch"` | Units `ch`, `lh`, `%` | `gap=2` |
-| `surface` | `surface=raised` | `none`, `page`, `raised`, `sunken`, `quote` | `surface="#24262a"` |
+| `surface` | `surface=raised` | `none`, `page`, `raised`, `sunken`, `quote`, `table-header`, `table-stripe` | `surface="#24262a"` |
 | `accent` | `accent=warning` | `neutral`, `primary`, `success`, `warning`, `danger`, `important` | `accent=urgent` |
 | `align` | `text-align=center` | `start`, `center`, `end` | `text-align=middle` |
 | `enum` | `list-style=decimal` | The declaration's `:one-of`, which is required | `list-style=number` |
@@ -828,18 +840,20 @@ The case it solves: a tutorial demonstrating one exchange. It is aligned text wi
 
 ### 6.11 Tabs
 
-The child is `tab`, with a required `title` and an optional `selected` (a boolean; one child per group may set it).
+The child is `tab`, written one `@tab` per line. `title` is required and may be the rest of the marker line; `selected` is optional (a boolean; one child per group may set it).
 
 ````markdown
 :::tabs
-:::tab {title="Emacs 29"}
+@tab Emacs 29
 Uses the old `image-size` signature.
-:::
-:::tab {title="Emacs 30+" selected=true}
+@tab {title="Emacs 30+" selected=true}
 Passes the buffer directly.
 :::
-:::
 ````
+
+`@tab Title` is shorthand for `@tab {title="Title"}`; write the braces when you need other attributes. `tabs` recognises only this spelling; `:::tab` is an error, see 3.2.
+
+Keyboard: `TAB` enters the strip and lands on the selected tab; Left and Right move focus; `RET` opens the page. At either end the key is consumed: no bell and no wrap.
 
 When two children both set `selected`, only the first counts and the page says so; see 3.4.
 
@@ -849,20 +863,18 @@ Interaction follows the contract in chapter 7; no rules are restated here. The c
 
 ### 6.12 Code tabs
 
-The children are `tab` too, but `title` is optional here and falls back to the fence's language. So `code-tabs` has its own `:accepts` rather than copying `tabs`.
+The children are `tab` too, also one `@tab` per line; `title` is optional here and falls back to the fence's language. So `code-tabs` has its own `:accepts` rather than copying `tabs`.
 
 ````markdown
 :::code-tabs
-:::tab
+@tab
 ```elisp
 (etaf-md-open)
 ```
-:::
-:::tab
+@tab
 ```python
 print("hi")
 ```
-:::
 :::
 ````
 
@@ -1263,6 +1275,7 @@ A definition is data plus one function, not code inside a document.
 | `:attrs` | An attribute table | Ordinary attributes: a document writes them, a reader overrides them |
 | `:derived` | An attribute table | Derived attributes: parse or derive fills them, nobody writes them |
 | `:accepts` | A child table | Which children it takes; with it the type is a parent |
+| `:child-syntax` | `blocks` or `markers` | How children are written: default `:::name`, `markers` uses one `@name` per child |
 | `:contract` | An integer, `1` today | The version of the document-side table, see 10.6 |
 | `:view` | A function | `(lambda (env) VIEW)`, the default paint |
 | `:extends t` | A flag | Keep the shipped declaration and paint, add yours |
@@ -1752,6 +1765,7 @@ This table is the ground for naming. A new name is looked up here first; if it i
 | `:summary` | General | One line of description | `desc`, `description` (that is a card attribute) |
 | `:attrs` | JSON Schema `properties` | The attribute table | `props`, `fields` |
 | `:accepts` | General | Which children it takes | `children`, `:kind` |
+| `:child-syntax` | This table's naming rule | The child spelling, `blocks` or `markers` | `:children`, `:child-form` |
 | `:view` | ETAF | The default paint | `:body`, `:render` |
 | `:contract` | General | Version of the document-side table | `:version` |
 | `:extends` / `:replace` | General | Which shipped definition is overridden | `:override`, `:merge` |

@@ -6,35 +6,91 @@
 ;;
 ;; The definitions the package ships, written the same way a reader writes one:
 ;; attributes, then a paint.  A paint reads only its environment, so it never
-;; touches a session, a file or a global.
-;;
-;; Order matters: a container's children are painted by the definitions that
-;; come before it in this file only at run time, so the file may declare them
-;; in any order and it reads best grouped by family.
+;; touches a session, a file or a global.  A container whose shape already
+;; exists as an etaf-ui Component translates its attributes to that Component;
+;; only a shape used here alone is built from the DSL, as article 9.2 says.
 
 ;;; Code:
 
 (require 'cl-lib)
 (require 'seq)
+(require 'subr-x)
 (require 'etaf-md-env)
+
+;;; Shared helpers
+
+(defun etaf-md--accepts (env child)
+  "Return ENV's declaration of CHILD's type, or nil when it accepts it open."
+  (let* ((definition (etaf-md-node-definition (etaf-md-type env)))
+         (accepts (plist-get definition :accepts))
+         (entry (and accepts (assq (etaf-md-node-type child) accepts))))
+    (when accepts (or entry 'rejected))))
+
+(defun etaf-md--child-problems (env child)
+  "Return messages for CHILD's attributes that break ENV's declaration."
+  (let* ((entry (etaf-md--accepts env child))
+         (attrs (etaf-md-node-attrs child))
+         (decls (etaf-md--declarations
+                 (plist-get (and (consp (cdr-safe entry)) (cdr entry)) :attrs)))
+         (problems nil))
+    (cond
+     ((null entry) nil)
+     ((eq entry 'rejected)
+      (list (format "%s is not a child of %s"
+                    (etaf-md-node-type child) (etaf-md-type env))))
+     (t
+      (dolist (decl decls (nreverse problems))
+        (let* ((key (car decl))
+               (value (plist-get attrs key))
+               (problem (and value
+                             (etaf-md--value-problem
+                              key (cdr decl) value 'document))))
+          (cond ((and (plist-get (cdr decl) :required) (null value))
+                 (push (format "%s is required"
+                               (substring (symbol-name key) 1))
+                       problems))
+                (problem (push problem problems)))))))))
+
+(defun etaf-md--child-view (env child)
+  "Return CHILD's own body painted under ENV, or its failure line."
+  (let ((problems (etaf-md--child-problems env child)))
+    (if problems
+        (etaf-md--failure-view
+         env (or (etaf-md-attr env :title child)
+                 (format "%s" (etaf-md-node-type child)))
+         (car problems))
+      (etaf-md-render env (etaf-md-children env child)))))
+
+(defun etaf-md--vertical-length (length)
+  "Return LENGTH as vertical spacing Ebox accepts.
+Vertical space is a whole number of lines, so a width unit draws none."
+  (if (memq (car-safe length) '(lh %)) length '(lh 0)))
+
+(defun etaf-md--number-list (text)
+  "Return the space separated numbers in TEXT as integers."
+  (delq nil
+        (mapcar (lambda (word)
+                  (when (string-match-p "\\`[0-9]+\\'" word)
+                    (string-to-number word)))
+                (split-string (or text "") "[ \t]+" t))))
+
 
 ;;; Structure
 
 (etaf-md--define-shipped 'box
   :name "box"
   :summary "带底色与内边距的容器"
-  :attrs '((surface :type surface :default none  :doc "外壳底色")
-           (padding :type length  :default "2ch" :doc "左右内边距")
-           (width   :type length                 :doc "自身宽度"))
+  :attrs '((surface    :type surface :default none  :doc "外壳底色")
+           (padding    :type length  :default "2ch" :doc "左右内边距")
+           (text-align :type align   :default start :doc "内容的水平位置")
+           (width      :type length                 :doc "自身宽度"))
   :view (lambda (env)
           (etaf-view
            (box :width (or (etaf-md-attr env :width) 'stretch)
+                :text-align (etaf-md-attr env :text-align)
                 :padding (list '(lh 1) (etaf-md-attr env :padding))
                 :background-color (etaf-md-surface env (etaf-md-attr env :surface))
-                :border-top (list '(px 1) 'solid (etaf-md-accent env 'neutral))
-                :border-right (list '(px 1) 'solid (etaf-md-accent env 'neutral))
-                :border-bottom (list '(px 1) 'solid (etaf-md-accent env 'neutral))
-                :border-left (list '(px 1) 'solid (etaf-md-accent env 'neutral))
+                :border (etaf-md--hairline env)
              (expr (etaf-md-content env))))))
 
 (etaf-md--define-shipped 'card
@@ -47,63 +103,119 @@
            (text-align  :type align   :default start          :doc "内容的水平位置")
            (width       :type length                          :doc "自身宽度"))
   :view (lambda (env)
-          (etaf-view
-           (box :width (or (etaf-md-attr env :width) 'stretch)
-                :text-align (etaf-md-attr env :text-align)
-                :padding '((lh 1) (ch 2))
-                :background-color (etaf-md-surface env 'raised)
-                :border-top (list '(px 1) 'solid (etaf-md-accent env 'neutral))
-                :border-right (list '(px 1) 'solid (etaf-md-accent env 'neutral))
-                :border-bottom (list '(px 1) 'solid (etaf-md-accent env 'neutral))
-                :border-left (list '(px 1) 'solid (etaf-md-accent env 'neutral))
-             (column :item-gap '(lh 1)
-               (text :font-weight 'bold
-                     :color (etaf-md-accent env (etaf-md-attr env :accent))
-                 (expr (etaf-md-attr env :title)))
-               (expr (when-let* ((description (etaf-md-attr env :description)))
-                       (etaf-view
-                        (text :color (etaf-md-accent env 'neutral)
-                          (expr description)))))
+          (let ((href (etaf-md-attr env :href)))
+            (etaf-view
+             (etaf-card :title (etaf-md-attr env :title)
+                        :description (etaf-md-attr env :description)
+                        :variant (etaf-md-attr env :accent)
+                        :width (or (etaf-md-attr env :width) 'stretch)
+                        :text-align (etaf-md-attr env :text-align)
+                        :on-press (when href
+                                    (lambda () (etaf-md-follow-link env href)))
                (expr (etaf-md-content env)))))))
+
+(defun etaf-md--column-tracks (env count)
+  "Return the width spec of each column of ENV's row.
+A number of columns shares the width equally; a track string gives each column
+its own `fr' share or fixed size."
+  (let ((columns (etaf-md-attr env :columns)))
+    (cond
+     ((and (stringp columns) (string-match-p "\\`[0-9]+\\'" columns))
+      (make-list count (list :flex-grow 1)))
+     ((stringp columns)
+      (mapcar
+       (lambda (token)
+         (cond ((string-match "\\`\\([0-9.]+\\)fr\\'" token)
+                (list :flex-grow (string-to-number (match-string 1 token))))
+               ((string-match "\\`\\([0-9]+\\)\\(ch\\|%\\)\\'" token)
+                (list :width (list (intern (match-string 2 token))
+                                   (string-to-number (match-string 1 token)))))))
+       (split-string columns "[ \t]+" t)))
+     ((> count 0) (make-list count (list :flex-grow 1))))))
+
+(defun etaf-md--column-divider (env)
+  "Return the one-pixel rule between two columns of ENV."
+  (etaf-node 'box
+             (list :width '(px 1)
+                   :flex-shrink 0
+                   :border-left (etaf-md--hairline env))
+             nil))
 
 (etaf-md--define-shipped 'columns
   :name "columns"
   :summary "等宽分栏，窄窗减栏"
-  :attrs '((columns :type number :default 2 :min 1 :max 6 :integer t
-             :doc "一行几栏")
-           (gap     :type length :default "2ch" :doc "栏间距"))
+  :attrs '((columns       :type string :default "2"
+             :doc "一行几栏，或一串轨道")
+           (gap           :type length :default "2ch" :doc "栏间距")
+           (padding       :type length :doc "左右内边距")
+           (min-width     :type length :default "24ch" :doc "每栏最小宽度")
+           (align-items   :type enum :one-of (start center end stretch)
+                          :default stretch :doc "子块在交叉轴的对齐")
+           (justify-content :type enum :one-of (start center end between)
+                            :default start :doc "子块在主轴的对齐")
+           (wrap          :type boolean :default nil :doc "放不下时换行")
+           (align-self    :type enum :one-of (start center end)
+                          :default start :doc "自身在父级里的水平位置"))
   :accepts '((col :attrs ((grow :type number :default 1 :doc "宽度份数"))))
   :view (lambda (env)
-          (let* ((count (max 1 (etaf-md-attr env :columns)))
+          (let* ((columns (etaf-md-attr env :columns))
+                 (count (if (stringp columns)
+                            (if (string-match-p "\\`[0-9]+\\'" columns)
+                                (max 1 (min 6 (string-to-number columns)))
+                              2)
+                          (max 1 (min 6 columns))))
                  (gap (etaf-md-attr env :gap))
                  (width (etaf-md-available-width env))
-                 (per (max 1 (min count (/ width 24))))
+                 (min-width (etaf-md-attr env :min-width))
+                 (min-columns (if min-width
+                                  (max 1 (floor (/ width (cadr min-width))))
+                                count))
+                 (per (if (etaf-md-attr env :wrap)
+                          count
+                        (max 1 (min count min-columns))))
+                 (tracks (etaf-md--column-tracks env per))
                  (rows (seq-partition (etaf-md-children env) per)))
             ;; The number of rows is only known while painting, so the rows are
             ;; built as nodes instead of being written out in the DSL.
-            (etaf-node 'column
-                       (list :width 'stretch :item-gap '(lh 1))
-                       (mapcar
-                        (lambda (row)
-                          (etaf-node 'flex
-                                     (list :width 'stretch
-                                           :gap (list '(lh 0) gap))
-                                     (mapcar
-                                      (lambda (col)
-                                        ;; A column is a declared child, not a
-                                        ;; type of its own, so the parent paints
-                                        ;; its content instead of asking for a
-                                        ;; definition the child never has.  A
-                                        ;; hairline on the right edge separates
-                                        ;; neighbours; the last one stays open.
-                                        (etaf-node 'column
-                                                   (list :width 'stretch
-                                                         :item-gap '(lh 0))
-                                                   (list (etaf-md-render
-                                                          env
-                                                          (etaf-md-children env col)))))
-                                      row)))
-                        rows)))))
+            (etaf-node
+             'column
+             (list :width 'stretch
+                   :item-gap '(lh 1)
+                   :align-self (etaf-md-attr env :align-self)
+                   :padding (when-let* ((padding (etaf-md-attr env :padding)))
+                              (list '(lh 0) padding)))
+             (mapcar
+              (lambda (row)
+                (etaf-node
+                 'flex
+                 (list :width 'stretch
+                       :gap (list '(lh 0) gap)
+                       :align-items (etaf-md-attr env :align-items)
+                       :justify-content (etaf-md-attr env :justify-content))
+                 (cl-loop
+                  for col in row
+                  for first = t then nil
+                  for track in tracks
+                  ;; A column is a declared child, not a type of its own, so
+                  ;; the parent paints its content instead of asking for a
+                  ;; definition the child never has.  The rule between two
+                  ;; columns is its own one-pixel box, so a stretched column
+                  ;; never decides where it sits.
+                  append
+                  (append
+                   (unless first (list (etaf-md--column-divider env)))
+                   (list (etaf-node
+                          'column
+                          (append
+                           (list :item-gap '(lh 0))
+                           (if (eq (car track) :width)
+                               (list :width (cadr track))
+                             (list :width 'stretch
+                                   :flex-grow (cadr track))))
+                          (list (etaf-md-render
+                                 env
+                                 (etaf-md-children env col)))))))))
+              rows)))))
 
 
 ;;; Callouts
@@ -123,75 +235,496 @@
     (warning . "Warning") (caution . "Caution"))
   "The fixed title each callout name draws when the document gives none.")
 
+(defconst etaf-md--callout-attrs
+  '((title             :type string  :doc "提示块的标题，省略用固定标题")
+    (collapsible       :type boolean :default nil :doc "允许收起")
+    (open              :type boolean :default t   :doc "收起时默认展开")
+    (background        :type surface :default quote :doc "底色")
+    (border-left-width :type length :default "1ch" :doc "左侧竖条宽度"))
+  "Attributes every callout name shares.")
+
+(defun etaf-md--toggle-line (env label color command)
+  "Return LABEL painted in COLOR as a focusable disclosure line.
+COMMAND runs when the line is activated."
+  (etaf-node 'box
+             (list :color color :font-weight 'bold :on-press command)
+             (list (etaf-node 'text nil (list label)))))
+
+(defun etaf-md--callout-open-p (env)
+  "Return non-nil when ENV's callout shows its body."
+  (if (etaf-md-attr env :collapsible)
+      (etaf-md-block-state env :open (etaf-md-attr env :open))
+    t))
+
 (defun etaf-md--callout-view (env)
   "Paint a callout; the five names share this view."
-  (let* ((type (etaf-md-type env))
-         (accent (etaf-md--callout-accent type))
+  (let* ((accent (etaf-md--callout-accent (etaf-md-type env)))
          (title (or (etaf-md-attr env :title)
-                    (alist-get type etaf-md--callout-titles))))
-    (etaf-view
-     (box :width 'stretch
-          :padding '((lh 1) (ch 2))
-          :background-color (etaf-md-surface env 'raised)
-          :border-top (list '(px 1) 'solid (etaf-md-accent env 'neutral))
-          :border-right (list '(px 1) 'solid (etaf-md-accent env 'neutral))
-          :border-bottom (list '(px 1) 'solid (etaf-md-accent env 'neutral))
-          :border-left (list (or (etaf-md-attr env :border-left-width)
-                                 (list 'px 3))
-                             'solid (etaf-md-accent env accent))
-       (column :item-gap '(lh 1)
-         (text :font-weight 'bold
-               :color (etaf-md-accent env accent)
-           (expr title))
-         (expr (unless (and (etaf-md-attr env :collapsible)
-                            (not (etaf-md-attr env :open)))
-                 (etaf-md-content env))))))))
+                    (alist-get (etaf-md-type env) etaf-md--callout-titles)))
+         (open (etaf-md--callout-open-p env))
+         (collapsible (etaf-md-attr env :collapsible)))
+    (etaf-node
+     'box
+     (list :width 'stretch
+           :padding '((lh 1) (ch 2))
+           :background-color (etaf-md-surface env (etaf-md-attr env :background))
+           :border-top (etaf-md--hairline env)
+           :border-right (etaf-md--hairline env)
+           :border-bottom (etaf-md--hairline env)
+           :border-left (list (etaf-md-attr env :border-left-width)
+                              'solid (etaf-md-accent env accent)))
+     (append
+      (list
+       (if collapsible
+           (etaf-md--toggle-line
+            env (concat (if open "[-] " "[+] ") title)
+            (etaf-md-accent env accent)
+            (lambda () (etaf-md-set-block-state env :open (not open))))
+         (etaf-node 'text (list :color (etaf-md-accent env accent)
+                                :font-weight 'bold)
+                    (list title))))
+      (when open (list (etaf-md-content env)))))))
 
 (dolist (type '(note tip important warning caution))
   (etaf-md--define-shipped type
     :name (symbol-name type)
     :summary "提示块，一个名字一个固定强调色"
-    :attrs '((title            :type string  :doc "提示块的标题，省略用固定标题")
-             (collapsible      :type boolean :default nil   :doc "允许收起")
-             (open             :type boolean :default t     :doc "收起时默认展开")
-             (background       :type surface :default quote :doc "底色")
-             (border-left-width :type length :doc "左侧竖条宽度，省略 3 像素"))
+    :attrs etaf-md--callout-attrs
     :view #'etaf-md--callout-view))
 
+;;; Sequences
 
-;;; Tabs
+(etaf-md--define-shipped 'steps
+  :name "steps"
+  :summary "有序步骤，每步带正文"
+  :attrs '((start      :type number :default 1 :integer t :min 0 :doc "起始编号")
+           (list-style :type enum   :one-of (decimal bullet none)
+                       :default decimal :doc "记号"))
+  :accepts '((step :attrs ((title :type string :required t :doc "步骤标题"))))
+  :view (lambda (env)
+          (etaf-view
+           (etaf-steps
+            :orientation 'vertical
+            :start (etaf-md-attr env :start)
+            :list-style (etaf-md-attr env :list-style)
+            :current 0
+            :items (seq-map-indexed
+                    (lambda (step index)
+                      (list :key index
+                            :label (or (etaf-md-attr env :title step) "")
+                            :content (lambda () (etaf-md--child-view env step))))
+                    (etaf-md-children env))))))
 
-(defun etaf-md--tab-key (index) index)
+(etaf-md--define-shipped 'timeline
+  :name "timeline"
+  :summary "按时间排的事件，每条带正文"
+  :attrs '((list-style :type enum :one-of (decimal bullet none)
+                       :default bullet :doc "记号的样式"))
+  :accepts '((event :attrs ((title :type string :required t :doc "标题")
+                            (time  :type string :doc "时间文字"))))
+  :view (lambda (env)
+          (etaf-view
+           (etaf-timeline
+            :list-style (etaf-md-attr env :list-style)
+            :items (seq-map-indexed
+                    (lambda (event index)
+                      (list :key index
+                            :title (or (etaf-md-attr env :title event) "")
+                            :time (etaf-md-attr env :time event)
+                            :content (lambda () (etaf-md--child-view env event))))
+                    (etaf-md-children env))))))
+
+(etaf-md--define-shipped 'stats
+  :name "stats"
+  :summary "一排数字，窄窗换行"
+  :attrs '((columns :type number :default 3 :min 1 :max 6 :integer t
+             :doc "一行几个"))
+  :accepts '((stat :attrs ((title :type string :required t :doc "说明文字")
+                           (value :type string :required t :doc "数字文本"))))
+  :view (lambda (env)
+          (let ((per (max 1 (etaf-md-attr env :columns))))
+            (etaf-node
+             'column (list :width 'stretch :item-gap '(lh 1))
+             (mapcar
+              (lambda (row)
+                (etaf-node
+                 'flex
+                 (list :width 'stretch :gap (list '(lh 1) '(ch 3))
+                       :align-items 'start)
+                 (mapcar
+                  (lambda (stat)
+                    (etaf-node
+                     'column (list :width 'stretch :flex-grow 1
+                                  :item-gap '(lh 0))
+                     (list (etaf-node
+                            'etaf-statistic
+                            (list :label (etaf-md-attr env :title stat)
+                                  :value (etaf-md-attr env :value stat))
+                            nil))))
+                  row)))
+              (seq-partition (etaf-md-children env) per))))))
+
+(defun etaf-md--field-row (env pair width separator)
+  "Return one field row: the name in WIDTH, then SEPARATOR and the value."
+  (etaf-node
+   'flex (list :width 'stretch :gap '((lh 0) (ch 0))
+               :padding '((lh 0) (ch 1))
+               :border-bottom (etaf-md--hairline env))
+   (list
+    (etaf-node 'box (list :width width :text-align 'right
+                          :color (etaf-md-accent env 'neutral))
+               (list (etaf-node 'text nil
+                                (list (concat (car pair) separator)))))
+    (etaf-node 'box (list :width 'stretch)
+               (list (etaf-node 'text nil (list (cdr pair))))))))
+
+(etaf-md--define-shipped 'field
+  :name "field"
+  :summary "名称与值对齐的字段表"
+  :attrs '((label-width :type length :doc "名称列宽度，省略按最长的名称算")
+           (separator   :type enum :one-of (colon none)
+                        :default colon :doc "名称与值的分隔"))
+  :accepts '((list :attrs nil))
+  :view (lambda (env)
+          (let* ((list-node (car (etaf-md-children env)))
+                 (rows (and list-node (etaf-md-children env list-node)))
+                 (pairs (mapcar (lambda (row) (etaf-md--field-pair env row))
+                                rows))
+                 (separator (if (eq (etaf-md-attr env :separator) 'none)
+                                "  " "："))
+                 (width (or (etaf-md-attr env :label-width)
+                            (list 'ch
+                                  (+ (string-width separator)
+                                     (max 2 (apply #'max
+                                                   (mapcar (lambda (pair)
+                                                             (string-width (car pair)))
+                                                           pairs))))))))
+            (etaf-node
+             'column (list :width 'stretch :item-gap '(lh 0))
+             (mapcar (lambda (pair)
+                       (etaf-md--field-row env pair width separator))
+                     pairs)))))
+
+(defun etaf-md--field-pair (env row)
+  "Return ROW's name and value as one cons."
+  (let ((text (or (etaf-md-attr env :text row) "")))
+    (if (string-match "[：:]" text)
+        (cons (string-trim (substring text 0 (match-beginning 0)))
+              (string-trim (substring text (match-end 0))))
+      (cons (string-trim text) ""))))
+
+(defun etaf-md--tree-entries (env nodes)
+  "Return list item NODES as nested `etaf-tree' items.
+The parser already nests an item's sub-list under the item, so the entries
+follow the children instead of a flat depth sequence."
+  (let ((counter 0))
+    (cl-labels
+        ((build (children)
+           (mapcar
+            (lambda (node)
+              (list :key (cl-incf counter)
+                    :label (or (etaf-md-attr env :text node) "")
+                    :children (build (etaf-md-children env node))))
+            children)))
+      (build nodes))))
+
+(defun etaf-md--tree-branch-keys (items)
+  "Return the keys of ITEMS that have children."
+  (cl-loop for item in items
+           append (append (when (plist-get item :children)
+                            (list (plist-get item :key)))
+                          (etaf-md--tree-branch-keys (plist-get item :children)))))
+
+(etaf-md--define-shipped 'file-tree
+  :name "file-tree"
+  :summary "带树线的目录树"
+  :attrs '((title :type string :doc "树上方一行标题")
+           (lines :type boolean :default t :doc "画不画树线"))
+  :accepts '((list :attrs nil))
+  :view (lambda (env)
+          (let* ((list-node (car (etaf-md-children env)))
+                 (items (and list-node
+                             (etaf-md--tree-entries
+                              env (etaf-md-children env list-node)))))
+            (etaf-node
+             'box
+             (list :width 'stretch
+                   :padding '((lh 1) (ch 2))
+                   :background-color (etaf-md-surface env 'raised)
+                   :border (etaf-md--hairline env))
+             (list
+              (etaf-node
+               'column (list :width 'stretch :item-gap '(lh 0))
+               (append
+                (when-let* ((title (etaf-md-attr env :title)))
+                  (list (etaf-node 'text (list :font-weight 'bold)
+                                   (list title))))
+                (list (etaf-node
+                       'etaf-tree
+                       (list :items items
+                             :lines (etaf-md-attr env :lines)
+                             :expanded (etaf-md--tree-branch-keys items))
+                       nil)))))))))
+
+(etaf-md--define-shipped 'chat
+  :name "chat"
+  :summary "一问一答的对话，不画气泡"
+  :attrs '((self :type enum :one-of (left right)
+             :default left :doc "自己说的话放哪边"))
+  :accepts '((message :attrs ((from :type string :required t :doc "发送者")
+                             (time :type string :doc "时间文字"))))
+  :view (lambda (env)
+          (let ((right (eq (etaf-md-attr env :self) 'right)))
+            (etaf-node
+             'column
+             (list :width 'stretch :item-gap '(lh 1)
+                   :cross-align (if right 'end 'start))
+             (mapcar
+              (lambda (message)
+                (etaf-node
+                 'box (list :width 'stretch
+                            :text-align (if right 'right 'left))
+                 (list
+                  (etaf-node
+                   'column (list :width 'stretch :item-gap '(lh 0))
+                   (list
+                    (etaf-node 'text
+                               (list :color (etaf-md-accent env 'neutral))
+                               (list (concat (or (etaf-md-attr env :from message) "")
+                                             (when-let* ((time (etaf-md-attr env :time message)))
+                                               (concat "  " time)))))
+                    (etaf-md--child-view env message))))))
+              (etaf-md-children env))))))
+
+
+;;; Interaction
+
+(defun etaf-md--tab-language (env tab)
+  "Return TAB's first fenced language, or nil."
+  (let ((code (seq-find (lambda (child)
+                          (eq (etaf-md-node-type child) 'code-block))
+                        (etaf-md-children env tab))))
+    (and code (etaf-md-attr env :language code))))
+
+(defun etaf-md--tab-label (env tab)
+  "Return TAB's label: its title, or its fenced language."
+  (or (etaf-md-attr env :title tab)
+      (etaf-md--tab-language env tab)
+      ""))
+
+(defun etaf-md--tabs-view (env)
+  "Paint a tab strip and the selected page; both tab styles share it."
+  (let* ((tabs (etaf-md-children env))
+         (count (length tabs))
+         (initial (or (cl-position-if
+                       (lambda (tab) (etaf-md-attr env :selected tab))
+                       tabs)
+                      0))
+         (active (min (or (etaf-md-block-state env :active initial) 0)
+                      (max 0 (1- count))))
+         (selected (nth active tabs)))
+    (etaf-view
+     ;; The strip is a bar, not a panel: its own rule separates it from the
+     ;; page, and a code page keeps its code block's frame as the only frame.
+     (column :width 'stretch :item-gap '(lh 0)
+             :border (etaf-md--hairline env)
+       (etaf-tabs
+        :items (seq-map-indexed
+                (lambda (tab index)
+                  (list :key index :label (etaf-md--tab-label env tab)))
+                tabs)
+        :active active
+        :framed nil
+        :on-change (lambda (key) (etaf-md-set-block-state env :active key)))
+       (box :width 'stretch
+            :padding '((lh 1) (ch 2))
+            :border-top (etaf-md--hairline env)
+         (expr (when selected (etaf-md--child-view env selected))))))))
 
 (etaf-md--define-shipped 'tabs
   :name "tabs"
   :summary "标签页，只画选中那一页的正文"
   :accepts '((tab :attrs ((title    :type string  :required t :doc "标签文字")
                           (selected :type boolean :default nil :doc "打开时选中这一页"))))
+  :child-syntax 'markers
+  :view #'etaf-md--tabs-view)
+
+(etaf-md--define-shipped 'code-tabs
+  :name "code-tabs"
+  :summary "代码标签页，标题省略时用围栏语言名"
+  :accepts '((tab :attrs ((title    :type string :doc "标签文字，省略取围栏语言")
+                          (selected :type boolean :default nil :doc "打开时选中这一页"))))
+  :child-syntax 'markers
+  :view #'etaf-md--tabs-view)
+
+(etaf-md--define-shipped 'accordion
+  :name "accordion"
+  :summary "折叠组，同时只开一块"
+  :accepts '((collapse :attrs ((title :type string :required t :doc "收起时的标题")
+                               (open  :type boolean :default nil :doc "默认展开"))))
   :view (lambda (env)
-          (let* ((tabs (etaf-md-children env))
-                 (count (length tabs))
-                 (initial (or (cl-position-if
-                               (lambda (tab)
-                                 (etaf-md-attr env :selected tab))
-                               tabs)
-                              0))
-                 (active (min (or (etaf-md-block-state env :active initial) 0)
-                              (max 0 (1- count))))
-                 (selected (nth active tabs)))
+          (let ((collapses (etaf-md-children env)))
             (etaf-view
-             (column :width 'stretch :item-gap '(lh 1)
-               (etaf-tabs
-                :items (seq-map-indexed
-                        (lambda (tab index)
-                          (list :key index
-                                :label (etaf-md-attr env :title tab)))
-                        tabs)
-                :active active
-                :on-change (lambda (key)
-                             (etaf-md-set-block-state env :active key)))
-               (expr (when selected
-                       (etaf-md-render env (etaf-md-children env selected)))))))))
+             (etaf-accordion
+              :items (seq-map-indexed
+                      (lambda (collapse index)
+                        (list :key index
+                              :label (or (etaf-md-attr env :title collapse) "")
+                              :content (lambda () (etaf-md--child-view env collapse))))
+                      collapses)
+              :open (or (etaf-md-block-state env :open)
+                        (seq-filter (lambda (index)
+                                      (etaf-md-attr env :open (nth index collapses)))
+                                    (number-sequence 0 (1- (length collapses)))))
+              :multiple nil
+              :on-toggle (lambda (open)
+                           (etaf-md-set-block-state env :open open)))))))
+
+
+;;; Documents
+
+(etaf-md--define-shipped 'table
+  :name "table"
+  :summary "带标题与行列高亮的表格"
+  :attrs '((title             :type string :doc "表格上方一行标题")
+           (highlight-rows    :type string :doc "高亮的行号，空格分隔")
+           (highlight-columns :type string :doc "高亮的列号，空格分隔")
+           (highlight         :type accent :default warning :doc "高亮用哪个强调值")
+           (background        :type surface :default page :doc "表格底色")
+           (color             :type color :default "foreground" :doc "表格文字色")
+           (header-background :type surface :default table-header :doc "表头底")
+           (stripe-background :type surface :default table-stripe :doc "条纹底")
+           (text-align        :type align :default start :doc "单元格文字位置")
+           (margin-top        :type length :default "0ch" :doc "与上一块的距离")
+           (margin-bottom     :type length :default "0ch" :doc "与下一块的距离"))
+  :accepts '((table-block :attrs nil))
+  :view (lambda (env)
+          (let* ((table-node (car (etaf-md-children env)))
+                 (rows (and table-node (etaf-md-children env table-node))))
+            (if (null rows)
+                (etaf-md--child-view env table-node)
+              (etaf-md--table-view env rows)))))
+
+(defun etaf-md--table-view (env rows)
+  "Paint ROWS of the table container in ENV."
+  (let* ((first-row (car rows))
+         (columns (length (etaf-md-children env first-row)))
+         (hit-rows (etaf-md--number-list (etaf-md-attr env :highlight-rows)))
+         (hit-columns (etaf-md--number-list
+                       (etaf-md-attr env :highlight-columns)))
+         (hit (etaf-md-accent env (etaf-md-attr env :highlight)))
+         (header-fill (etaf-md-surface env (etaf-md-attr env :header-background)))
+         (stripe-fill (etaf-md-surface env (etaf-md-attr env :stripe-background)))
+         (tracks (cl-loop for column below columns
+                          collect (list 'ch
+                                        (+ 4 (cl-loop
+                                              for row in rows
+                                              maximize
+                                              (string-width
+                                               (or (etaf-md-attr
+                                                    env :text
+                                                    (nth column
+                                                         (etaf-md-children env row)))
+                                                   "")))))))
+         (row-views nil)
+         (row-number 0))
+    (dolist (row rows)
+      (setq row-number (1+ row-number))
+      (let ((cell-views nil)
+            (column 0))
+        (dolist (cell (etaf-md-children env row))
+          (setq column (1+ column))
+          (let ((highlighted (or (memq row-number hit-rows)
+                                 (memq column hit-columns))))
+            (push (etaf-node
+                   'box
+                   (list :width (nth (1- column) tracks)
+                         :padding '((lh 0) (ch 1))
+                         :overflow 'hidden
+                         :wrap-mode 'word
+                         :text-align (or (etaf-md-attr env :align cell)
+                                         (etaf-md-attr env :text-align))
+                         :background-color
+                         (cond ((= row-number 1) header-fill)
+                               ((and stripe-fill (cl-oddp row-number))
+                                stripe-fill))
+                         :border-bottom
+                         (unless (= row-number (length rows))
+                           (etaf-md--hairline env))
+                         :border-right
+                         (unless (= column columns)
+                           (etaf-md--hairline env))
+                         :color (and highlighted hit)
+                         :font-weight (and (or (= row-number 1) highlighted)
+                                           'bold))
+                   (list (etaf-node 'text nil
+                                    (list (or (etaf-md-attr env :text cell)
+                                              "")))))
+                  cell-views)))
+        (push (etaf-node 'flex (list :width 'stretch)
+                         (nreverse cell-views))
+              row-views)))
+    (etaf-node
+     'column
+     (list :width 'stretch
+           :background-color (etaf-md-surface env (etaf-md-attr env :background))
+           :margin-top (etaf-md--vertical-length (etaf-md-attr env :margin-top))
+           :margin-bottom (etaf-md--vertical-length (etaf-md-attr env :margin-bottom))
+           :item-gap '(lh 0))
+     (append
+      (when-let* ((title (etaf-md-attr env :title)))
+        (list (etaf-node 'text (list :font-weight 'bold) (list title))))
+      (nreverse row-views)))))
+
+(etaf-md--define-shipped 'window
+  :name "window"
+  :summary "带标题栏的演示窗口"
+  :attrs '((title  :type string :doc "标题栏文字")
+           (height :type length :doc "内容区高度"))
+  :view (lambda (env)
+          (etaf-view
+           (column :width 'stretch :item-gap '(lh 0)
+                   :border (etaf-md--hairline env)
+                   :overflow 'hidden
+             (row :width 'stretch
+                  :padding '((lh 0) (ch 1))
+                  :item-gap '(ch 1)
+                  :background-color (etaf-md-surface env 'raised)
+                  :border-bottom (etaf-md--hairline env)
+               (text :color "#E5484D" (expr "o"))
+               (text :color "#D97706" (expr "o"))
+               (text :color "#15803D" (expr "o"))
+               (box :width 'stretch :text-align 'center
+                 (text :font-weight 'bold
+                       :color (etaf-md-accent env 'neutral)
+                   (expr (or (etaf-md-attr env :title) "")))))
+             (box :width 'stretch
+                  :padding '((lh 1) (ch 2))
+                  :height (etaf-md-attr env :height)
+                  :overflow (and (etaf-md-attr env :height) 'hidden)
+               (expr (etaf-md-content env)))))))
+
+
+;;; Text blocks
+
+(etaf-md--define-shipped 'list
+  :summary "列表；子节点是它的每一项")
+(etaf-md--define-shipped 'list-item
+  :summary "列表的一项，容器可读它的行文字与层级"
+  :derived '((text  :type string :doc "这一项的纯文本")
+             (depth :type number :integer t :doc "从零开始的嵌套层数")))
+(etaf-md--define-shipped 'table-block
+  :summary "表格块；子节点是它的每一行")
+(etaf-md--define-shipped 'table-row
+  :summary "表格的一行；子节点是它的单元格"
+  :derived '((header :type boolean :doc "是不是表头行")))
+(etaf-md--define-shipped 'cell
+  :summary "表格的一个单元格，容器可读它的文字与对齐"
+  :derived '((text  :type string :doc "单元格的纯文本")
+             (align :type align  :doc "这一列的对齐")))
+(etaf-md--define-shipped 'code-block
+  :summary "围栏代码；语言名供代码标签页取用"
+  :derived '((language :type string :doc "围栏的语言名")))
 
 ;; Reader definitions load after the shipped ones, so :extends can rely
 ;; on them and a plain definition may still add a new type.

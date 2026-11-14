@@ -463,19 +463,107 @@ as a bordered placeholder that opens in the browser."
 (declare-function etaf-md--session-text "etaf-md-model" (session))
 (declare-function etaf-md--card-env "etaf-md-model" (session env scope))
 
+(defun etaf-md--inline-text (inlines)
+  "Return INLINES as the plain text they spell."
+  (mapconcat
+   (lambda (inline)
+     (or (plist-get inline :text)
+         (etaf-md--inline-text (plist-get inline :children))
+         ""))
+   inlines ""))
+
+(defun etaf-md--block-text (block)
+  "Return BLOCK's plain text."
+  (or (plist-get block :text)
+      (etaf-md--inline-text (plist-get block :children))
+      ""))
+
+(defun etaf-md--item-text (item)
+  "Return list ITEM's own line as plain text.
+An item's first paragraph is its line; a nested list is carried by the item's
+children instead of its text.  The inline runs spell the text without markup,
+while the block's own :text keeps the source' backticks and asterisks."
+  (let ((paragraph
+         (seq-find (lambda (child) (eq (plist-get child :type) 'paragraph))
+                   (plist-get item :children))))
+    (if paragraph
+        (or (etaf-md--inline-text (plist-get paragraph :children))
+            (etaf-md--block-text paragraph))
+      "")))
+
+(defun etaf-md--list-item-nodes (items depth)
+  "Return ITEMS as child nodes at DEPTH.
+The flat item list the parser hands back becomes one node per item, so a
+container that lays its body out one line at a time reads the line and its
+nesting instead of guessing from the source."
+  (cl-loop
+   for item in items
+   collect
+   (etaf-md-node-create
+    :type 'list-item
+    :attrs (list :text (etaf-md--item-text item) :depth depth)
+    :block item
+    :children
+    (cl-loop
+     for child in (plist-get item :children)
+     when (eq (plist-get child :type) 'list)
+     append (etaf-md--list-item-nodes (plist-get child :items) (1+ depth))))))
+
+(defun etaf-md--table-row-nodes (rows aligns header)
+  "Return table ROWS as child nodes, the HEADER row marked.
+ALIGNS gives each cell of a row its alignment."
+  (cl-loop
+   for row in rows
+   for index from 0
+   collect
+   (etaf-md-node-create
+    :type 'table-row
+    :attrs (list :header (and header (zerop index)))
+    :children
+    (cl-loop
+     for cells in row
+     for align in aligns
+     collect (etaf-md-node-create
+              :type 'cell
+              :attrs (list :text (etaf-md--inline-text cells)
+                           :align align)
+              :block (list :type 'paragraph :children cells
+                           :text (etaf-md--inline-text cells)))))))
+
 (defun etaf-md--node-for-block (block)
   "Return BLOCK as a node, or nil for a block that paints no content.
 A container node's type is the name the document wrote, so its definition is
-found exactly as `etaf-md-define-node' registered it."
-  (if (eq (plist-get block :type) 'container)
-      (etaf-md-node-create
-       :type (intern (plist-get block :name))
-       :attrs (plist-get block :attrs)
-       :children (delq nil (mapcar #'etaf-md--node-for-block
-                                   (plist-get block :children)))
-       :source (plist-get block :source)
-       :block block)
-    (etaf-md-node-create :type (plist-get block :type) :block block)))
+found exactly as `etaf-md-define-node' registered it.  A list block and a
+table block carry their items and rows as child nodes, which is the structure
+a collection container reads; the block itself still paints through the shared
+renderer when nothing overrides it."
+  (pcase (plist-get block :type)
+    ('container
+     (etaf-md-node-create
+      :type (intern (plist-get block :name))
+      :attrs (plist-get block :attrs)
+      :children (delq nil (mapcar #'etaf-md--node-for-block
+                                  (plist-get block :children)))
+      :source (plist-get block :source)
+      :block block))
+    ('list
+     (etaf-md-node-create
+      :type 'list
+      :block block
+      :children (etaf-md--list-item-nodes (plist-get block :items) 0)))
+    ('table
+     (etaf-md-node-create
+      :type 'table-block
+      :block block
+      :children (etaf-md--table-row-nodes
+                 (cons (plist-get block :header) (plist-get block :rows))
+                 (plist-get block :aligns) t)))
+    ('code-block
+     (etaf-md-node-create
+      :type 'code-block
+      :attrs (list :language (plist-get block :lang))
+      :block block))
+    (_ (etaf-md-node-create :type (plist-get block :type) :block block))))
 
 (defun etaf-md--container-view (session env block)
   "Return the view BLOCK's definition gives it, under SESSION and ENV.

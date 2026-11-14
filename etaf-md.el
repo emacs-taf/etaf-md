@@ -39,9 +39,10 @@
 ;;
 ;; Function: etaf-md-define-node (type &rest args)
 ;;   Register a node type, or extend or replace one; see article 10.
-;;   ARGS: :name, :summary, :attrs, :derived, :accepts, :contract, :view,
-;;   :extends, :replace.  A second definition of a type must say :extends or
-;;   :replace, and a declared attribute name is never redeclared.
+;;   ARGS: :name, :summary, :attrs, :derived, :accepts, :child-syntax,
+;;   :contract, :view, :extends, :replace.  A second definition of a type must
+;;   say :extends or :replace, and a declared attribute name is never
+;;   redeclared.  :child-syntax is `blocks' (default) or `markers'.
 ;;
 ;; Function: etaf-md-undefine-node (type)
 ;;   Remove a user definition; a shipped type returns to its shipped one.

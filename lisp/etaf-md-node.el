@@ -49,7 +49,7 @@ Its files load after the shipped definitions, in file-name order."
   "Attribute types a declaration may name.")
 
 (defconst etaf-md--domains
-  '((surface none page raised sunken quote)
+  '((surface none page raised sunken quote table-header table-stripe)
     (accent neutral primary success warning danger important)
     (align start center end))
   "Closed word lists of the three semantic types.")
@@ -87,6 +87,14 @@ ATTRS uses keyword names, the same names a style rule writes."
 (defun etaf-md-node-definition (type)
   "Return TYPE's definition plist, or nil."
   (gethash type etaf-md-node-definitions))
+
+(defun etaf-md--child-syntax (type)
+  "Return how container TYPE writes its children.
+`blocks' is the default: each child is a `:::name' container.  `markers' means
+one child per `@name' line, which is how a tab strip stays short.  The form is
+the container's own grammar, so a marker is meaningful only inside a type that
+declares it."
+  (or (plist-get (etaf-md-node-definition type) :child-syntax) 'blocks))
 
 (defun etaf-md--name (key)
   "Return KEY as the attribute name a document writes: no leading colon."
@@ -246,14 +254,17 @@ meaning the shipped value however many times a reader overrides it."
           :attrs (copy-tree (plist-get definition :attrs))
           :derived (copy-tree (plist-get definition :derived))
           :accepts (copy-tree (plist-get definition :accepts))
+          :child-syntax (plist-get definition :child-syntax)
           :view (plist-get definition :view)
           :contract (plist-get definition :contract))))
 
 (defun etaf-md-define-node (type &rest args)
   "Register or update the definition of TYPE.
 ARGS follow article 10: :name, :summary, :attrs, :derived, :accepts,
-:contract, :view, :extends and :replace.  A second definition of an existing
-type must say :extends or :replace; without either it is an error."
+:child-syntax, :contract, :view, :extends and :replace.  A second definition
+of an existing type must say :extends or :replace; without either it is an
+error.  `:child-syntax' is `blocks' (the default, one `:::name' per child) or
+`markers' (one `@name' line per child)."
   (unless (symbolp type)
     (signal 'etaf-md-error (list (format "A type name is a symbol: %S" type))))
   (let* ((old (etaf-md-node-definition type))
@@ -271,6 +282,9 @@ type must say :extends or :replace; without either it is an error."
       (signal 'etaf-md-error
               (list (format "%s has no definition to %s" type
                             (if extends "extend" "replace")))))
+    (unless (memq (plist-get args :child-syntax) '(nil blocks markers))
+      (signal 'etaf-md-error
+              (list (format "%s: :child-syntax is blocks or markers" type))))
     (etaf-md--check type added nil)
     (etaf-md--check type derived t)
     (let* ((attrs (cond (replace added)
@@ -293,6 +307,9 @@ type must say :extends or :replace; without either it is an error."
                    :derived all-derived
                    :accepts (or (plist-get args :accepts)
                                 (and extends (copy-tree (plist-get old :accepts))))
+                   :child-syntax (or (plist-get args :child-syntax)
+                                     (and (not replace)
+                                          (plist-get old :child-syntax)))
                    :view (or (plist-get args :view)
                              (and (not replace) (plist-get old :view)))
                    :default-view (and extends (plist-get old :view))

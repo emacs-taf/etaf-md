@@ -26,6 +26,33 @@
 
 ### Added
 
+- Every container in the extension contract is implemented: `steps`,
+  `timeline`, `stats`, `field`, `file-tree`, `chat`, `code-tabs`,
+  `accordion`, `table` and `window`, beside the structure, callout and `tabs`
+  parts.  A container translates its attributes to the `etaf-ui` component
+  that owns the shape; the table reads a parsed table block and the field and
+  file-tree read list items.
+
+- `tabs` and `code-tabs` write one `@tab` per page.  A definition declares its
+  child syntax, so `@tab` is a marker only inside the container that owns it:
+  inside a note it is plain text and inside a fence it is code.  Prose before
+  the first marker, a `:::tab` child and a mismatched marker are reported
+  instead of silently dropping content.  The strip and the page share one
+  panel, the selected tab is filled, and the strip is one Tab stop where Left
+  and Right move focus and RET opens the page.
+
+- The `table` container can highlight rows and columns, choose its surfaces
+  and title, and set cell alignment and spacing.  `table-header` and
+  `table-stripe` join the surface words a document may write.
+
+### Changed
+
+- A `tabs` or `code-tabs` container no longer accepts `:::tab` children; the
+  spelling is `@tab Title` or `@tab {attrs}`.  Migration: replace each
+  `:::tab {title="X"}` block and its closing `:::` with one `@tab X` (or
+  `@tab {title="X"}`) line.  A document that uses the old spelling now reports
+  the child instead of opening a second page.
+
 - Every diagram family the renderer supports is drawn in the page's own
   colours.  Mermaid gives each family its own palette, and the ones added later
   (charts, radar, kanban, treemap, block, packet, architecture, C4) were still
