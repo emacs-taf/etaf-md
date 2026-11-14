@@ -91,11 +91,9 @@ document with front matter opens on a page-like header instead of raw text."
                   (list
                    (etaf-node 'text
                               (list :font-weight 'bold
-                                    ;; No size of its own: the title is the
-                                    ;; body's first level, and hierarchy comes
-                                    ;; from weight, colour and the rules above
-                                    ;; and below.  A larger size also shifted
-                                    ;; the column off the body's left edge.
+                                    ;; The page title is the document's first
+                                    ;; level and reads above a body heading.
+                                    :font-size (round (* (etaf-md--base-pixels) 2.2))
                                     :color (etaf-md--env-color env :heading))
                               (list title)))
                   (when tags
@@ -704,8 +702,11 @@ list hands the runtime the unchanged value and costs one comparison per
 retained block."
   (etaf-node 'box
              (list :ref ref :width 'stretch
-                   :max-width (list 'ch (if (etaf-md--figure-block-p block)
-                                            (cdr widths) (car widths))))
+                   ;; A drawing may use the whole page; prose fills the
+                   ;; measured column it sits in, so it starts on the same
+                   ;; edge as the page header above it.
+                   :max-width (when (etaf-md--figure-block-p block)
+                                (list 'ch (cdr widths))))
              (list (etaf-node 'etaf-md-block
                               (list :key key :session session :identity key
                                     :block block)
@@ -751,7 +752,7 @@ paint into the sub-cell remainder.")
 The width is stated rather than left to stretch and a maximum: the header and
 the body are two children of the page's centring column, and a stretched child
 with a max width settled on a different left edge from the other."
-  (etaf-node 'box (list :width (list 'ch width))
+  (etaf-node 'box (list :width (list 'px (* width (frame-char-width))))
              (list view)))
 
 (defun etaf-md--view-document (session document env)
@@ -774,8 +775,7 @@ Emacs theme's own background."
          (measured (lambda (view) (etaf-md--measured-view width view)))
          (entries (if hero
                       (cons (list :view (etaf-node 'box
-                                                   (list :width 'stretch
-                                                         :max-width (list 'ch width))
+                                                   (list :width 'stretch)
                                                    (list hero)))
                             (plist-get document :children))
                     (plist-get document :children)))

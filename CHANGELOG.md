@@ -21,6 +21,15 @@
 
 ### Changed
 
+- The page header starts on the body's column: the header and the body read
+  one width now, and prose fills the measured column instead of capping itself
+  again inside it.  The page title reads above an H1 again rather than at body
+  size.
+
+- `examples/all-syntax.markdown` is rewritten as one classified page: basic
+  syntax, containers, site components and diagrams, with one section per
+  feature instead of stitched copies that repeated the diagram galleries.
+
 - The package is `etaf-md` and the library is `etaf-md.el`.  It renders
   Markdown documents and the container syntax that extends them, so the old
   name promised a preview and said nothing about the document vocabulary.  The
