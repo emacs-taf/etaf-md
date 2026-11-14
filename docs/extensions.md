@@ -1,58 +1,97 @@
 # Extension syntax
 
-> **Status.** The only extension the page renders today is the GitHub alert block: `> [!NOTE]`, `> [!TIP]`, `> [!IMPORTANT]`, `> [!WARNING]`, `> [!CAUTION]`. Everything else here is a design contract. It fixes the syntax, the parameters and the acceptance criteria before the code exists, so the implementation has one thing to follow. Any container or function marked *planned* does not exist yet, and its name is a proposal that the root entry's Commentary will settle.
+> **Status.** The only thing the page renders today is the GitHub alert block: `> [!NOTE]`, `> [!TIP]`, `> [!IMPORTANT]`, `> [!WARNING]`, `> [!CAUTION]`. Everything else here is a design contract: it fixes the model, the syntax, the attributes and the acceptance before the code exists. Any name marked *planned* does not exist today, and its function names are proposals.
+>
+> **How to read it.** Writing a document: chapters 3, 5 and 6. Defining a container: chapter 9. Implementing the renderer: chapters 2, 7, 8 and 10. What works today: the status table in 6.16.
 >
 > The Chinese and English versions run section for section. Change one, change the other.
 
-## 1. The reference and the distance from it
+## 1. Place
+
+### 1.1 What this package does
+
+One thing: turn a Markdown document into ETAF views inside a buffer, for reading. The input is text; the output is boxes, text and faces on a character grid.
+
+It ships a container vocabulary so a document can express structures plain Markdown cannot: callouts, cards, steps, tabs, timelines. The vocabulary is closed; a user can add to it through the seam in chapter 9, but a document cannot define anything itself.
+
+### 1.2 The boundary: documents and pages
+
+Pages, directories, routes, navigation, data sources and publishing are things this package knows nothing about. They belong to an application above it.
+
+That application owns its page model, its layout registry, its outline tree, its site navigation and its data. It requires this package's root entry and calls only the public interfaces. Nothing here grows a switch or a parameter for that layer's policy.
+
+The seam has one place: a document becomes a view. That interface does not exist yet; what is public today is creating a session, opening, closing, navigating, reading state and reporting capability. When the application needs to embed a rendered document, this package adds two entries: one returns a view for a text or a file that can be mounted in any region, and one registers a container. Both are planned.
+
+The package also emits no HTML. It paints a buffer. Serving a page to a browser is the application's own backend.
+
+One confusion is worth pinning down: `columns` in chapter 5 is **a column inside a document**, deciding how a passage is laid out. A page's layout is a name in the application's registry, and it is out of scope here.
+
+### 1.3 The reference and the distance from it
 
 The design refers to `vuepress-theme-plume`. Its Markdown extensions live in `plugins/plugin-md-power/`, and the real structure is three things.
 
-- **One container factory**, in `src/node/container/createContainer.ts`. It exposes `createContainerPlugin`, which turns `:::name` into a custom container whose content is still parsed as Markdown, and `createContainerSyntaxPlugin` for containers whose content goes to a custom renderer.
-- **One registry**, in `src/node/container/index.ts`. It installs about twenty presets at once: `align`, `tabs`, `code-tabs`, `window`, `steps`, `card`, `card-grid`, `card-masonry`, `encrypt`, `npm-to`, `lang-repl`, `file-tree`, `code-tree`, `timeline`, `collapse`, `chat`, `field`, `table`.
-- **About thirty client components**, among them `VPCodeTabs`, `VPTabs`, `VPCollapse`, `VPField`, `VPTimeline`, `VPCodeTree`, `VPTable`, `VPPlot`, `VPAnnotation`, `VPAbbreviation`, `VPQRCode`, `VPPdf`, `VPArtPlayer`, `VPCodePen`, `VPCodeSandbox`, `VPCard`, `VPCardGrid`, `VPCardMasonry`, `VPCaniuse`.
+- **One container factory**, in `src/node/container/createContainer.ts`. It exposes `createContainerPlugin` and `createContainerSyntaxPlugin`; the first parses content as Markdown, the second handles content itself.
+- **One registry**, in `src/node/container/index.ts`. It installs about twenty presets: `align`, `tabs`, `code-tabs`, `window`, `steps`, `card`, `card-grid`, `card-masonry`, `encrypt`, `npm-to`, `lang-repl`, `file-tree`, `code-tree`, `timeline`, `collapse`, `chat`, `field`, `table`.
+- **About thirty client components**, among them `VPCodeTabs`, `VPTabs`, `VPCollapse`, `VPField`, `VPTimeline`, `VPCodeTree`, `VPTable`, `VPPlot`, `VPAnnotation`, `VPQRCode`, `VPPdf`, `VPArtPlayer`, `VPCodePen`, `VPCodeSandbox`, `VPCard`, `VPCardGrid`, `VPCaniuse`.
 
-Copying it will not work. Three hard differences:
+Copying it will not work. Three hard differences.
 
 1. **The output differs.** Plume emits HTML, Vue components and CSS. We emit boxes, text and faces on a character grid. A container that lands in a buffer is a run of characters carrying text properties.
-2. **The expression differs.** CSS has arbitrary lengths, absolute positioning, gradients, rounded corners, shadows and animation. A character grid has line height, character width, borders, fills, weight and underlines, plus a handful of box-drawing characters.
-3. **The runtime differs.** A plume page carries client-side scripts, so a container can load, expand and play inside the browser. Our page is a plain-text result: a reader has to find it with isearch, copy it with `C-w`, export it through org, and read it in a terminal.
+2. **The expression differs.** CSS has arbitrary lengths, absolute positioning, gradients, rounded corners, shadows and animation. A character grid has line height, character width, borders, fills, weight and underlines, plus box-drawing characters.
+3. **The runtime differs.** A plume page carries client-side scripts. Our page is a plain-text result: a reader has to find it with isearch, copy it with `C-w`, export it through org, and read it in a terminal.
 
 Copying shows immediately. A card's rounded corners and shadow become garbled glyphs, a tab strip's sliding animation becomes a repaint per frame, and a chat avatar becomes a missing-glyph box.
 
-Two things are worth taking, and neither is an implementation:
+Two things are worth taking, and neither is an implementation.
 
-1. **The container factory.** Twenty effects sharing two factory functions means the shape of a definition converged. We keep that shape, but the render hook returns an ETAF view instead of HTML.
-2. **The effect inventory.** What plume solved is a requirement list. Ask of each one what it looks like on a character grid. What the grid can express gets absorbed; what it cannot gets declined, with the reason in Appendix A.
+1. **The container factory.** Twenty effects sharing two factory functions means the shape of a definition converged. We keep that shape, but the render hook returns an ETAF view.
+2. **The effect inventory.** What plume solved is a requirement list. Ask of each one what it looks like on a character grid. What the grid can express gets absorbed; what it cannot gets declined, with the reason in Appendix C.
 
-## 2. Six primitives and six rules
+## 2. Model
 
-The extension system has six primitives. A new container only declares how it uses these.
+### 2.1 Blocks, containers, parents
 
-| Primitive | What it is | Why nothing else |
-| --- | --- | --- |
-| One syntax | `:::name {params}` | A second punctuation brings a second set of escapes and a second nesting rule |
-| One content model | Parsed Markdown views | Content is views, not a string and not HTML |
-| One parameter system | Name, type, default, validation | There is one validation point and one error shape |
-| One set of layout atoms | Row, column, grid, gap, padding | Every container's layout composes from these |
-| One appearance source | The page's tokens | Colours follow the theme; a container carries no palette of its own |
-| One failure rule | Keep the source, add one line | The page stays readable and the broken block stays visible |
+A document is a sequence of blocks. A block can be a paragraph, a heading, a list, a code block, a table, or a container.
 
-The six consistency rules, each with its reason:
+A container has a name, attributes and content. Its content is parsed blocks, not a string and not HTML. So a container holds anything the page holds, including other containers.
 
-1. **One syntax.** A new effect gets a new name, not new punctuation. Slash commands, `@` directives and HTML tags do not enter a document. The reason: a reader learns one block shape, and a writer never has to remember which punctuation works at which depth.
-2. **One content model.** A container holds anything the page holds: paragraphs, lists, tables, fenced code, formulas, diagrams, other containers. A definition decides placement and never touches parsing. The reason: publication, outlines, links, search and per-block repaint keep working inside a container with no code change.
-3. **One parameter system.** Values are validated before a view is built, never guessed during rendering. The reason: a bad value should not paint half a card and then turn into a different error on the next reflow.
-4. **One set of layout atoms.** Row, column and grid, with gap, alignment, padding and a token fill. The reason: layout is bounded, so a new visual effect has to compose rather than add a private layout engine.
-5. **One appearance source.** Colours come from page tokens, and the type size is inherited from the reader's Emacs. The reason: a colour that looks right on a dark page is unreadable on a paper-coloured one, and a card that hard-codes 12 points becomes a footnote on a machine set to 20.
-6. **One failure rule.** An unknown name, a bad parameter, too much nesting or a definition that signals all keep the source and add one line. The reason: a document travels to machines that lack a definition, and failing the whole page is the worst degradation.
+The parser knows three things: opening, closing and nesting. It does not know what `tab` means, nor which attributes `card` takes. The registry owns the names, the definitions own the attributes, and the renderer owns the placement.
 
-## 3. The syntax
+### 2.2 Three kinds of container
+
+A writer sees one shape, but the system has three roles. A definition must declare which one it is.
+
+| Role | Content | Examples | Rule |
+| --- | --- | --- | --- |
+| Block | Any blocks | `note`, `card`, `box`, `table` | Appears anywhere a paragraph may |
+| Parent | Only the children it declares | `columns`, `tabs`, `steps` | A child name is valid only inside it |
+| Child | Meaningless without a parent | `col`, `tab`, `step`, `item` | Outside its parent it is an error, never a guess |
+
+One rule connects the three: **a child name is interpreted by its parent, and the parser does not recognise it.** So `:::tab` inside `tabs` is a tab, and `:::tab` at the top of a page is a line nothing can explain, reported by the failure rule.
+
+The relationship does not cross layers. A `tab` may hold a `card`, but a `tab` may not hold another `tab`. To nest, wrap another `tabs`.
+
+### 2.3 Eight invariants
+
+Every new container has to satisfy all eight. Miss one and it does not belong in the registry.
+
+| Invariant | Test |
+| --- | --- |
+| One syntax | A new effect adds a name, never punctuation. No second block marker |
+| One content model | Content is blocks, not strings, not HTML. A container never changes parsing |
+| One attribute set | Attribute names and meanings come from one shared vocabulary; a container selects, never invents a synonym |
+| One layout set | Placement uses `box`, `columns` and the shared spacing attributes only |
+| One appearance source | Colours come from surface and tone; type size comes from the reader |
+| One failure rule | A bad block keeps its source plus one line, and the page keeps rendering |
+| State belongs to the renderer | A document states no behaviour; interaction is implemented by the container definition |
+| Portable | Without the definition the page is still readable, minus the effect |
+
+## 3. Syntax
 
 ### 3.1 Opening and closing
 
 ````markdown
-:::card {title="Cache hit" tone=panel}
+:::card {title="Cache hit" surface=panel}
 The image and the formula are each drawn once and scaled to the page.
 
 - A hit reads the file
@@ -60,57 +99,77 @@ The image and the formula are each drawn once and scaled to the page.
 :::
 ````
 
-The rules:
-
 | Rule | Meaning |
 | --- | --- |
-| Name | Lowercase letters, digits and hyphens: `card`, `card-grid`, `code-tabs` |
-| Parameters | `key=value` inside braces, separated by spaces; omit the braces when there are none |
-| Closing | As many colons as opened, three at minimum |
-| Nesting | An outer container uses more colons: `:::card` inside `::::card` |
+| Name | Lowercase letters, digits and hyphens: `card`, `code-tabs` |
+| Attributes | `key=value` inside braces, space separated; omit the braces when there are none |
+| Closing | As many colons as opened, three at minimum; the closing line carries no name |
+| Nesting | An outer container uses more colons: `:::card` inside `::::box` |
 | Depth | Eight levels at most. The ninth is an error, not a render |
-| Empty | Allowed; it renders as a block with only its title |
+| Empty | Allowed. It renders a title row or an empty slot, and that is not an error |
 | Line start | `:::` occupies its own line, preceded by whitespace only |
 
-`:::col`, `:::tab`, `:::step`, `:::item`, `:::stat`, `:::event` and `:::said` are ordinary containers whose names only a parent interprets. The parent owns the relationship; the parser knows only opening, closing and nesting.
+A closing line carries no name on purpose. A name there would need matching in two places, and a decision about which side reports a mismatch. Without it only the colon count matters, and a mismatch is impossible.
 
-To wrap a container of the same name, give the outer one an extra colon:
+The depth limit is eight rather than unbounded. Every level is a box, and a reader in a narrow window loses track of which level they are in; every level also costs one measurement and one reflow. The limit pins the worst case.
+
+### 3.2 Children and parents
+
+To wrap a container of the same name, give the outer one an extra colon.
 
 ````markdown
-::::card {title="Outside"}
+::::box {surface=panel}
 :::card {title="Inside"}
 Content
 :::
 ::::
 ````
 
-The depth limit is eight rather than unbounded for two reasons. First, each level is a box, and a reader in a narrow window loses track of which level they are in; eight is already past what ordinary documents need. Second, every level costs one measurement and one reflow, so doubling the depth grows the cost linearly; the limit pins the worst case.
+A child is written exactly like a container; only its name is interpreted by the parent. The parent decides which children it takes and which attributes apply to them.
 
-### 3.2 Parameters
+````markdown
+:::columns {tracks="2fr 1fr" gap="2ch"}
+:::col
+The left column is ordinary Markdown.
+:::col
+So is the right one.
+:::
+````
 
-Seven types. A definition declares which parameters it takes, at which type and with which default.
+A parent must handle three edge cases without crashing or painting half a block.
+
+- **No children**: paint the container's own empty state, no error.
+- **Children out of order**: interpret them in source order, never reorder.
+- **A child missing a required attribute**: that child degrades; the others still render.
+
+### 3.3 Attributes
+
+Seven types.
 
 | Type | Spelling | Meaning | Invalid |
 | --- | --- | --- | --- |
 | `string` | `title="Cache hit"` | Text. Quote it when it contains spaces; `\"` escapes a quote | `title=cache hit` |
-| `number` | `level=2` | Integer or decimal, optionally signed | `level=two` |
+| `number` | `start=2` | Integer or decimal, optionally signed | `start=two` |
 | `bool` | `open=true` | `true` or `false`, nothing else | `open=yes` |
 | `length` | `gap="2ch"` | A number with a unit: `ch`, `lh`, `px`, `%` | `gap=2` |
-| `color` | `tone=panel` | A page token name, see 3.4 | `tone="#24262a"` |
-| `enum` | `tone=warning` | One of the words the definition lists | `tone=urgent` |
+| `color` | `tone=info` | A semantic word, see 4.1; no hexadecimal | `tone="#24262a"` |
+| `enum` | `items=center` | One of the words the definition lists | `items=middle` |
 | `regex` | `id="^[a-z]+$"` | A value matching the pattern | `id="A-1"` |
 
-Three conventions:
+Four conventions.
 
-- **No unit, no length.** `gap=2` is wrong and `gap="2ch"` is right. The reason: one bare number in a two-column layout could mean characters, lines or pixels, and guessing wrong mislays the layout once per guess.
-- **Booleans accept neither `yes` nor `1` nor `on`.** Only `true` and `false`. The reason: three spellings mean three parse branches and three error messages.
-- **Colours accept token names only.** A hexadecimal value is an error, and the error line lists the tokens that parameter accepts. See 3.4 for why.
+- **Attribute names are shared.** `title` means the same in a card, a callout, a collapse and a demo window. A container selects from the vocabulary and never invents `heading` or `caption`.
+- **One name, one type.** `cols` is always a number (equal columns); proportions go in `tracks`. The same name changing type between containers is forbidden.
+- **No unit, no length.** `gap=2` is wrong and `gap="2ch"` is right. One bare number could mean characters, lines or pixels, and guessing wrong mislays the layout once per guess.
+- **Booleans accept neither `yes` nor `1` nor `on`.** Only `true` and `false`. Three spellings mean three parse branches.
 
-Errors and help list parameters in declaration order. Rendering ignores the order.
+Writing the same attribute twice is an error, not a last-one-wins. The reason: a duplicate usually means the author changed half of it, and silently picking one hides the problem.
 
-### 3.3 Validation and errors
+The shared attribute table is Appendix A; containers only reference it.
 
-Validation runs once, reports every error in the block together, and never guesses or half-renders. An error is a muted line above the block's source, and its line number is the line that opened the container:
+### 3.4 Validation, degradation and the failure catalogue
+
+Validation runs once, before a view is built, and reports every error in the block together. An error is a muted line above the block's source, numbered by the line that opened the container.
 
 ````markdown
 :::card {title="Cache hit" colour=blue tone="#24262a"}
@@ -119,22 +178,77 @@ Content
 ````
 
 ```
-line 42: card does not take "colour"; it takes title, tone
-line 42: card received tone="#24262a"; it takes panel, quote, accent, danger
+line 42: card does not take "colour"; it takes title, description, surface, tone, href, align, width
+line 42: card received tone="#24262a"; it takes neutral, info, ok, warn, danger, important
 line 44: nesting depth 9 exceeds the limit of 8
 ```
 
-Three rules:
+Failures come in twelve kinds. Each has a determined page result; none is "it depends".
+
+| Case | Page | Scope |
+| --- | --- | --- |
+| Unknown name | Source plus one line | This block |
+| Unknown attribute | Source, and the line lists what it takes | This block |
+| Invalid value | Source, and the line gives the value and one valid example | This block |
+| Missing required attribute | Source, and the line names it | This block |
+| Duplicate attribute | Source, and the line names the duplicate | This block |
+| Child outside its parent | Source, and the line names the parent | This block |
+| Child missing a required attribute | Source; the parent keeps parsing the rest | This child |
+| Parent without children | Empty state, no error | This block |
+| Nesting beyond eight | Source, and the line gives the depth | This block |
+| Unclosed | The opening `:::` line becomes literal text; the rest parses | That line |
+| Definition signals | Source, and the line names the definition and its error | This block |
+| Contract version mismatch | Source, and the line names the required version | This block |
+
+Three general rules.
 
 1. **No dialog.** The error is part of the page, not an Emacs error. A file with ten mistakes would otherwise interrupt ten times.
 2. **No whole-page failure.** Only the failing block degrades; the rest renders.
-3. **One line per error.** Several errors in one block each take a line, ordered by the definition's parameter order.
+3. **One line per error.** Several errors in one block each take a line, ordered by the definition's declaration order.
 
-Error text follows the page language. A Chinese page answers in Chinese, an English page in English, through the same label mechanism the alert titles use.
+Error text follows the page language. A Chinese page answers in Chinese, an English page in English, through the same label mechanism the callout titles use.
 
-### 3.4 Tokens
+### 3.5 Unclosed containers and recovery
 
-These are all the colours a container may use. They follow the page palette: dark, light and sepia each define a set, and the face-derived mode computes them from the active frame.
+An unclosed container does not swallow the rest of the document. Its opening `:::` line becomes literal text and the rest parses normally.
+
+````markdown
+:::card {title="Missing its closing line"}
+This is still body text.
+
+## The heading below still counts
+````
+
+The choice favours the reader. Swallowing half a document is much worse than one extra line of text, and the author would also have a harder time finding it.
+
+## 4. Appearance
+
+### 4.1 Surface and tone
+
+Appearance has two attributes: `surface` for the fill, `tone` for emphasis. They are separate words because they are separate things.
+
+| `surface` | Fill | Used for |
+| --- | --- | --- |
+| `none` | No fill | Default. Cards in prose, blocks side by side |
+| `panel` | `panel` token | Code blocks, cards that need a boundary |
+| `quote` | `quote-bg` token | Quotation-like blocks |
+| `sunken` | `panel2` token | Table headers, secondary information |
+| `page` | `bg` token | Places that must separate from the prose |
+
+| `tone` | Foreground | Soft fill | Meaning |
+| --- | --- | --- | --- |
+| `neutral` | `ink` | `panel` | No tone |
+| `info` | `accent` | `accent-soft` | Note, information |
+| `ok` | `ok` | `ok-soft` | Success, advice |
+| `warn` | `warn` | `warn-soft` | Caution |
+| `danger` | `danger` | `danger-soft` | Danger |
+| `important` | `important` | `important-soft` | Important |
+
+Tone changes the accent colour and the soft fill only. It never changes type size, weight or line height. For stronger emphasis, change the tone, do not stack effects.
+
+### 4.2 Tokens
+
+A token is a name inside the renderer. A document writes `tone=info`, never `accent`, and certainly never a colour value.
 
 | Token | Use |
 | --- | --- |
@@ -142,63 +256,144 @@ These are all the colours a container may use. They follow the page palette: dar
 | `ink` | Body text |
 | `muted` | Secondary text and notes |
 | `faint` | The weakest layer: numbering, separators |
-| `accent` | Links, emphasis, informational marks |
-| `accent-soft` | Informational fill |
-| `panel` | Code blocks, card surface |
-| `panel2` | Table header, stripes |
+| `accent` / `accent-soft` | Informational |
+| `panel` / `panel2` | Surfaces |
 | `border` | Borders and rules |
-| `quote-bg` | Quote fill |
-| `quote-bar` | Quote's left bar |
-| `table-header` | Table header |
-| `table-stripe` | Table stripe |
+| `quote-bg` / `quote-bar` | Quotes |
+| `table-header` / `table-stripe` | Tables |
 | `heading` | Headings |
-| `ok` / `ok-soft` | Success foreground and fill |
-| `warn` / `warn-soft` | Warning |
+| `ok` / `ok-soft` | Success |
+| `warn` / `warn-soft` | Caution |
 | `danger` / `danger-soft` | Danger |
 | `important` / `important-soft` | Important |
 
-**Why no hexadecimal.** A `#24262a` that looks right on a dark page is a black blot on a paper-coloured one, with unreadable text on top. The page defines every token in all three palettes, so a container asks for "a panel fill" and follows the palette when it changes. A hexadecimal value is an error, and the error line lists the tokens that parameter accepts.
+Every token has a value in all three palettes, and the face-derived mode computes them from the active frame. A container declares a surface and a tone, and follows the palette when it changes.
 
-### 3.5 Type size is not a parameter
+**Why no hexadecimal.** A `#24262a` that looks right on a dark page is a black blot on a paper-coloured one. A hexadecimal value is an error, and the error line lists the semantic words that attribute accepts.
+
+### 4.3 Type size and measures
 
 There is no `size`, no `font-size`, no `scale`, and no equivalent. Type size always comes from the reader's Emacs.
 
-The reason: a container and the body share one size, and that is what gives the page a consistent reading rhythm. A card title that should catch the eye uses weight, whitespace, a colour bar or a fill, never size. A short window drops a whole row instead of shrinking text.
+Hierarchy uses weight, whitespace, a rule or a fill. A short window drops a whole row instead of shrinking text.
 
-A counter-example makes it concrete: a `size=large` card occupies three rows at 12-point and five rows at 20-point. The same document lays out differently on two machines, and captions stop lining up with card titles.
+Two counter-examples. A `size=large` card occupies three rows at 12-point and five at 20-point, so the same document lays out differently on two machines. A table squeezed to 80% makes its text smaller than the body, and the reader concludes they zoomed the page.
 
-## 4. Built-in containers
+### 4.4 Decoration characters
 
-Each entry states its status. *Implemented* means a document can write it and the page renders it today; *planned* means the design fixes it and the code does not exist.
+Decoration uses ASCII and box-drawing characters only. No emoji, no variation selectors.
 
-### 4.1 Implemented: GitHub alerts
+The allowed set: `-`, `=`, `|`, `+`, `*`, `` ` ``, `.`, `o`, plus `─│┌┐└┘├┤┬┴┼`.
 
-The spelling puts a marker on the first line of a blockquote:
+The reason: every character in that set occupies one cell in a monospace font. An emoji's width is decided by the font, so it may take one cell or two, and may become a box when the glyph is missing; a variation selector (U+FE0E) can raise the whole line and clip the bottom row.
+
+Box-drawing characters are for trees and tables only, not for card borders. The renderer draws card borders; there is no "border character" attribute.
+
+## 5. Layout
+
+### 5.1 One structural container
+
+There is one way to make columns: `columns`. The former `layout`, `flex` and `card-grid` merge into it, because their differences were only defaults.
+
+| Attribute | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `cols` | number | none | Equal columns. Ignored when `tracks` is present |
+| `tracks` | string | none | A track list, space separated, in `fr`, `ch` or `%` |
+| `gap` | length | `"2ch"` | Space between columns |
+| `pad` | length | none | Padding on all four sides |
+| `min` | length | `"24ch"` | Smallest column; below it the columns stack |
+| `items` | enum | `stretch` | Cross-axis alignment: `start`, `center`, `end`, `stretch` |
+| `justify` | enum | `start` | Main axis: `start`, `center`, `end`, `between` |
+| `wrap` | bool | `false` | Wrap when it does not fit instead of stacking |
+| `align` | enum | `start` | The container's own horizontal position: `start`, `center`, `end` |
+
+The child is `col`, with one attribute.
+
+| Attribute | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `grow` | number | `1` | Share of the remaining width |
+
+````markdown
+:::columns {tracks="2fr 1fr" gap="2ch"}
+:::col
+## One hit
+
+The cache holds one image; a hit reads it from disk and never starts the renderer.
+:::col
+The note beside it is an ordinary paragraph; the column decides its width.
+:::
+````
+
+Three cards side by side is `columns` holding three `card` blocks.
+
+````markdown
+:::columns {cols=3}
+:::card {title="Parse"}
+Text to a semantic tree.
+:::card {title="Lay out"}
+Tree to views.
+:::card {title="Publish"}
+Views to a buffer.
+:::
+````
+
+### 5.2 Tracks, gaps, padding
+
+- `cols` gives equal tracks. `cols=3` is three `1fr` tracks.
+- `tracks` gives explicit tracks in Ebox spelling: `(fr 2)` is written `2fr`, a fixed width `20ch`, a percentage `30%`.
+- `gap` separates siblings only, never the outside. The outside ring belongs to `pad`.
+- `pad` takes one length and applies it on four sides. No `pad-x` or `pad-y`: splitting the axes lets one page show two different paddings.
+- Vertical spacing uses whole multiples of `lh`. Pixels would misalign the line spacing and put borders on top of glyphs.
+
+### 5.3 Narrow windows
+
+When side-by-side columns do not fit, the layout degrades in order, never scrolling sideways.
+
+1. **Fewer columns.** `cols=3` drops to 2, then to 1, with every column at least `min`.
+2. **Stacking.** With `tracks`, a column below `min` stacks the whole block into one column with a blank row between former columns.
+3. **Tighter spacing.** `pad` drops from 2ch to 1ch and `gap` from 2ch to 1ch; the frame stays.
+4. **Same type size.** At every step the type size and line height stay.
+
+With `wrap=true`, the row wraps first, and only stacks when one column still does not fit.
+
+### 5.4 Choosing among the three structural containers
+
+There are only three, and the test is the content's relationship.
+
+| What you want | Use | Why |
+| --- | --- | --- |
+| Things side by side | `columns` | The only column mechanism |
+| A piece of material with a title and a boundary | `card` | The title is heavier than body text, lighter than a section heading |
+| A fill or padding with no title | `box` | The simplest form of a card, with no title row |
+
+**Where not to use them.** Two parallel passages are not a table, so do not force them into `columns`; use a table. Three key-value pairs are not a card; that is `field`.
+
+## 6. The container catalogue
+
+### 6.1 Families
+
+| Family | Containers | Shared property |
+| --- | --- | --- |
+| Structure | `columns`, `card`, `box` | Decide placement and boundary only, never interpret content |
+| Callouts | `note`, `tip`, `important`, `warning`, `caution` | One definition, five fixed tones |
+| Collections | `steps`, `timeline`, `stats`, `field`, `file-tree`, `chat` | Children carry labels and are ordered or named |
+| Interaction | `tabs`, `code-tabs`, `collapse`, `collapse-group` | Stateful, switchable by key |
+| Documents | `table`, `window` | Wrap something else and change how it presents |
+
+### 6.2 Callouts
+
+What ships today is the GitHub spelling, with the marker on the first line of a blockquote.
 
 ```markdown
 > [!WARNING]
 > This only works on Emacs 30 and later.
 ```
 
-Five markers: `NOTE`, `TIP`, `IMPORTANT`, `WARNING`, `CAUTION`. The block renders with a soft fill, a 3px colour bar on the left, 2ch padding on both sides, a bold first row of mark and label, and the body as ordinary Markdown.
+The planned container spelling shares one attribute set across five names.
 
-| Feature | Status today |
-| --- | --- |
-| Five markers | Implemented |
-| Title text | Fixed per kind; a Chinese page shows 笔记, 提示, 重要, 警告, 小心 |
-| Changing the title | Planned, via the `title` parameter in 4.2 |
-| Collapsing | Planned, via `collapsible` in 4.2 |
-| Other marker names | Unrecognised; the block renders as an ordinary quote without an error |
-
-Two limits are worth writing down. The marker must be the blockquote's first line, or the block is just a quote. Only those five names count, so `[!DANGER]` renders as a quote.
-
-### 4.2 Planned: the container form of an alert
-
-`:::note`, `:::tip`, `:::important`, `:::warning` and `:::caution` take the same parameters:
-
-| Parameter | Type | Default | Meaning |
+| Attribute | Type | Default | Meaning |
 | --- | --- | --- | --- |
-| `title` | string | The kind's fixed title | Replaces the title text |
+| `title` | string | The tone's fixed title | Replaces the title text |
 | `collapsible` | bool | `false` | Allow the block to collapse |
 | `open` | bool | `true` | Whether it starts expanded |
 
@@ -208,54 +403,52 @@ This only works on Emacs 30 and later.
 :::
 ```
 
-It renders as the same thing as `> [!WARNING]`, so a writer picks either. The reason for both: pasting a block written on GitHub should just work, and a long document written with containers keeps its block shapes aligned.
+Both spellings render the same thing, from the same definition. The tone mapping is fixed: `note` to `info`, `tip` to `ok`, `important` to `important`, `warning` to `warn`, `caution` to `danger`.
 
-### 4.3 Planned: card
+Why keep both. A document pasted from GitHub works immediately, which is the commonest entry; a long document written with containers aligns with the other containers and can carry attributes.
 
-`:::card` gathers related material inside one boundary: a note plus a figure, a set of links, a piece of code.
+### 6.3 Card
 
-| Parameter | Type | Default | Meaning |
+| Attribute | Type | Default | Meaning |
 | --- | --- | --- | --- |
-| `title` | string | none | Card title; omit it and there is no title row |
+| `title` | string | none | Title; omit it and there is no title row |
 | `description` | string | none | One muted summary line under the title |
-| `tone` | enum | `panel` | Fill: `panel`, `quote`, `accent`, `danger` |
-| `href` | string | none | The whole card becomes activatable and opens this target |
-| `cols` | enum | `1` | Body columns: `1`, `2`, `3`; a narrow window drops to one |
+| `surface` | enum | `panel` | See 4.1 |
+| `tone` | enum | `neutral` | See 4.1 |
+| `href` | string | none | The whole card activates and opens this target |
+| `align` | enum | `start` | Horizontal position of its content |
+| `width` | length | `stretch` | Its own width |
 
-The case it solves: a long article holds a group of parallel pieces. A section heading lifts them to the level of a section, and a list flattens a figure into one item. A card gives them a shared boundary, with a title row heavier than body text and lighter than a section heading.
+The case it solves: a group of parallel material needs one boundary. A section heading lifts it to the level of a section, and a list flattens a figure into one item.
 
 Mapping: ETAF UI's `etaf-card`, whose `default` slot takes the body and whose `title` and `description` map directly.
 
-### 4.4 Planned: card grid
+### 6.4 Box
 
-`:::card-grid` holds several `:::card` blocks and lays them out in one row or a grid of equal widths.
-
-| Parameter | Type | Default | Meaning |
+| Attribute | Type | Default | Meaning |
 | --- | --- | --- | --- |
-| `cols` | number | `2` | Cards per row; a narrow window reduces it |
-| `gap` | length | `"2ch"` | Horizontal space between cards |
+| `surface` | enum | `none` | See 4.1 |
+| `tone` | enum | `neutral` | See 4.1 |
+| `pad` | length | none | Padding |
+| `align` | enum | `start` | Horizontal position of its content |
+| `width` | length | `stretch` | Its own width |
+
+A box is a card without a title. Centring a figure is what it is for.
 
 ```markdown
-:::card-grid {cols=3}
-:::card {title="Parse"}
-Text to a semantic tree.
-:::card {title="Lay out"}
-Tree to views.
-:::card {title="Publish"}
-Views to a buffer.
+:::box {align=center pad="1lh"}
+![A cache hit](figures/hit.png)
 :::
 ```
 
-Plume also has `card-masonry`, which packs by height. We decline it: row heights are fixed on a character grid, so packing produces an ordinary grid, and one more parameter would not buy one more effect.
+### 6.5 Steps
 
-### 4.5 Planned: steps
-
-`:::steps` draws a numbered sequence, one `:::step` per step.
-
-| Parameter | Type | Default | Meaning |
+| Attribute | Type | Default | Meaning |
 | --- | --- | --- | --- |
 | `start` | number | `1` | First number |
-| `style` | enum | `number` | `number` for digits, `dot` for a dot |
+| `marker` | enum | `number` | `number` for digits, `dot` for a dot |
+
+The child is `step`, with a required `title`.
 
 ```markdown
 :::steps
@@ -266,18 +459,114 @@ Change the layer that produces the symptom, not its result.
 :::
 ```
 
-The case it solves: in a procedure, a reader wants to see how many steps there are and which one they are on. An ordered list can do it, but the number and the title share a line, and a long title wraps so the number is left alone on its row.
+The case it solves: in a procedure a reader wants to see how many steps there are and which one they are on. An ordered list can do it, but the number and the title share a line, and a wrapped title leaves the number alone on its row.
 
-Mapping: ETAF UI's `etaf-steps`, whose `:items` take `:key` and `:label` and whose `current` the page supplies.
+Mapping: ETAF UI's `etaf-steps`.
 
-### 4.6 Planned: tabs
+### 6.6 Timeline
 
-`:::tabs` holds several `:::tab` blocks: several versions of one thing in one place, switched by the reader.
-
-| Parameter | Type | Default | Meaning |
+| Attribute | Type | Default | Meaning |
 | --- | --- | --- | --- |
-| `label` | string | required | Tab label |
+| `marker` | enum | `dot` | `dot`, `number`, `none` |
+
+The child is `event`, with a required `title` and an optional `time`.
+
+```markdown
+:::timeline
+:::event {time="2026-11-12" title="Found the cost in drawing"}
+`image-size` actually drew the picture.
+:::event {time="2026-11-13" title="Read the header instead"}
+Opening dropped from 5.4 s to 0.33 s.
+:::
+```
+
+The case it solves: release notes and incident timelines. A list loses the "time above, content below" alignment.
+
+Mapping: ETAF UI's `etaf-timeline`.
+
+### 6.7 Field list
+
+| Attribute | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `label-width` | length | computed | Name column width; from the longest name by default |
+| `separator` | enum | `colon` | `colon` puts a colon after the name, `none` leaves the gap |
+
+The body is a list; the text before the first colon is the name.
+
+```markdown
+:::field
+- Version: 12.3.0
+- Renderer: Chromium, resident
+- Cache: `~/.cache/etaf-md/typeset`
+:::
+```
+
+The case it solves: parameter notes and environment facts. A two-column table needs a header row and an alignment row, which is too much machinery.
+
+### 6.8 Statistics
+
+| Attribute | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `cols` | number | `3` | Numbers per row; a narrow window reduces it |
+
+The child is `stat`, with a required `title` (the caption) and a required `value` (the number as text).
+
+```markdown
+:::stats
+:::stat {title="Open" value="0.33 s"}
+:::stat {title="Resize" value="0.18 s"}
+:::stat {title="Memory" value="349 MB"}
+:::
+```
+
+The number takes `ink` in bold, the caption `muted`. A fourth entry wraps instead of shrinking text. Mapping: ETAF UI's `etaf-statistic`.
+
+### 6.9 File tree
+
+| Attribute | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `title` | string | none | One title line above the tree |
+| `marker` | enum | `ascii` | `ascii` draws the lines, `none` keeps indentation only |
+
+The body is an indented list, one `-` per level.
+
+```markdown
+:::file-tree {title="lisp/"}
+- lisp/
+  - etaf-md-model.el
+  - etaf-md-views.el
+- etaf-md.el
+:::
+```
+
+The case it solves: saying what a directory holds. A fenced block can show the same thing, but its lines have to line up with the indentation, and hand-written ones are off by a cell sooner or later. The marks use only the characters 4.4 allows.
+
+### 6.10 Chat
+
+| Attribute | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `me` | enum | `left` | Which side the reader's own words take: `left`, `right` |
+
+The child is `said`, with a required `from` and an optional `time`.
+
+```markdown
+:::chat
+:::said {from="Q" time="14:20"}
+Why does the preview not refresh?
+:::said {from="A" time="14:21"}
+It refreshes after a save; a half-finished edit does not reflow.
+:::
+```
+
+The case it solves: a tutorial demonstrating one exchange. It is aligned text with an indent, and no bubble is drawn.
+
+### 6.11 Tabs
+
+| Attribute | Type | Default | Meaning |
+| --- | --- | --- | --- |
 | `active` | string | the first | Which tab shows first, by label |
+
+The child is `tab`, with a required `label`.
 
 ```markdown
 :::tabs
@@ -288,18 +577,13 @@ Passes the buffer directly.
 :::
 ```
 
-The case it solves: several spellings of one thing in parallel, of which a reader needs one. Three subsections in parallel lengthen the outline; tabs occupy one block.
+The case it solves: several spellings of one thing in parallel, of which a reader needs one. Three parallel subsections lengthen the outline; tabs occupy one block.
 
-Interaction is the heaviest part of this design, so it gets its own rules:
+Interaction follows the contract in chapter 7; no rules are restated here.
 
-- A tab is a real focusable target, not painted text. `TAB` reaches the tab row, left and right arrows switch, `RET` activates.
-- Switching repaints this block only. The active tab lives in the container's own state and survives reflow, a theme change and a width change.
-- An already selected tab takes no pointer hover highlight; the two states do not stack.
-- After a switch, focus stays on the tab row so the reader can keep pressing arrows.
+### 6.12 Code tabs
 
-### 4.7 Planned: code tabs
-
-`:::code-tabs` is a spelling of tabs for one case: each `:::tab` holds a fenced block, and an omitted label comes from the fence's language.
+The same as `tabs`, except the children hold fenced code, and an omitted `label` comes from the fence's language.
 
 ````markdown
 :::code-tabs
@@ -314,391 +598,367 @@ print("hi")
 :::
 ````
 
-The reason: it adds no meaning, only "the label comes from the code language". One container for that would add a definition to maintain, while making it the default behaviour of tabs keeps the registry shorter.
+This is sugar, not new meaning. One more definition is one more rule to maintain; what a default behaviour can do, a container need not.
 
-### 4.8 Planned: collapse
+### 6.13 Collapse
 
-`:::collapse` starts closed and opens on a key press. `:::collapse-group {accordion=true}` keeps only one block open at a time.
+A single fold.
 
-| Parameter | Type | Default | Meaning |
+| Attribute | Type | Default | Meaning |
 | --- | --- | --- | --- |
 | `title` | string | required | The title shown while closed |
 | `open` | bool | `false` | Starts expanded |
-| `accordion` | bool | `false` | One open block per group; only meaningful inside `collapse-group` |
+
+A group.
+
+| Attribute | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `accordion` | bool | `false` | One open block per group |
+
+```markdown
+:::collapse {title="Complete error"}
+```
+The long text goes here.
+```
+:::
+```
 
 The case it solves: long derivations, long logs, a complete error report. They stay on the page for reference without blocking the way.
 
-One detail has to be fixed now: collapsed content still takes part in isearch. When a search hits a word inside, the block opens and the match takes focus. The reason: something unsearchable does not exist as far as a reader is concerned, and they have no way to know it was folded away.
+Mapping: ETAF UI's `etaf-accordion`.
 
-Mapping: ETAF UI's `etaf-accordion`, whose `:items` take `:title` and content, with `open` and `multiple` from the page.
+### 6.14 Table wrapper
 
-### 4.9 Planned: field list
+A plain pipe table already works. The wrapper adds two things.
 
-`:::field` draws a list of "name: value" pairs with an aligned name column.
-
-| Parameter | Type | Default | Meaning |
+| Attribute | Type | Default | Meaning |
 | --- | --- | --- | --- |
-| `label-width` | length | computed | Name column width; computed from the longest name by default |
-| `separator` | enum | `colon` | `colon` puts a colon after the name, `none` leaves the gap only |
-
-The body is a list; the text before the first colon is the name:
-
-```markdown
-:::field
-- Version: 12.3.0
-- Renderer: Chromium, resident
-- Cache: `~/.cache/etaf-md/typeset`
-:::
-```
-
-The case it solves: parameter notes, environment facts, key-value pairs. A table needs a header row and an alignment row, which is too much machinery for two columns.
-
-### 4.10 Planned: timeline
-
-`:::timeline` lays events in one column, each with a time, a title and a note.
-
-| Parameter | Type | Default | Meaning |
-| --- | --- | --- | --- |
-| `marker` | enum | `dot` | Mark: `dot`, `number`, `none` |
-
-```markdown
-:::timeline
-:::event {time="2026-11-12"}
-Found that `image-size` actually draws the image.
-:::event {time="2026-11-13"}
-Read the file header instead: opening dropped from 5.4 s to 0.33 s.
-:::
-```
-
-The case it solves: release notes, incident timelines, publication cadence. A list loses the "time above, content below" alignment, so a reader has to hunt for each timestamp.
-
-Mapping: ETAF UI's `etaf-timeline`.
-
-### 4.11 Planned: statistics
-
-`:::stats` lays several numbers side by side, each with a caption.
-
-| Parameter | Type | Default | Meaning |
-| --- | --- | --- | --- |
-| `cols` | number | `3` | Numbers per row; a narrow window reduces it |
-
-```markdown
-:::stats
-:::stat {label="Open" value="0.33 s"}
-:::stat {label="Resize" value="0.18 s"}
-:::stat {label="Memory" value="349 MB"}
-:::
-```
-
-The number is emphasized with a token colour and the caption uses `muted`. A fourth entry wraps to the next row instead of shrinking text. Mapping: ETAF UI's `etaf-statistic`.
-
-### 4.12 Planned: layout
-
-`:::layout` splits the page-level flow into columns, marked with `:::col`.
-
-| Parameter | Type | Default | Meaning |
-| --- | --- | --- | --- |
-| `cols` | string | `"2fr 1fr"` | Space-separated track widths, in `fr`, `ch` or `%` |
-| `gap` | length | `"2ch"` | Space between columns |
-| `align` | enum | `start` | Cross-axis alignment: `start`, `center`, `end`, `stretch` |
-| `min` | length | `"28ch"` | Smallest column; below it the columns stack |
-
-```markdown
-:::layout {cols="2fr 1fr" gap="2ch"}
-:::col
-## One hit
-
-The cache holds one image; a hit reads it from disk and never starts the renderer.
-:::col
-The note beside it is an ordinary paragraph; the column decides its width.
-:::
-```
-
-`:::layout`, `:::flex` and `:::card-grid` all lay out columns, for different purposes:
-
-| Container | Purpose |
-| --- | --- |
-| `layout` | Page-level layout; a column holds a complete document flow |
-| `flex` | Proportional split inside a block, a figure beside its note |
-| `card-grid` | Equal-width cards, a group of material with clear boundaries |
-
-The rule is to pick the narrowest one that works. Use `flex` rather than `layout` when you can, and one column rather than two.
-
-### 4.13 Planned: proportional row
-
-`:::flex` arranges children horizontally inside a block; children are `:::item`.
-
-| Parameter | Type | Default | Meaning |
-| --- | --- | --- | --- |
-| `gap` | length | `"2ch"` | Space between children |
-| `align` | enum | `start` | `start`, `center`, `end`, `stretch` |
-| `justify` | enum | `start` | `start`, `center`, `end`, `between` |
-| `wrap` | bool | `false` | Wrap when the row does not fit |
-
-An `:::item` takes a `grow` parameter for its share; items without one split the remainder.
-
-### 4.14 Planned: alignment
-
-`:::align` takes `to`: `left`, `center` or `right`.
-
-```markdown
-:::align {to=center}
-![A cache hit](figures/hit.png)
-:::
-```
-
-`justify` is not implemented. A character grid has no inter-word space to stretch, so justified text can only pad with blanks, and the padding leaves ragged holes at the end of Chinese paragraphs.
-
-### 4.15 Planned: file tree
-
-`:::file-tree` draws an indented list as a directory tree.
-
-| Parameter | Type | Default | Meaning |
-| --- | --- | --- | --- |
-| `title` | string | none | One title line above the tree |
-| `marker` | enum | `ascii` | Mark style: `ascii`, `none` |
-
-```markdown
-:::file-tree {title="lisp/"}
-- lisp/
-  - etaf-md-model.el
-  - etaf-md-views.el
-- etaf-md.el
-:::
-```
-
-The case it solves: saying what a directory holds. A fenced block can show the same thing, but its tree lines have to line up with the indentation, and hand-written ones are off by a cell sooner or later. The marks are ASCII (`+`, `-`, `|`, `` ` ``) because those occupy exactly one cell in every monospace font.
-
-### 4.16 Planned: chat
-
-`:::chat` draws a conversation as messages split left and right, each with a sender and a time.
-
-| Parameter | Type | Default | Meaning |
-| --- | --- | --- | --- |
-| `me` | enum | `left` | Which side the reader's own words take: `left`, `right` |
-
-```markdown
-:::chat
-:::said {from="Q" time="14:20"}
-Why does the preview not refresh?
-:::said {from="A" time="14:21"}
-It refreshes after a save; a half-finished edit does not reflow.
-:::
-```
-
-The case it solves: a tutorial demonstrating one exchange, or a log of a debugging conversation. It is aligned text with an indent, and no bubble graphic is needed.
-
-### 4.17 Planned: table additions
-
-Plain pipe tables already work. A container is planned to add two things:
-
-| Parameter | Type | Default | Meaning |
-| --- | --- | --- | --- |
-| `title` | string | none | A numbered title above the table |
+| `title` | string | none | One title line above the table |
 | `hl-rows` | string | none | Highlighted rows, e.g. `warn:2,3` |
 | `hl-cols` | string | none | Highlighted columns, e.g. `accent:1` |
 
-The reason: the two commonest table needs are "give it a title" and "mark the row to watch". A paragraph of prose around the table cannot do either.
+```markdown
+:::table {title="Opening cost" hl-rows="warn:3"}
+| Version | Cost |
+| --- | --- |
+| 0.1.9 | 5.4 s |
+| 0.2.0 | 0.33 s |
+:::
+```
 
-### 4.18 Planned: demo window
+The reason: the two commonest table needs are a title and a marked row. A paragraph of prose cannot do either.
 
-`:::window` draws a title bar over a block, with three dots and a title.
+### 6.15 Demo window
 
-| Parameter | Type | Default | Meaning |
+| Attribute | Type | Default | Meaning |
 | --- | --- | --- | --- |
 | `title` | string | none | Title bar text |
 | `height` | length | computed | Content height |
 
-This one is a transformation of plume's `window`. Plume draws a macOS window with rounded corners and a shadow; we draw a single title bar, with three `·` marks and a centred title. The reason: rounded corners and shadows cannot be drawn on a character grid, and forcing them produces a row of stray glyphs. Three dots and a rule already say "this is a piece of interface".
+```markdown
+:::window {title="etaf-md-preview"}
+A screenshot or a passage of text.
+:::
+```
 
-### 4.19 Not absorbed
+A transformation of plume's `window`, which draws rounded corners and a shadow; we draw one title bar. Rounded corners cannot be drawn on a character grid, and forcing them produces a row of stray glyphs.
 
-These are containers in plume that we decline. The reasons fall into three groups.
+### 6.16 Status table
 
-**Needing a browser runtime.** These render a page that runs code, or a remote frame:
-
-| Plume container | Why not | Instead |
+| Container | Family | Status |
 | --- | --- | --- |
-| `code-pen`, `jsfiddle`, `code-sandbox`, `repl` | Requires executing code in a browser; the previewer runs no scripts | A fenced block and a link |
-| `embed-frame`, `video-embed` | Embeds a remote page or player, needing a network and a browser | A link, or a local video card |
-| `pdf` | Needs a PDF renderer | A link |
-| `qrcode` | Needs image generation and a scannable result | A link |
-| `plot` | Needs JavaScript plotting | Draw it with mermaid, or paste an image |
-| `caniuse` | Fetches remote data | A table |
-| `npm-to`, `lang-repl` | Needs a package manager and an interpreter | The command and its output |
+| GitHub alert `> [!NOTE]` and its four siblings | Callouts | Implemented |
+| `note`, `tip`, `important`, `warning`, `caution` | Callouts | Planned |
+| `box` | Structure | Planned |
+| `card` | Structure | Planned |
+| `columns` + `col` | Structure | Planned |
+| `steps` + `step` | Collections | Planned |
+| `timeline` + `event` | Collections | Planned |
+| `stats` + `stat` | Collections | Planned |
+| `field` | Collections | Planned |
+| `file-tree` | Collections | Planned |
+| `chat` + `said` | Collections | Planned |
+| `tabs` + `tab` | Interaction | Planned |
+| `code-tabs` + `tab` | Interaction | Planned |
+| `collapse`, `collapse-group` | Interaction | Planned |
+| `table` | Documents | Planned |
+| `window` | Documents | Planned |
 
-**Needing images and gradients.** `annotation` draws marks on an image, `abbreviation` needs a hover popup, and the `background` family needs gradients and particles. On a character grid these come out as blocks of glyphs, so they are better left out.
+## 7. The interaction contract
 
-**Meaning that does not belong to this package.** `encrypt` decrypts in the front end: `:::encrypt` makes the browser wait for a password. Emacs has epa and gpg, but that is file-level encryption, not a container in a previewer's syntax. A document that must stay secret does not belong in a preview.
+### 7.1 Only declared containers interact
 
-## 5. The layout model
+A document cannot give anything behaviour. Interactivity is a property of a container definition, never of the document.
 
-### 5.1 Rows, columns, grids
+The reason: a Markdown file may give the impression of having execution rights. It has none. A document can only state "here is a group of tabs"; the keys are the renderer's decision.
 
-Three atoms, mapping onto what Ebox already provides:
+### 7.2 Focus and keys
 
-| Atom | Built from | Main properties |
-| --- | --- | --- |
-| Row | `flex` in the `row` direction | `:flex-basis`, `:flex-grow`, `:align-items` |
-| Column | `column` | `:item-gap`, `:align-items` |
-| Grid | `grid` | `:grid-template-columns`, `:column-gap`, `:row-gap` |
+- A focusable target is an element the container draws, not the text itself. `TAB` and `S-TAB` move between them.
+- `RET` activates the current target.
+- Inside a group, left and right arrows switch, for a tab row or a collapse group.
+- When focus enters a container, the container shows a visible focus mark; it returns to its resting paint when focus leaves.
+- Focus order follows document order, not visual position. It is the same after a narrow window degrades.
 
-Grid tracks accept what Ebox already accepts: pixels, `ch`, `lh`, `min-content`, `max-content`, `auto`, `(fr N)`, `(minmax MIN MAX)` and `(repeat N TRACK)`. A container's `fr` maps onto a fractional track, and `gap` maps onto `:column-gap` and `:row-gap`.
+### 7.3 State and repaint
 
-### 5.2 Gaps and padding
+- State lives on the container, not on the document, and never on disk.
+- A reflow, a theme change or a width change keeps it. Reloading the document returns to defaults.
+- A state change repaints that block only, never the page.
+- The default state comes from attributes; `active` and `open` are enough.
 
-- `gap` only separates siblings; it never applies outside them. The outer ring belongs to the container's own padding, and adding both gives double spacing and visibly misaligned boundaries.
-- `pad` takes one length and applies it on four sides; `pad-x` and `pad-y` give the axes separately.
-- Units are `ch`, `lh`, `px` and `%`. `ch` follows the font width and `lh` follows the line height, so both track a machine whose type size changes.
-- Vertical spacing inside a block uses whole multiples of `lh`. Pixels would misalign the line spacing and put borders on top of glyphs.
+### 7.4 Search, copy, export
 
-### 5.3 Narrow windows
+- **isearch**: hidden content still takes part. A match opens the block and puts focus on the match. Something unsearchable does not exist as far as a reader is concerned, and they cannot know it was folded away.
+- **Copy**: the visible text is copied, including container labels, excluding hidden content.
+- **Export**: an org or HTML export flattens interactive containers the way 7.5 describes, so the reader's text is complete.
 
-When a window is too narrow for side-by-side columns, the layout degrades in order, never scrolling sideways:
+### 7.5 Flattening without interaction
 
-1. **Fewer columns.** `cols=3` drops to 2, then to 1.
-2. **Stacking.** When a `layout` column falls below `min`, the whole block stacks into one column with a blank row between former columns.
-3. **Tighter padding.** Padding drops from 2ch to 1ch, and the container's frame stays.
-4. **Same marks.** Step numbers and card title rows stay; only the spacing tightens.
+Where there is no keyboard and no focus, such as batch rendering, export or a terminal capture, an interactive container must flatten.
 
-Nothing is dropped and no type size shrinks. The reason: shrinking type makes one document read differently in a narrow window, and resizing a window should not change the type size.
+| Container | Flattened |
+| --- | --- |
+| Tabs | One section per tab, titled by its label, all expanded |
+| Collapse | All expanded, titles kept |
 
-### 5.4 How tokens and type size are inherited
+Flattening is not degradation; it is the same content in another arrangement. That is why the tests can run in batch without simulating keys.
 
-- A container declares no type size. It inherits the page's body size.
-- Colours come from tokens only. ETAF UI components inside a container follow the page's `:ui-*` tokens, so cards, tabs and callouts change together on a theme switch and none stays on the old palette.
-- Borders default to 1px of `border` and accent bars to 3px of the semantic colour. Both are fixed in the component and are not container parameters: border weight is one of the few legible steps, and exposing it would let a page mix 1px, 2px and 3px side by side.
-- Nested fills alternate: `panel` on the first level, `panel2` on the second, `panel` again on the third. The reason: the same fill three levels deep reads as one flat block, and the reader loses the boundaries.
+## 8. Rendering and performance
 
-## 6. User definitions
+### 8.1 One block, one component
 
-### 6.1 The shape of a definition
+Every top-level block is its own Component, keyed by block type and source. Changing one word repaints that block alone; the others are not even touched.
 
-A definition is data, not code inside a document. It looks like this:
+A container is no exception. A `card` is one block, a `columns` is one block, and the `col` children are painted inside it.
+
+### 8.2 Repaint scope
+
+| What happened | What repaints |
+| --- | --- |
+| One word of prose changed | That block |
+| A fold opened | That block |
+| A tab switched | That block |
+| The theme changed | The page, but each block only recolours, never reflows |
+| The window width changed | The page reflows, and nothing is rebuilt |
+| A container definition changed | The blocks that use it |
+
+### 8.3 Cost and budget
+
+- Every block is measured once per width. An unchanged width is never re-measured.
+- A nested column measures its own subtree, not the page.
+- A block's reflow targets 50 milliseconds. A 200-block document targets one second for its first open.
+- No timers, no background refresh. A still page does nothing.
+
+The budget is written down so acceptance has a number to compare with. The concrete numbers are calibrated against the benchmark during implementation, and this section changes with them.
+
+## 9. Extending
+
+### 9.1 The shape of a definition
+
+A definition is data, not code inside a document.
 
 ```elisp
 (etaf-md-define-container
  'card
+ :kind 'block
  :summary "A titled card"
- :params '((title :string "" "Card title")
-           (tone (enum panel quote accent danger) panel "Fill")
-           (cols (enum 1 2 3) 1 "Body columns"))
- :body (lambda (params body env)
+ :attrs '((title :string "" "Card title")
+          (description :string "" "Summary under the title")
+          (surface (enum none panel quote sunken page) panel "Fill")
+          (tone (enum neutral info ok warn danger important) neutral "Tone"))
+ :body (lambda (attrs body env)
          (etaf-node 'box
                     (list :width 'stretch
                           :gap '((lh 1) (ch 0))
                           :padding '((lh 1) (ch 2))
-                          :background-color (etaf-md-token env 'panel)
+                          :background-color (etaf-md-token env (plist-get attrs :surface))
                           :border-left (list '(px 3) 'solid
-                                             (etaf-md-token env 'border)))
+                                             (etaf-md-token env (plist-get attrs :tone))))
                     (append
-                     (when-let* ((title (plist-get params :title)))
+                     (when-let* ((title (plist-get attrs :title)))
                        (list (etaf-node 'text (list :weight 'bold) (list title))))
                      body))))
 ```
 
-Four fields:
-
 | Field | Purpose |
 | --- | --- |
 | The name | The first argument, a symbol. `:::card` in a document looks it up |
-| `:summary` | One line, used only in help and errors |
-| `:params` | The parameter table; each entry is `(name type default docstring)` |
+| `:kind` | `block`, `parent` or `child` |
+| `:summary` | One line, used in help and errors |
+| `:attrs` | The attribute table; each entry is `(name type default docstring)` |
+| `:children` | Parent only: the child names and their attributes |
 | `:body` | A function taking three arguments and returning an ETAF view |
 
-What `body` receives:
+What `body` receives.
 
-- `params`: a validated plist. Omitted parameters hold their defaults and types are already converted, so a `number` is a number and a `bool` is `t` or `nil`.
-- `body`: the parsed content as a list of views, not a string. A definition decides placement and never touches parsing.
-- `env`: the rendering environment. Read a colour with `(etaf-md-token env 'panel)` and the line height of the current type size with `(etaf-md-token env 'lh)`.
+- `attrs`: a validated plist. Omitted attributes hold their defaults and types are converted.
+- `body`: the parsed content as views. A definition decides placement and never touches parsing.
+- `env`: the rendering environment. Read a colour with `(etaf-md-token env 'info)` and the line height with `(etaf-md-token env 'lh)`.
 
-### 6.2 Where it lives, when it is read
+A parent adds one field.
 
-- Definitions are `.el` files in a user directory, named in `etaf-md-container-directory`.
-- A session reads the registry once when it is created and does not touch the disk again. A changed definition needs `r` or a fresh preview.
-- Definitions load only from the configured directory. A document cannot register a container and cannot run Elisp. The reason: a Markdown file should carry no execution rights, and sharing a document must not mean sharing code.
-- A duplicate name is an error rather than a silent override. Replacing a shipped definition takes `:replace t`, and the error line names the definition being replaced.
+```elisp
+:children '((col :attrs ((grow :number 1 "Width share"))))
+```
 
-### 6.3 Debugging
+### 9.2 Rules for attributes and children
 
-- `etaf-md-describe-containers` lists the registry: name, summary, parameters and the file it came from. Planned.
+- A definition references names from the shared attribute table, or declares its own. A private attribute says in `:summary` that it only works with that container.
+- Every attribute and child has a default. No default means required, and a missing required attribute follows the failure rule in 3.4.
+- A `child` definition declares no `:children`.
+- A definition may not read files, make network requests or start timers. It receives `attrs`, `body` and `env`, nothing else.
+
+### 9.3 Where definitions live and when they are read
+
+- Definitions are `.el` files in a user directory named by `etaf-md-container-directory`.
+- A session reads the registry once when created and does not touch the disk again. A changed definition needs `r` or a fresh preview.
+- A document cannot register a container and cannot run Elisp. Sharing a document is not sharing code.
+- A duplicate name is an error. Replacing a shipped definition takes `:replace t`, and the error line names what was replaced.
+
+### 9.4 Conflicts, replacement, contract version
+
+- Every definition declares `:contract 1`. A mismatch degrades that block and says so.
+- Attribute names are half the contract. New attributes may only be appended; a rename is breaking and bumps the contract version.
+- Child names are the other half. Renaming a child degrades old documents under the failure rule instead of drawing them wrongly.
+
+### 9.5 Debugging
+
+- `etaf-md-describe-containers` lists the registry: name, kind, summary, attributes and source file. Planned.
 - The error line is always on the page, so no log has to be opened.
-- When a definition itself signals, that block degrades to its source plus a line reading "the `card` definition failed: …", and the rest of the page keeps rendering.
+- When a definition signals, that block degrades to its source plus one line reading "the `card` definition failed: …", and the rest of the page keeps rendering.
 - `etaf-md-doctor` reports how many containers are registered and whether a definition file failed to load. Planned.
 
-### 6.4 Versions and portability
+### 9.6 Trust model
 
-- Every definition declares `:contract 1`. When the contract version does not match, that block degrades and says so.
-- A document opened on a machine without the definition degrades under the 3.3 failure rule. The prose still reads and the missing block stays visible.
-- Definitions are not stored in a document, so the same document elsewhere loses effects instead of changing shape.
-- Token names are part of the contract. New tokens may only be appended; a rename is a breaking change and bumps the contract version.
+- A document has no execution rights. It can name things and pass attributes.
+- Definitions load only from the configured directory. Not the current directory, not a directory beside the document.
+- A definition may not read files, make network requests, start timers or change global state. Data travels through `attrs`.
+- Rendering has no side effects. A view reads refs and cached values only.
 
-## 7. The roadmap
+## 10. Roadmap
 
-Six steps. Each one's acceptance has three parts: ERT scenarios, counter-examples, and a real GUI capture.
+### 10.1 Phases
 
-| Step | Content | Acceptance |
+| Phase | Content | Done when |
 | --- | --- | --- |
-| 1 | The `:::` scanner: open, close, nesting, depth limit, unknown-name degradation | Scenarios for three levels and for the limit; an unclosed container keeps its source; a GUI capture beside the source block |
-| 2 | Parameters: seven types, validation, error lines | Two positive and one negative case per type; three errors in one block; correct line numbers |
-| 3 | Layout: `layout`, `col`, `flex`, `item`, `gap`, `pad`, narrow-window degradation | Captures at wide, medium and narrow widths; declared track ratios hold; nothing is lost after degrading |
-| 4 | Content containers: `card`, `steps`, `collapse`, `field`, `timeline`, `stats`, `card-grid` | Each renders in all three palettes; no type size is set; nested fills alternate |
-| 5 | Interactive containers: `tabs`, `code-tabs`, `accordion` | Keys go through the command loop (`execute-kbd-macro`); a switch does not rebuild the page; the selected tab takes no hover fill |
-| 6 | Registry and user definitions: `define-container`, directory, contract version, help | A sample definition installs and uninstalls; uninstalling degrades; a contract mismatch is reported |
+| 0 | GitHub alerts | Implemented, covered by 51 tests |
+| 1 | Block model: parsing, the failure catalogue, `box`, `columns`, `card` | One assertion per failure kind; three-level nesting and the limit; captures at three widths |
+| 2 | Callout containers: five names sharing one definition with the GitHub spelling | Both spellings produce the same buffer text; the tone mapping holds |
+| 3 | Collections: `steps`, `timeline`, `stats`, `field`, `file-tree`, `chat` | Each container has a positive case, a counter-example and captures in three palettes |
+| 4 | Interaction: `tabs`, `code-tabs`, `collapse`, `collapse-group` | Keys go through the command loop; state survives reflow and a theme change; flattened output loses nothing |
+| 5 | Documents: `table`, `window` | Row and column highlights land; the window draws only a title bar |
+| 6 | Registry and user definitions | A sample definition installs and uninstalls; a contract mismatch is reported; the doctor counts registrations |
 
-Step 1 first rewrites the GitHub alert as one container definition, which is how equivalence gets checked. The criterion is that the same document produces byte-identical buffer text before and after the rewrite; any difference means the contract is missing something.
+### 10.2 The acceptance matrix per container
 
-The gate for each step: `make check` passes, the affected tests are green, and a GUI capture has been looked at. A capture is evidence, not a test; behaviour assertions and visual review stay separate.
+Every container passes these five cells; fewer is not done.
 
-## 8. Risks and non-goals
+| Cell | What it checks |
+| --- | --- |
+| Positive | A document writes it and it renders as intended |
+| Counter-example | One missing required attribute or one wrong value degrades the page with an accurate line |
+| Nesting | Inside a `columns` column and inside a `card`, it still holds |
+| Palette | Dark, light, sepia and face-derived: readable in all four |
+| Narrow | Wide, medium and narrow: nothing lost, type size unchanged |
 
-**Risks.**
+### 10.3 Done means
 
-1. **Layout cost.** Every level of container measures once. A document with twenty containers will visibly raise the cost of a reflow. Mitigation: each container is its own Component and only a changed one repaints, and a layout change reflows the affected subtree alone.
-2. **Interaction state.** Tabs and collapsed blocks own state. It must survive a reflow and a theme change, and a search hit must open the block. Each of those needs a scenario.
-3. **Narrow windows.** The threshold for dropping two columns to one is hard to set. Too high and ordinary windows become single-column; too low and a horizontal scroll appears. Mitigation: the threshold is the `min` parameter, its default derives from the reading measure, and acceptance happens in a real window.
-4. **Definition portability.** A user definition only works on its own machine, so a document degrades elsewhere. That is not a bug, but the document has to say so, or authors will assume the effect ships with the file.
-5. **Error noise.** An old document using ten unimplemented containers gains ten muted lines. Mitigation: report each name once and summarise at the top of the page with one line, "3 undefined containers on this page".
+A phase is done only when all three hold.
 
-**Non-goals.**
+1. `make check` passes: structure, compilation, tests and the API check.
+2. The affected examples have been run in a real GUI and their captures reviewed.
+3. The attribute table in Appendix A and the mapping in Appendix C are updated with it.
 
-- No HTML subset, no CSS subset, no `<style>` tag. Stuffing two layout systems into one renderer blurs the boundary until nobody can say which layer produced a gap.
+## 11. What this will not do
+
+- No HTML subset, no CSS subset, no `<style>` tag. Two layout systems in one renderer blur the boundary until nobody can say which layer produced a gap.
 - No scripts in documents, and no container registration from documents.
 - No type-size parameter and no scale parameter.
 - No remote frames, remote players or remote code execution.
-- No rounded corners, shadows, gradients or animation. On a character grid these can only be faked with special glyphs, and the result is garbled.
+- No rounded corners, shadows, gradients or animation.
 - No second document format beside Markdown.
+- No pages, routes, navigation or publishing. That is the application's work, see 1.2.
+- No `justify`. A character grid has no inter-word space to stretch, so it can only pad with blanks, and Chinese paragraphs get holes at the line ends.
 
-## 9. The boundary: documents and pages
+## Appendix A: attribute reference
 
-This package does one thing: Markdown text into ETAF views. It knows nothing about pages, directories, routes, navigation, data or publishing.
+The shared attributes. A container selects from here and never invents a synonym.
 
-Pages belong to an application above it. That layer owns the page model, the layout registry, the outline and navigation, the data sources and the export. It requires this package's root entry and calls only the public interfaces; nothing here grows a switch for that layer's policy.
+| Attribute | Type | Meaning | Used by |
+| --- | --- | --- | --- |
+| `title` | string | Title text | Callouts, card, steps, timeline, file-tree, collapse, table, window, stat |
+| `label` | string | Short label | tab, stat |
+| `description` | string | Summary under the title | card |
+| `surface` | enum | Fill role | box, card |
+| `tone` | enum | Emphasis | box, card |
+| `align` | enum | Horizontal position of content | box, card, columns |
+| `width` | length | Own width | box, card |
+| `pad` | length | Padding | box, columns |
+| `gap` | length | Space between siblings | columns |
+| `cols` | number | Number of equal columns | columns, stats |
+| `tracks` | string | Explicit tracks | columns |
+| `min` | length | Smallest column | columns |
+| `items` | enum | Cross-axis alignment | columns |
+| `justify` | enum | Main-axis alignment | columns |
+| `wrap` | bool | Wrap when it does not fit | columns |
+| `grow` | number | Width share | col |
+| `marker` | enum | Mark style | steps, timeline, file-tree |
+| `open` | bool | Starts expanded | Callouts, collapse |
+| `collapsible` | bool | May collapse | Callouts |
+| `accordion` | bool | One open per group | collapse-group |
+| `active` | string | Initially selected | tabs |
+| `href` | string | Target of the whole block | card |
+| `start` | number | First number | steps |
+| `separator` | enum | Name/value separator | field |
+| `label-width` | length | Name column width | field |
+| `me` | enum | The reader's own side | chat |
+| `from` | string | Sender | said |
+| `time` | string | Timestamp | event, said |
+| `value` | string | The number as text | stat |
+| `height` | length | Content height | window |
+| `hl-rows` | string | Highlighted rows | table |
+| `hl-cols` | string | Highlighted columns | table |
+| `id` | string | Stable anchor | Every block |
 
-The seam has one place: a document becomes a view. That interface does not exist yet; what is public today is creating a session, opening, closing, navigating, reading state and reporting capability. When the application needs to embed a rendered document, this package adds two entries: one returns a view for a text or a file that can be mounted in any region, and one registers a container. Both are planned.
+## Appendix B: surfaces, tones and tokens
 
-The package also emits no HTML. It paints a buffer. Serving a page to a browser is the application's own backend, and no container syntax buys it.
+| Value | Token | Meaning |
+| --- | --- | --- |
+| `surface=none` | none | No fill |
+| `surface=panel` | `panel` | Code blocks, cards |
+| `surface=quote` | `quote-bg` | Quotation-like |
+| `surface=sunken` | `panel2` | Secondary information |
+| `surface=page` | `bg` | Separated from the prose |
+| `tone=neutral` | `ink` / `panel` | No tone |
+| `tone=info` | `accent` / `accent-soft` | Note |
+| `tone=ok` | `ok` / `ok-soft` | Success |
+| `tone=warn` | `warn` / `warn-soft` | Caution |
+| `tone=danger` | `danger` / `danger-soft` | Danger |
+| `tone=important` | `important` / `important-soft` | Important |
 
-## Appendix A: the plume container map
+The five callout names map to tones fixedly: `note` to `info`, `tip` to `ok`, `important` to `important`, `warning` to `warn`, `caution` to `danger`.
+
+## Appendix C: the plume map
 
 | Plume | Our decision | Note |
 | --- | --- | --- |
-| `align` | Absorbed as `:::align` | `left`, `center`, `right` only; no `justify` |
-| `flex` | Absorbed as `:::flex` | Ebox flex properties; `gap` becomes a `length` |
-| `card` | Absorbed as `:::card` | Rounded corners and shadow become one border and a `panel` fill |
-| `card-grid` | Absorbed as `:::card-grid` | `cols` is an integer; no pixel spelling for `gap` |
+| `align` | Folded into `box`'s `align` attribute | One alignment does not deserve a container |
+| `flex` | Folded into `columns` | One container handles rows, wrapping and proportions |
+| `card` | Absorbed as `card` | Rounded corners and shadow become one border and a surface |
+| `card-grid` | Folded into `columns {cols=N}` | Cards side by side are cards in columns |
 | `card-masonry` | Declined | Row heights are fixed, so packing yields a grid |
-| `steps` | Absorbed as `:::steps` | Number plus title, mapped to `etaf-steps` |
-| `tabs` | Absorbed as `:::tabs` | Keyboard reachable; a switch repaints one block |
-| `code-tabs` | Absorbed as tab default behaviour | The label comes from the fence language; no new container |
-| `collapse` | Absorbed as `:::collapse` | Adds `accordion` and isearch auto-expansion |
-| `field` | Absorbed as `:::field` | Auto-aligned name column, two-column grid |
-| `timeline` | Absorbed as `:::timeline` | Optional marks, mapped to `etaf-timeline` |
-| `table` | Partly absorbed | `title` first; row highlighting later |
-| `file-tree` | Absorbed as `:::file-tree` | ASCII marks only; an indented list becomes a tree |
+| `steps` | Absorbed as `steps` + `step` | Number plus title |
+| `tabs` | Absorbed as `tabs` + `tab` | Keyboard reachable; a switch repaints one block |
+| `code-tabs` | Absorbed as tabs default behaviour | The label comes from the fence language |
+| `collapse` | Absorbed as `collapse` and `collapse-group` | Adds `accordion` and search auto-expansion |
+| `field` | Absorbed as `field` | Auto-aligned name column |
+| `timeline` | Absorbed as `timeline` + `event` | Optional marks |
+| `table` | Partly absorbed | Title and row/column highlights |
+| `file-tree` | Absorbed as `file-tree` | Marks use only the allowed characters |
 | `code-tree` | Declined | Overlaps `code-tabs` plus `file-tree` |
-| `chat` | Absorbed as `:::chat` | Alternating sides and indentation; no bubbles |
-| `window` | Absorbed with a change, as `:::window` | Title bar only; no rounded corners or shadow |
+| `chat` | Absorbed as `chat` + `said` | Alternating sides and indentation, no bubbles |
+| `window` | Absorbed with a change, as `window` | Title bar only |
 | `encrypt` | Declined | A document that must stay secret does not belong in a preview |
 | `npm-to`, `lang-repl` | Declined | Needs a package manager and an interpreter |
 | `plot`, `qrcode`, `pdf` | Declined | Needs plotting and image generation |
