@@ -83,7 +83,7 @@ document with front matter opens on a page-like header instead of raw text."
                                        value))))
                          '("author" "date" "version" "license" "status")))
                   "  ·  "))
-         (base (etaf-md--base-pixels)))
+)
     (when title
       (etaf-node 'column
                  (list :width 'stretch :item-gap '(lh 1))
@@ -91,10 +91,11 @@ document with front matter opens on a page-like header instead of raw text."
                   (list
                    (etaf-node 'text
                               (list :font-weight 'bold
-                                    ;; The page title is the document's first
-                                    ;; level, so it takes the size a level 1
-                                    ;; heading of the body would.
-                                    :font-size (round (* base 2.0))
+                                    ;; No size of its own: the title is the
+                                    ;; body's first level, and hierarchy comes
+                                    ;; from weight, colour and the rules above
+                                    ;; and below.  A larger size also shifted
+                                    ;; the column off the body's left edge.
                                     :color (etaf-md--env-color env :heading))
                               (list title)))
                   (when tags
@@ -505,16 +506,14 @@ as a bordered placeholder that opens in the browser."
                                          (list :color (etaf-md--env-color env :muted))
                                          (list (format "🖼 %s" caption)))
                               (etaf-node 'text
-                                         (list :color (etaf-md--env-color env :faint)
-                                               :font-size (round (* (etaf-md--base-pixels) 0.85)))
+                                         (list :color (etaf-md--env-color env :faint))
                                          (list (format "  %s" url)))))
                   (etaf-md--caption-view caption env)))))))
 
 (defun etaf-md--caption-view (text env)
   "Return a caption View for TEXT in ENV."
   (etaf-node 'text
-             (list :color (etaf-md--env-color env :muted)
-                   :font-size (round (* (etaf-md--base-pixels) 0.85)))
+             (list :color (etaf-md--env-color env :muted))
              (list text)))
 
 ;;; ---------------------------------------------------------------------------
@@ -748,8 +747,11 @@ border off the window's last column, where the renderer would extend its
 paint into the sub-cell remainder.")
 
 (defun etaf-md--measured-view (width view)
-  "Return VIEW laid out in a reading column WIDTH cells wide."
-  (etaf-node 'box (list :width 'stretch :max-width (list 'ch width))
+  "Return VIEW laid out in a reading column WIDTH cells wide.
+The width is stated rather than left to stretch and a maximum: the header and
+the body are two children of the page's centring column, and a stretched child
+with a max width settled on a different left edge from the other."
+  (etaf-node 'box (list :width (list 'ch width))
              (list view)))
 
 (defun etaf-md--view-document (session document env)
@@ -761,18 +763,24 @@ reading measure, and a drawing states the page's whole width, so a wide one
 keeps its type size instead of being squeezed into a column of text.  ENV's
 `:background', when set, paints the page; without it the buffer keeps the
 Emacs theme's own background."
-  (let* (;; The window may be narrower than the session's cap, and the
-         ;; blocks already state this measure, so the page uses it too.
-         (width (car (etaf-md--page-widths session (or (plist-get env :width) 92))))
+  (let* (;; The blocks state their own measure from the session, so the page
+         ;; must read the same number: taking ENV's window width here made the
+         ;; header a few columns wider than the body, and centring split the
+         ;; difference into an indent the body did not have.
+         (width (car (etaf-md--page-widths
+                      session (etaf-md--read session :width))))
          (background (plist-get env :background))
          (hero (etaf-md--meta-node document env))
          (measured (lambda (view) (etaf-md--measured-view width view)))
+         (entries (if hero
+                      (cons (list :view (etaf-node 'box
+                                                   (list :width 'stretch
+                                                         :max-width (list 'ch width))
+                                                   (list hero)))
+                            (plist-get document :children))
+                    (plist-get document :children)))
          (body (append
-                ;; The blank lines after the front matter are the page's own:
-                ;; the header replaces those lines, not the gap under them.
-                (when hero (list (funcall measured hero)))
-                (list (etaf-md--view-blocks
-                       (plist-get document :children)))
+                (list (funcall measured (etaf-md--view-blocks entries)))
                 (when-let* ((footnotes (plist-get document :footnotes)))
                   (list (funcall measured
                                  (etaf-node 'column
