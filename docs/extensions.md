@@ -645,7 +645,7 @@ Why keep both. A document pasted from GitHub works immediately, which is the com
 
 The case it solves: a group of parallel material needs one boundary. A section heading lifts it to the level of a section, and a list flattens a figure into one item.
 
-Component: `etaf-card`, whose default slot takes the body and whose `title` and `description` map directly. `surface` needs the component to accept a fill, which is a component-side change; see 9.4.
+Component: `etaf-card`, whose default slot takes the body and whose `title` and `description` map directly. `surface` needs the component to accept a fill, which is a component-side change; see 9.6.
 
 ### 6.4 Box
 
@@ -771,6 +771,8 @@ The body is an indented list, one `-` per level.
 ```
 
 The case it solves: saying what a directory holds. A fenced block can show the same thing, but its lines have to line up with the indentation, and hand-written ones are off by a cell sooner or later. The marks use only the characters 4.6 allows.
+
+Component: `etaf-tree`.
 
 ### 6.10 Chat
 
@@ -910,24 +912,24 @@ A transformation of plume's `window`, which draws rounded corners and a shadow; 
 
 ### 6.16 Status table
 
-| Container | Family | Status |
-| --- | --- | --- |
-| GitHub alert `> [!NOTE]` and its four siblings | Callouts | Implemented |
-| `note`, `tip`, `important`, `warning`, `caution` | Callouts | Planned |
-| `box` | Structure | Planned |
-| `card` | Structure | Planned |
-| `columns` + `col` | Structure | Planned |
-| `steps` + `step` | Collections | Planned |
-| `timeline` + `event` | Collections | Planned |
-| `stats` + `stat` | Collections | Planned |
-| `field` | Collections | Planned |
-| `file-tree` | Collections | Planned |
-| `chat` + `message` | Collections | Planned |
-| `tabs` + `tab` | Interaction | Planned |
-| `code-tabs` + `tab` | Interaction | Planned |
-| `accordion` + `collapse` | Interaction | Planned |
-| `table` | Documents | Planned |
-| `window` | Documents | Planned |
+| Container | Family | Implementation | Status |
+| --- | --- | --- | --- |
+| GitHub alert `> [!NOTE]` and its four siblings | Callouts | Primitives | Implemented |
+| `note`, `tip`, `important`, `warning`, `caution` | Callouts | Primitives | Planned |
+| `box` | Structure | Primitives | Planned |
+| `card` | Structure | `etaf-card` | Planned |
+| `columns` + `col` | Structure | Primitives, the engine's grid | Planned |
+| `steps` + `step` | Collections | `etaf-steps` | Planned |
+| `timeline` + `event` | Collections | `etaf-timeline` | Planned |
+| `stats` + `stat` | Collections | `etaf-statistic` | Planned |
+| `field` | Collections | Primitives | Planned |
+| `file-tree` | Collections | `etaf-tree` | Planned |
+| `chat` + `message` | Collections | Primitives | Planned |
+| `tabs` + `tab` | Interaction | `etaf-tabs` | Planned |
+| `code-tabs` + `tab` | Interaction | `etaf-tabs` | Planned |
+| `accordion` + `collapse` | Interaction | `etaf-accordion` | Planned |
+| `table` | Documents | Primitives | Planned |
+| `window` | Documents | Primitives | Planned |
 
 ## 7. The interaction contract
 
@@ -1015,7 +1017,21 @@ This chapter settles two things: how thin a definition should be, and where reus
 
 The test is one line: **delete this layer, can anyone else still use it?** Delete `etaf-card` and no other app can draw a card, so it belongs to the component layer; delete `:::card` and only this document loses the spelling, so it belongs to the syntax layer.
 
-### 9.2 A definition does three things
+### 9.2 From a component to syntax
+
+A new container follows a fixed order of three steps, and the test is the one in 9.1.
+
+1. **Look for a component first.** When `etaf-ui` has one whose semantics fit, the definition writes those three lines of translation and nothing else. This is the common case and the thinnest one.
+2. **With no component, and a shape a second place will use, write the component first and wrap it after.** The component goes into `etaf-ui` with its parameters, tests and documentation; the definition shrinks back to translation.
+3. **Used exactly once, build it from primitives inside `:body`.** Primitives are ETAF's public interface, `etaf-node` and its siblings. Once a second place needs it, it moves up under 9.6.
+
+Step 3 is not an exception, it is the first implementation. Its risk is staying inside the definition forever, which is why the promotion rule in 9.6 follows it.
+
+**The interface boundary.** `:body` may call public interfaces whose names start with `etaf-`; it may not call the engine's internals, which start with `ebox-`. The same rule already binds applications and components.
+
+**Shipped containers take the same route.** The implementation column in 6.16 names the component each shipped container uses, or says it is built from primitives. A custom container reads that column to decide its own route.
+
+### 9.3 A definition does three things
 
 A container definition writes three things, and no more.
 
@@ -1035,9 +1051,9 @@ That is the shape, not a complete example. Several attributes, an appearance att
 
 No line in the definition draws a border or sets padding. Those live in `etaf-card`. The definition only turns the document's words into the component's parameters. `variant`'s values are `etaf-ui`'s to define; the mapping here is illustrative.
 
-One hard constraint: **a definition cannot invent a parameter its component does not have.** Making `:::card` accept `surface` means first making `etaf-card` accept a fill, which is a component-side change; see 9.5. The only way around it is to draw a shell inside the definition, which is exactly what 9.4 forbids.
+One hard constraint: **a definition cannot invent a parameter its component does not have.** Making `:::card` accept `surface` means first making `etaf-card` accept a fill, which is a component-side change; see 9.6. The only way around it is to draw a shell inside the definition, which is exactly what 9.5 forbids.
 
-### 9.3 Components take semantic parameters
+### 9.4 Components take semantic parameters
 
 A component's parameters are written for Elisp, not for documents.
 
@@ -1047,7 +1063,7 @@ A component's parameters are written for Elisp, not for documents.
 
 Counter-examples: a component growing a `:markdown-level` parameter leaks syntax into the component layer; a definition drawing a card border copies the component.
 
-### 9.4 One authority per visual fact
+### 9.5 One authority per visual fact
 
 | Fact | Authority |
 | --- | --- |
@@ -1058,7 +1074,7 @@ Counter-examples: a component growing a `:markdown-level` parameter leaks syntax
 
 Two places that can change one fact is a bug. A component's default is only a baseline the definition may override; a definition's value is the document's default, which a reader may override for appearance attributes, see 4.4.
 
-### 9.5 Two uses promote a widget
+### 9.6 Two uses promote a widget
 
 A new container's widget may not exist, and the definition builds it from primitives. That is not duplication, it is the first implementation. The risk is that it stays in the definition forever.
 
@@ -1066,7 +1082,7 @@ The rule: **when a second app needs it, move it into `etaf-ui`**, together with 
 
 The test is the one from 9.1: delete it, can anyone else still use it?
 
-### 9.6 Shipped definitions are definitions too
+### 9.7 Shipped definitions are definitions too
 
 `box`, `card` and `columns` are not special cases in the renderer; they are three definitions in the same registry.
 
@@ -1154,6 +1170,7 @@ A child carries a `title` attribute of type `string` supplied by the renderer, s
 - `:doc` is optional but recommended; it appears in help and in errors.
 - **A child's label comes from the renderer, not from the definition.** Every `:children` entry gets one extra `title` of type `string`. A definition may fill a default inside `:body` (`code-tabs` takes the fence language); it never renames the attribute or changes its type.
 - A definition may not read files, make network requests or start timers. It receives `attrs`, `body` and `env`, and reads the rest from `env` by name.
+- **`:body` calls public interfaces that start with `etaf-`, never the engine functions that start with `ebox-`**, see 9.2. The engine belongs to `etaf-ui`; whoever reaches past it will break on the next upgrade.
 - The renderer's dispatch contains no container names. It looks a definition up by role and attributes, and never branches on a name.
 
 ### 10.3 Defining one style
