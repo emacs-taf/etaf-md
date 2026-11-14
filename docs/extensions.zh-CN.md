@@ -259,7 +259,7 @@
 | `string` | `title="缓存命中"` | 文本。含空格就加双引号，引号里的 `\"` 是转义 | `title=缓存 命中` |
 | `number` | `start=2` | 整数或小数，可带负号 | `start=two` |
 | `boolean` | `open=true` | 只认 `true` 和 `false` | `open=yes` |
-| `length` | `gap="2ch"` | 数字加单位：`ch`、`lh`、`px`、`%` | `gap=2` |
+| `length` | `gap="2ch"` | 数字加单位：`ch`、`lh`、`%` | `gap=2` |
 | `surface` | `surface=raised` | 底色：`none`、`page`、`raised`、`sunken`、`quote` | `surface="#24262a"` |
 | `accent` | `accent=warning` | 强调：`neutral`、`primary`、`success`、`warning`、`danger`、`important` | `accent=urgent` |
 | `enum` | `align-items=center` | 定义里列出的词之一 | `align-items=middle` |
@@ -446,7 +446,7 @@ line 44: 第 9 层嵌套超过上限 8 层
                     (:level 2 :prefix "◇ ")
                     (:level 6 :font-weight normal :color muted)))
         (quote   . ((:background quote :accent neutral
-                     :border-left-width "3px" :font-style italic)))
+                     :border-left-width "1ch" :font-style italic)))
         (code    . ((:background surface-raised :label-color muted)))
         (table   . ((:header-background table-header
                      :stripe-background table-stripe)))
@@ -869,9 +869,11 @@ print("hi")
 
 组件：`etaf-accordion`，受控，`open` 与 `multiple` 由块提供。
 
-### 6.14 表格包装
+### 6.14 表格
 
-普通管道表格已经能用。包装层加两件事。
+普通管道表格已经能用。这个容器管表格的**呈现**，不管表格本身：它给一行标题，标出要看的行与列。不带它，表格照常渲染，只是没有标题和强调。
+
+只有标题一个职责时，名字该是标题相关的词。它现在还管高亮，将来表格的对齐、脚注也归它，职责比一个标题大，所以名字停在 `table`。
 
 | 属性 | 类型 | 默认 | 说明 |
 | --- | --- | --- | --- |

@@ -259,7 +259,7 @@ Seven types. Every container selects from this one table.
 | `string` | `title="Cache hit"` | Text. Quote it when it contains spaces; `\"` escapes a quote | `title=cache hit` |
 | `number` | `start=2` | Integer or decimal, optionally signed | `start=two` |
 | `boolean` | `open=true` | `true` or `false`, nothing else | `open=yes` |
-| `length` | `gap="2ch"` | A number with a unit: `ch`, `lh`, `px`, `%` | `gap=2` |
+| `length` | `gap="2ch"` | A number with a unit: `ch`, `lh`, `%` | `gap=2` |
 | `surface` | `surface=raised` | Fill: `none`, `page`, `raised`, `sunken`, `quote` | `surface="#24262a"` |
 | `accent` | `accent=warning` | Emphasis: `neutral`, `primary`, `success`, `warning`, `danger`, `important` | `accent=urgent` |
 | `enum` | `align-items=center` | One of the words the definition lists | `align-items=middle` |
@@ -446,7 +446,7 @@ The style table is where a reader changes appearance. One table, keyed by node t
                     (:level 2 :prefix "◇ ")
                     (:level 6 :font-weight normal :color muted)))
         (quote   . ((:background quote :accent neutral
-                     :border-left-width "3px" :font-style italic)))
+                     :border-left-width "1ch" :font-style italic)))
         (code    . ((:background surface-raised :label-color muted)))
         (table   . ((:header-background table-header
                      :stripe-background table-stripe)))
@@ -869,9 +869,11 @@ The case it solves: long derivations, long logs, a complete error report. They s
 
 Component: `etaf-accordion`, controlled, with `open` and `multiple` supplied by the block.
 
-### 6.14 Table wrapper
+### 6.14 Table
 
-A plain pipe table already works. The wrapper adds two things.
+A plain pipe table already works. This container owns the table's **presentation**, never the table itself: it sets one title line and marks the rows and columns to look at. Without it the table renders as usual, just without a title or emphasis.
+
+With a title as its only job, the name would belong to captions. It also carries highlighting, and a table's alignment and footnotes would land here too, so its duty is wider than a caption and the name stays `table`.
 
 | Attribute | Type | Default | Meaning |
 | --- | --- | --- | --- |
