@@ -445,7 +445,14 @@ halves read as separate things rather than one surface with a rule."
                                                    :accent-soft)
                           (etaf-md-surface env 'sunken)))
          (muted (etaf-md--component-ink env :muted))
-         (faint (etaf-md--component-ink env :faint)))
+         (faint (etaf-md--component-ink env :faint))
+         ;; A scroll Host needs a name of its own: the block's ref is stable
+         ;; across publishes, so the keyboard and the wheel find the same one.
+         (scroll-ref
+          (let* ((table (plist-get (etaf-md-env-session env) :block-refs))
+                 (base (and (hash-table-p table)
+                            (gethash (etaf-md--block-identity env) table))))
+            (intern (format "%s-scroll" (or base (sxhash (etaf-md--block-identity env))))))))
     (etaf-view
       (row :width 'stretch :item-gap '(ch 1)
         (box :width (list 'ch width)
@@ -507,6 +514,21 @@ halves read as separate things rather than one surface with a rule."
                                     (etaf-md-env-palette env) :panel))
              :overflow 'scroll
              :tab-index 0
+             :ref scroll-ref
+             :padding-inline '(ch 1)
+             ;; A Host registered for scroll owns the wheel; the keyboard
+             ;; moves the same Host, so the page around it stays put.
+             :on-scroll (lambda (_offset) nil)
+             :on-direction
+             (lambda (direction)
+               (when (memq direction '(up down))
+                 ;; `etaf-scroll-to' clamps to the content, so the last rows
+                 ;; stop at the last rows instead of scrolling past them.
+                 (let ((runtime (etaf-runtime-for-buffer (current-buffer))))
+                   (etaf-scroll-to runtime scroll-ref
+                                   (+ (etaf-scroll-offset runtime scroll-ref)
+                                      (if (eq direction 'up) -1 1)))))
+               'handled)
              :aria-label "代码，滚动查看"
           (expr (list (etaf-md--code-tree-code env (cdr selected)))))))))
 
