@@ -243,7 +243,7 @@ its own `fr' share or fixed size."
     (border-left-width :type length :default "1ch" :doc "左侧竖条宽度"))
   "Attributes every callout name shares.")
 
-(defun etaf-md--toggle-line (env label color command)
+(defun etaf-md--toggle-line (label color command)
   "Return LABEL painted in COLOR as a focusable disclosure line.
 COMMAND runs when the line is activated."
   (etaf-node 'box
@@ -277,7 +277,7 @@ COMMAND runs when the line is activated."
       (list
        (if collapsible
            (etaf-md--toggle-line
-            env (concat (if open "[-] " "[+] ") title)
+            (concat (if open "[-] " "[+] ") title)
             (etaf-md-accent env accent)
             (lambda () (etaf-md-set-block-state env :open (not open))))
          (etaf-node 'text (list :color (etaf-md-accent env accent)
