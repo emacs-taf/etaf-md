@@ -167,7 +167,7 @@ in both palettes."
                 :item-gap '(lh 0)
                 :background-color (etaf-md-surface env 'raised)
                 :border (etaf-md--hairline env)
-                :padding '((lh 1) (ch 1))
+                :padding '((lh 1) (ch 2))
                 :on-press (when href
                             (lambda () (etaf-md-follow-link env href)))
           (expr (list (etaf-md--media-picture src view-env columns 14)))
@@ -468,7 +468,7 @@ language row fixed above the body that scrolls under it."
              :flex-shrink 0
              :border (etaf-md--hairline env)
              :background-color (etaf-md-surface env 'raised)
-             :padding '((lh 0) (ch 1))
+             :padding '((lh 1) (ch 1))
           (column :width 'stretch
                   :cross-align 'stretch
                   :item-gap '(lh 0)
@@ -641,7 +641,10 @@ The block holds a single fence; the selected manager's rewritten command is
 shown under a strip that names every manager the `tabs' attribute lists."
   (let* ((children (etaf-md-children env))
          (block (and children (etaf-md-node-block (car children))))
-         (source (or (plist-get block :text) ""))
+         ;; A fence's text can carry the blank line that separated it from
+         ;; the fence marker; trimming keeps every command card's first and
+         ;; last row a command instead of an empty line.
+         (source (string-trim (or (plist-get block :text) "")))
          (requested (or (etaf-md-attr env :tabs) "npm,pnpm,yarn,bun,deno"))
          (managers (seq-filter
                     (lambda (name) (assoc name etaf-md--npm-to-managers))
@@ -671,7 +674,7 @@ shown under a strip that names every manager the `tabs' attribute lists."
          :active active
          :framed nil
          :on-change (lambda (key) (etaf-md-set-block-state env :active key)))
-        (box :width 'stretch :padding '((lh 1) (ch 2))
+        (box :width 'stretch :padding '((lh 0.5) (ch 0))
              :border-top (etaf-md--hairline env)
           (expr (etaf-ui-markdown-view-block
                  synthetic
