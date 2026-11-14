@@ -2,13 +2,14 @@
 title: Markdown 语法总览
 author: ETAF Contributors
 date: 2026-11-15
-version: 4.0
+version: 5.0
 status: 示例
 license: GPL-3.0-or-later
 tags: [Markdown, 语法, 示例]
 ---
 
-这一页按「基础语法、容器、站点组件、图表」四部分把预览支持的写法全写一遍：先给源码，紧跟它的渲染结果。每个组件都列出它的全部属性，每个会改变外观的值各给一个例子；改完渲染器，先打开这里看有没有退化。
+这一页是预览的语法清单，按「基础语法、块级容器、站点组件、图表」分类。每一类都先给语法，再列这个容器或组件的全部属性与取值，然后给可以跑的实例；改完渲染器，先打开这里看有没有退化。
+
 
 # 一、基础语法
 
@@ -603,53 +604,38 @@ HTML 块按原样显示，不解析其中的标记。
 
 未启用的语法不会报错，只是照原样显示：这是「一份解析器、多套开关」的退化方式。
 
-# 二、容器
+四种记号在同一句里：==高亮==、::check:: 图标、:kbd[Ctrl+B] 按键、:badge[v2]{.tip} 徽章，再加一个表情 :tada:。
 
-容器用 `:::name {属性}` 开、`:::` 关。属性只写文档声明过的那些。
+配色各来一遍：==警告=={.warning}、==危险=={.danger}、==成功=={.success}、==提示=={.tip}、==信息=={.info}。
 
-## 卡片
+按键的三种写法：:kbd[Esc]、:kbd[Ctrl+Shift+P]、:kbd[Cmd+K]。
 
-:::card {title="缓存命中" description="一次缩放，不重画" accent=warning width="60ch"}
-图片和矢量按页面尺寸缩放一次。
+图标：::check::、::close::、::bell-off::、::search::。
 
-- 命中时读文件
-- 未命中时画一次
-:::
+徽章：:badge[稳定]{.success}、:badge[实验]{.warning}、:badge[废弃]{.danger}、:badge[新]{.info}。
 
-## 盒子
+# 二、块级容器
 
-:::box {surface=raised padding="3ch"}
-盒子有底色、内边距与一圈细框。
-:::
+容器用 `:::name {属性}` 开、`:::` 关，属性只写下面表里列出的那些。
 
-## 两栏
-
-:::columns {columns=2 gap="2ch"}
-:::col
-左栏第一段。
-
-左栏第二段。
-:::
-:::col
-右栏只有一段，但比左栏长一些，用来看两栏高度不一致时竖线怎么收。
-:::
-:::
-
-## 三栏
-
-:::columns {columns=3 gap="2ch"}
-:::col
-第一栏
-:::
-:::col
-第二栏
-:::
-:::col
-第三栏
-:::
-:::
 
 ## 提示块
+
+带固定强调色的说明块，七个名字一种写法。
+
+**属性**
+
+- `title`（字符串）：提示块的标题，省略用固定标题
+- `collapsible`（布尔，默认 `false`）：允许收起
+  可选：`true` `false`
+- `open`（布尔，默认 `true`）：收起时默认展开
+  可选：`true` `false`
+- `background`（底色，默认 `quote`）：底色
+  可选：`none` `page` `raised` `sunken` `quote`
+- `border-left-width`（长度，默认 `1ch`）：左侧竖条宽度
+  可选：`ch` `lh` `%`
+
+**例子**
 
 :::warning {title="兼容性"}
 这段只在 Emacs 30 及以上可用。
@@ -663,208 +649,62 @@ HTML 块按原样显示，不解析其中的标记。
 提示块也能写标题与正文。
 :::
 
-## 标签页
+八个名字共用同一个视图，只是强调色和固定标题不同。
 
-:::tabs
-@tab 第一页
-第一页的正文。
-@tab 第二页
-第二页的正文。
+:::note {title="Note 是默认标题"}
+标题可以覆盖。
 :::
 
-## 步骤
-
-:::steps {start=1}
-:::step {title="定位"}
-先用 `sample` 抓栈，别先猜。
-:::
-:::step {title="改因"}
-改产生现象的那一层，不改它的结果。
-:::
-:::step {title="复验"}
-同一个输入再跑一遍。
-:::
+:::info
+info 与 note 同色，名字不同。
 :::
 
-列表写法只带标题，正文用 `step` 子块。
-
-:::steps {start=1}
-1. 读源码，找出产生现象的那一层
-2. 改那一层，不改它的结果
+:::tip {title="提示"}
+成功色。
 :::
 
-## 时间线
-
-:::timeline
-:::event {time="2026-11-12" title="定位到慢在画图"}
-`image-size` 会真的把图画出来。
-:::
-:::event {time="2026-11-13" title="改成读文件头" status="success"}
-打开从 5.4 秒降到 0.33 秒。
-:::
+:::important
+重要色。
 :::
 
-## 数字组
-
-:::stats
-:::stat {title="打开" value="0.33 s"}
-:::
-:::stat {title="缩放" value="0.18 s"}
-:::
-:::stat {title="内存" value="349 MB"}
-:::
+:::warning
+警告色。
 :::
 
-## 字段表
-
-:::field
-- 版本：12.3.0
-- 渲染器：Chromium，常驻
-- 缓存：`~/.cache/etaf-md/typeset`
+:::caution
+注意色。
 :::
 
-## 文件树
-
-:::file-tree {title="lisp/"}
-- lisp/
-  - etaf-md-model.el
-  - etaf-md-views.el
-- etaf-md.el
+:::danger {title="危险"}
+危险色。
 :::
 
-## 对话
-
-:::chat
-:::message {from="问" time="14:20"}
-预览为什么不刷新？
-:::
-:::message {from="答" time="14:21"}
-保存之后才刷新，改到一半不重排。
-:::
+:::note {collapsible=true title="可收起的提示"}
+点标题收起或展开。
 :::
 
-## 代码标签页
 
-:::code-tabs
-@tab
-```elisp
-(etaf-md-open)
-```
-@tab
-```python
-print("hi")
-```
+
+## 盒子
+
+给一段内容换底色和左右留白。
+
+**属性**
+
+- `surface`（底色，默认 `none`）：外壳底色
+  可选：`none` `page` `raised` `sunken` `quote` `table-header` `table-stripe`
+- `padding`（长度，默认 `2ch`）：左右内边距
+  可选：`ch` `lh` `%`
+- `text-align`（对齐，默认 `start`）：内容的水平位置
+  可选：`start` `center` `end`
+- `width`（长度）：自身宽度
+  可选：`ch` `lh` `%`
+
+**例子**
+
+:::box {surface=raised padding="3ch"}
+盒子有底色、内边距与一圈细框。
 :::
-
-## 折叠
-
-:::accordion
-:::collapse {title="完整的报错"}
-```
-后面的长文本放这里。
-```
-:::
-:::collapse {title="版本差异"}
-第二折的正文。
-:::
-:::
-
-## 表格容器
-
-:::table {title="打开耗时" highlight-rows="3" highlight=warning}
-| 版本 | 耗时 |
-| --- | --- |
-| 0.1.9 | 5.4 s |
-| 0.2.0 | 0.33 s |
-:::
-
-## 演示窗口
-
-:::window {title="etaf-md-preview"}
-一段界面截图或者一段文字。
-:::
-
-## 嵌套
-
-:::card {title="外层卡片" description="里面再放盒子和分栏"}
-:::box {surface=sunken}
-卡片里的盒子。
-:::
-
-:::columns {columns=2}
-
-:::col
-嵌套左栏
-:::
-
-:::col
-嵌套右栏
-:::
-
-:::
-:::
-
-## 围栏里的同名字样
-
-```markdown
-:::card {title="这是代码"}
-:::
-```
-
-
-## 代码块
-
-标题写在围栏的 info 里，`:line-numbers` 开行号，花括号里的行号画高亮，行尾的 `[!code ...]` 标记决定这一行怎么画。
-
-```elisp title="lisp/etaf-md-env.el" :line-numbers
-(defun etaf-md--hairline (env)
-  "Return a one-pixel border as the Theme ENV's page lives in defines it."
-  (etaf-theme-token
-   :ui-panel-border
-   (or (etaf-md--palette-value (etaf-md-env-palette env) :border)
-       "#3a3f4b")))
-
-(defun etaf-md--muted (env)
-  "Return the muted ink of ENV's palette."
-  (or (etaf-md--palette-value (etaf-md-env-palette env) :muted)
-      "#9198a1"))
-```
-
-```elisp {3,6-7}
-(defun etaf-md--surface (env name)
-  (or (etaf-md--palette-value (etaf-md-env-palette env)
-                              (intern (concat ":" (symbol-name name))))
-      (etaf-theme-token :ui-panel-fg)))
-```
-
-```elisp
-(defun etaf-md--toggle-line (env block line)
-  (let ((open (etaf-md-block-state env :open)))        ; [!code --]
-    (etaf-md-set-block-state env :open (not open))))   ; [!code ++]
-```
-
-```elisp
-(defun etaf-md--fold (text width)
-  (let ((rows (etaf-md--wrap text width)))  ; [!code warning]
-    (mapconcat #'identity rows "\n")))      ; [!code error]
-```
-
-## 围栏里的同名字样
-
-下面这段是代码，不是容器：
-
-```markdown
-:::card {title="这是代码"}
-:::
-```
-
-## 属性的全部取值
-
-下面把每个容器换个参数再写一遍，用来核对同一组件的不同取值。
-
-### 盒子
-
-属性：`surface`、`padding`、`text-align`、`width`。
 
 七种底色：
 
@@ -910,9 +750,33 @@ text-align center：盒子里的字居中。
 text-align end：盒子里的字靠右。
 :::
 
-### 卡片
 
-属性：`title`、`icon`、`description`、`href`、`accent`、`text-align`、`width`。
+
+## 卡片
+
+带标题、摘要与强调色的块。
+
+**属性**
+
+- `title`（字符串，必填）：卡片标题
+- `icon`（字符串）：标题前的图标名
+- `description`（字符串）：标题下的一行
+- `href`（字符串）：整张卡片可点
+- `accent`（强调色，默认 `neutral`）：标题的强调色
+  可选：`neutral` `primary` `success` `warning` `danger` `important`
+- `text-align`（对齐，默认 `start`）：内容的水平位置
+  可选：`start` `center` `end`
+- `width`（长度）：自身宽度
+  可选：`ch` `lh` `%`
+
+**例子**
+
+:::card {title="缓存命中" description="一次缩放，不重画" accent=warning width="60ch"}
+图片和矢量按页面尺寸缩放一次。
+
+- 命中时读文件
+- 未命中时画一次
+:::
 
 :::card {title="缓存命中" description="标题与摘要" icon="check"}
 正文照常写：列表、代码、链接都能放。
@@ -950,9 +814,60 @@ text-align end：盒子里的字靠右。
 点击卡片任何位置都会打开主页。
 :::
 
-### 分栏
 
-属性：`columns`、`gap`、`padding`、`min-width`、`align-items`、`justify-content`、`wrap`、`divider`、`align-self`。子块是 `col`。
+
+## 分栏
+
+把内容横向分组；卡片网格与弹性布局都是它的写法。
+
+**属性**
+
+- `columns`（字符串，默认 `2`）：一行几栏，或一串轨道
+- `gap`（长度，默认 `2ch`）：栏间距
+  可选：`ch` `lh` `%`
+- `padding`（长度）：左右内边距
+  可选：`ch` `lh` `%`
+- `min-width`（长度，默认 `24ch`）：每栏最小宽度
+  可选：`ch` `lh` `%`
+- `align-items`（枚举，默认 `stretch`）：子块在交叉轴的对齐
+  可选：`start` `center` `end` `stretch`
+- `justify-content`（枚举，默认 `start`）：子块在主轴的对齐
+  可选：`start` `center` `end` `between` `around`
+- `wrap`（布尔，默认 `false`）：放不下时换行
+  可选：`true` `false`
+- `divider`（布尔，默认 `true`）：栏与栏之间画一条竖线
+  可选：`true` `false`
+- `align-self`（枚举，默认 `start`）：自身在父级里的水平位置
+  可选：`start` `center` `end`
+
+子块 `col`：
+
+- `grow`（数字，默认 `1`）：宽度份数
+
+**例子**
+
+:::columns {columns=2 gap="2ch"}
+:::col
+左栏第一段。
+
+左栏第二段。
+:::
+:::col
+右栏只有一段，但比左栏长一些，用来看两栏高度不一致时竖线怎么收。
+:::
+:::
+
+:::columns {columns=3 gap="2ch"}
+:::col
+第一栏
+:::
+:::col
+第二栏
+:::
+:::col
+第三栏
+:::
+:::
 
 两栏：
 
@@ -1018,9 +933,104 @@ text-align end：盒子里的字靠右。
 :::
 :::
 
-### 详情
+:::columns {columns=2}
+:::col
+:::image-card {src="etaf-md-preview-wide.png" title="网格里的第一张" width="38"}
+:::
+:::
+:::col
+:::image-card {src="etaf-md-preview-media.png" title="网格里的第二张" width="38"}
+:::
+:::
+:::
 
-属性：`title`、`open`。默认收起。
+:::columns {columns=2}
+:::col
+:::link-card {href="https://etaf.top/" title="两张卡片并排" description="每一栏各放一张，卡片自己负责边界和底色。"}
+:::
+:::
+:::col
+:::link-card {href="https://github.com/emacs-taf" title="右栏的链接" description="link-card 在栏里自动铺满可用宽度。"}
+:::
+:::
+:::
+
+Plume 的 `flex` 和 `card-grid` 在这套语法里都是 `columns`：数字是等宽几栏，一串轨道是按比例或固定宽分栏，`wrap`、`gap`、`justify-content` 与它同名同义。
+
+:::columns {columns=3 gap="2ch" divider=false}
+:::col
+:::card {title="等宽一" description="三栏等宽。"}
+:::
+:::
+:::col
+:::card {title="等宽二" description="三栏等宽。"}
+:::
+:::
+:::col
+:::card {title="等宽三" description="三栏等宽。"}
+:::
+:::
+:::
+
+:::columns {columns="22ch 22ch 22ch" gap="3ch" wrap=true divider=false}
+:::col
+:::card {title="固定宽一"}
+:::
+:::
+:::col
+:::card {title="固定宽二"}
+:::
+:::
+:::col
+:::card {title="固定宽三"}
+:::
+:::
+:::col
+:::card {title="换行的第四张"}
+:::
+:::
+:::
+
+
+
+## 对齐
+
+把正文按一个方向排。
+
+**属性**
+
+- `:::left`：靠左
+- `:::center`：居中
+- `:::right`：靠右
+- `:::justify`：两端对齐
+
+**例子**
+
+:::center
+这一行居中。
+:::
+
+:::right
+这一行靠右。
+:::
+
+:::justify
+两端对齐适合较长的说明文字。它会把每一行的两端都排齐，只在最后一行留出自然的空隙，读起来像排过版的正文而不是随手写的段落。
+:::
+
+
+
+## 详情
+
+标题一行，正文按需展开。
+
+**属性**
+
+- `title`（字符串）：收起时的标题
+- `open`（布尔，默认 `false`）：默认展开
+  可选：`true` `false`
+
+**例子**
 
 :::details {title="展开看完整报错"}
 ```
@@ -1034,9 +1044,63 @@ Error: void-function etaf-md-open
 这一块一进来就是展开的。
 :::
 
-### 折叠
+:::details {title="默认收起的一块"}
+这里的正文只在展开后出现。
+:::
 
-属性：`expand`、`accordion`。子块是 `collapse`，属性 `title`、`open`、`index`。
+:::details {title="默认展开的一块" open=true}
+打开页面时就能看到这段正文。
+:::
+
+:::accordion
+:::collapse {title="第二块"}
+这里同时只开一块。
+:::
+:::collapse {title="第一块" index=1 open=true}
+`index` 决定显示顺序。
+:::
+:::
+
+:::accordion {accordion=false}
+:::collapse {title="可以同时打开的一"}
+:::
+:::collapse {title="可以同时打开的二" open=true}
+这一块默认就展开，可以和上面那块一起开着。
+:::
+:::
+
+
+
+## 折叠
+
+一组可收起的块，默认只开一块。
+
+**属性**
+
+- `expand`（布尔，默认 `false`）：打开时所有块都展开
+  可选：`true` `false`
+- `accordion`（布尔，默认 `true`）：同时只开一块；false 可以开多块
+  可选：`true` `false`
+
+子块 `collapse`：
+
+- `title`（字符串，必填）：收起时的标题
+- `open`（布尔，默认 `false`）：默认展开
+  可选：`true` `false`
+- `index`（数字）：显示顺序，省略按书写顺序
+
+**例子**
+
+:::accordion
+:::collapse {title="完整的报错"}
+```
+后面的长文本放这里。
+```
+:::
+:::collapse {title="版本差异"}
+第二折的正文。
+:::
+:::
 
 默认同时只开一块：
 
@@ -1080,7 +1144,30 @@ index 大的排后面。
 :::
 :::
 
-### 标签页
+
+
+## 标签页
+
+一行标签切换多段内容。
+
+**属性**
+
+（无属性）
+
+子块 `tab`：
+
+- `title`（字符串，必填）：标签文字
+- `selected`（布尔，默认 `false`）：打开时选中这一页
+  可选：`true` `false`
+
+**例子**
+
+:::tabs
+@tab 第一页
+第一页的正文。
+@tab 第二页
+第二页的正文。
+:::
 
 子块是 `tab`，用 `@tab` 一行一个；`title` 必填，可以写在标记后面或花括号里，`selected` 选默认页。
 
@@ -1091,9 +1178,71 @@ Emacs 29 的写法。
 Emacs 30 起的写法。
 :::
 
-### 步骤
 
-属性：`start`、`list-style`。子块是 `step`，属性 `title`。
+
+## 代码标签页
+
+一行标签切换多段代码，标签取语言名或标题。
+
+**属性**
+
+（无属性）
+
+子块 `tab`：
+
+- `title`（字符串）：标签文字，省略取围栏语言
+- `selected`（布尔，默认 `false`）：打开时选中这一页
+  可选：`true` `false`
+
+**例子**
+
+:::code-tabs
+@tab
+```elisp
+(etaf-md-open)
+```
+@tab
+```python
+print("hi")
+```
+:::
+
+
+
+## 步骤
+
+有序步骤，可带正文。
+
+**属性**
+
+- `start`（数字，默认 `1`）：起始编号
+- `list-style`（枚举，默认 `decimal`）：记号
+  可选：`decimal` `bullet` `none`
+
+子块 `step`：
+
+- `title`（字符串，必填）：步骤标题
+
+**例子**
+
+:::steps {start=1}
+:::step {title="定位"}
+先用 `sample` 抓栈，别先猜。
+:::
+:::step {title="改因"}
+改产生现象的那一层，不改它的结果。
+:::
+:::step {title="复验"}
+同一个输入再跑一遍。
+:::
+:::
+
+列表写法只带标题，正文用 `step` 子块。
+
+:::steps {start=1}
+1. 读源码，找出产生现象的那一层
+2. 改那一层，不改它的结果
+:::
 
 :::steps
 :::step {title="定位"}
@@ -1139,9 +1288,35 @@ Emacs 30 起的写法。
 2. 改那一层，不改它的结果
 :::
 
-### 时间线
 
-属性：`list-style`、`start`。子块是 `event`，属性 `title`、`time`、`status`。
+
+## 时间线
+
+按时间排的事件，每项可带状态。
+
+**属性**
+
+- `list-style`（枚举，默认 `bullet`）：记号的样式
+  可选：`decimal` `bullet` `none`
+- `start`（数字，默认 `1`）：第一项的序号
+
+子块 `event`：
+
+- `title`（字符串，必填）：标题
+- `time`（字符串）：时间文字
+- `status`（枚举）：状态，决定圆点颜色并画成一个徽标
+  可选：`success` `warning` `danger` `info`
+
+**例子**
+
+:::timeline
+:::event {time="2026-11-12" title="定位到慢在画图"}
+`image-size` 会真的把图画出来。
+:::
+:::event {time="2026-11-13" title="改成读文件头" status="success"}
+打开从 5.4 秒降到 0.33 秒。
+:::
+:::
 
 默认圆点，`start=1`：
 
@@ -1183,7 +1358,57 @@ Emacs 30 起的写法。
 :::
 :::
 
-### 字段
+
+
+## 字段
+
+一个参数一张卡，或列成字段表。
+
+**属性**
+
+- `name`（字符串）：参数名；写了就画成参数卡
+- `type`（字符串）：类型注解
+- `type-link`（字符串）：类型的链接地址
+- `default`（字符串）：默认值
+- `required`（布尔，默认 `false`）：必填
+  可选：`true` `false`
+- `deprecated`（字符串）：弃用说明，写了显示弃用徽标
+- `experimental`（字符串）：实验性说明，写了显示实验徽标
+- `enum`（字符串）：可选值，用 | 或逗号分隔
+- `unit`（字符串）：单位
+- `format`（字符串）：格式
+- `constraint`（字符串）：约束
+- `since`（字符串）：引入版本
+- `label-width`（长度）：名称列宽度，省略按最长的名称算
+  可选：`ch` `lh` `%`
+- `separator`（枚举，默认 `colon`）：名称与值的分隔
+  可选：`colon` `none`
+
+**例子**
+
+一个参数的说明卡：名字一行，状态徽标跟在后面，类型、默认值和引入版本一行，正文就是说明。
+
+:::field {name="text" type="string" default="空字符串" required=true since="0.1"}
+要画成链接的文字，必填。
+:::
+
+:::field {name="width" type="number" default="46" unit="列" constraint="8 ≤ width ≤ 120" enum="8 | 16 | 46 | 120" format="整数"}
+图片卡的最大列数，超出页面宽度时自动收窄。
+:::
+
+:::field {name="tabs" type="string" enum="npm | pnpm | yarn | bun | deno" deprecated="0.2" experimental="1.0"}
+要显示的包管理器，逗号分隔；第二个参数已弃用，第四个还在试验。
+:::
+
+:::field {name="type-link" type="string" type-link="https://etaf.top/" since="0.3"}
+类型名可以是一个链接，点它打开目标页。
+:::
+
+:::field
+- 版本：12.3.0
+- 渲染器：Chromium，常驻
+- 缓存：`~/.cache/etaf-md/typeset`
+:::
 
 一个参数一张卡，属性：`name`、`type`、`type-link`、`default`、`required`、`deprecated`、`experimental`、`enum`、`unit`、`format`、`constraint`、`since`。
 
@@ -1210,9 +1435,37 @@ Emacs 30 起的写法。
 - 渲染器 Chromium
 :::
 
-### 数字组
+:::field
+- 版本：12.3.0
+- 渲染器：Chromium，常驻
+- 缓存：`~/.cache/etaf-md/typeset`
+:::
 
-属性：`columns`。子块是 `stat`，属性 `title`、`value`。
+
+
+## 数字组
+
+一排数字指标。
+
+**属性**
+
+- `columns`（数字，默认 `3`）：一行几个
+
+子块 `stat`：
+
+- `title`（字符串，必填）：说明文字
+- `value`（字符串，必填）：数字文本
+
+**例子**
+
+:::stats
+:::stat {title="打开" value="0.33 s"}
+:::
+:::stat {title="缩放" value="0.18 s"}
+:::
+:::stat {title="内存" value="349 MB"}
+:::
+:::
 
 三列：
 
@@ -1234,9 +1487,28 @@ Emacs 30 起的写法。
 :::
 :::
 
-### 文件树
 
-属性：`title`、`lines`、`icon`。正文是一个嵌套列表。
+
+## 文件树
+
+带树线、注释与增删标记的目录树。
+
+**属性**
+
+- `title`（字符串）：树上方一行标题
+- `lines`（布尔，默认 `true`）：画不画树线
+  可选：`true` `false`
+- `icon`（枚举）：plume 的图标样式，文字页面里不画图标，只接受这个参数
+  可选：`simple` `colored`
+
+**例子**
+
+:::file-tree {title="lisp/"}
+- lisp/
+  - etaf-md-model.el
+  - etaf-md-views.el
+- etaf-md.el
+:::
 
 :::file-tree {title="lisp/"}
 - **lisp/** # 渲染核心
@@ -1258,9 +1530,82 @@ Emacs 30 起的写法。
   - etaf-md-views.el
 :::
 
-### 表格容器
 
-属性：`title`、`highlight-rows`、`highlight-columns`、`highlight-cells`、`align`、`copy`、`highlight`、`background`、`color`、`header-background`、`stripe-background`、`text-align`、`margin-top`、`margin-bottom`。
+
+## 对话
+
+一问一答，按发送者对边。
+
+**属性**
+
+- `title`（字符串）：对话上方的标题
+
+**例子**
+
+:::chat
+:::message {from="问" time="14:20"}
+预览为什么不刷新？
+:::
+:::message {from="答" time="14:21"}
+保存之后才刷新，改到一半不重排。
+:::
+:::
+
+
+
+## 表格
+
+带标题、行列高亮与复制行的表格。
+
+**属性**
+
+- `title`（字符串）：表格上方一行标题
+- `highlight-rows`（字符串）：高亮的行号，空格分隔
+- `highlight-columns`（字符串）：高亮的列号，空格分隔
+- `highlight-cells`（字符串）：高亮的单元格，写成 行:列，空格分隔
+- `align`（枚举）：整张表的对齐，盖过 text-align
+  可选：`left` `center` `right`
+- `copy`（布尔，默认 `false`）：在标题下画一个复制整表的一行
+  可选：`true` `false`
+- `highlight`（强调色，默认 `warning`）：高亮用哪个强调值
+  可选：`neutral` `primary` `success` `warning` `danger` `important`
+- `background`（底色，默认 `page`）：表格底色
+  可选：`none` `page` `raised` `sunken` `quote` `table-header` `table-stripe`
+- `color`（颜色，默认 `foreground`）：表格文字色
+- `header-background`（底色，默认 `table-header`）：表头底
+  可选：`none` `page` `raised` `sunken` `quote` `table-header` `table-stripe`
+- `stripe-background`（底色，默认 `table-stripe`）：条纹底
+  可选：`none` `page` `raised` `sunken` `quote` `table-header` `table-stripe`
+- `text-align`（对齐，默认 `start`）：单元格文字位置
+  可选：`start` `center` `end`
+- `margin-top`（长度，默认 `0ch`）：与上一块的距离
+  可选：`ch` `lh` `%`
+- `margin-bottom`（长度，默认 `0ch`）：与下一块的距离
+  可选：`ch` `lh` `%`
+
+**例子**
+
+:::table {title="三个版本的打开耗时" align=center}
+| 版本 | 耗时 | 内存 |
+| --- | --- | --- |
+| 0.1.9 | 5.4 s | 380 MB |
+| 0.2.0 | 0.33 s | 92 MB |
+| 0.3.0 | 0.18 s | 74 MB |
+:::
+
+:::table {title="高亮一行、一列和一个格子" highlight-rows="2" highlight-columns="3" highlight-cells="3:1" copy=true}
+| 版本 | 耗时 | 内存 |
+| --- | --- | --- |
+| 0.1.9 | 5.4 s | 380 MB |
+| 0.2.0 | 0.33 s | 92 MB |
+| 0.3.0 | 0.18 s | 74 MB |
+:::
+
+:::table {title="只有两列的表"}
+| 名称 | 值 |
+| --- | --- |
+| 缓存 | 命中 |
+:::
 
 标题加复制行：
 
@@ -1316,9 +1661,34 @@ Emacs 30 起的写法。
 | 留 | 空 |
 :::
 
-### 窗口
+:::table {title="打开耗时" highlight-rows="3" highlight=warning}
+| 版本 | 耗时 |
+| --- | --- |
+| 0.1.9 | 5.4 s |
+| 0.2.0 | 0.33 s |
+:::
 
-属性：`title`、`height`、`gap`、`no-padding`。
+
+
+## 演示窗口
+
+带标题栏的窗口框。
+
+**属性**
+
+- `title`（字符串）：标题栏文字
+- `height`（长度）：内容区高度
+  可选：`ch` `lh` `%`
+- `gap`（长度）：标题栏与内容之间的空行
+  可选：`ch` `lh` `%`
+- `no-padding`（布尔，默认 `false`）：内容区不留内边距
+  可选：`true` `false`
+
+**例子**
+
+:::window {title="etaf-md-preview"}
+一段界面截图或者一段文字。
+:::
 
 :::window {title="etaf-md.el"}
 窗口只画标题栏，内容照常写。
@@ -1331,282 +1701,6 @@ Emacs 30 起的写法。
 (etaf-md-open "笔记")
 ```
 :::
-
-### 源码树
-
-属性：`height`。子块是 `file`，用 `@file` 一行一个，后面跟围栏代码。
-
-:::code-tree {height=10}
-@file lisp/etaf-md-env.el
-```elisp
-(defun etaf-md--hairline (env)
-  (etaf-theme-token
-   :ui-panel-border
-   (or (etaf-md--palette-value (etaf-md-env-palette env) :border)
-       "#3a3f4b")))
-```
-@file lisp/etaf-md-nodes.el
-```elisp
-(etaf-md--define-shipped 'chat
-  :name "chat"
-  :summary "一问一答的对话，不画气泡"
-  :attrs '((title :type string)))
-```
-:::
-
-### npm 命令
-
-属性：`tabs`，逗号分隔要显示的包管理器。
-
-:::npm-to {tabs="npm,pnpm,yarn,bun"}
-```sh
-npm install etaf-md
-npm run build
-npm uninstall foo
-npm create vite
-npx etaf-md
-```
-:::
-
-只显示 yarn 与 deno：
-
-:::npm-to {tabs="yarn,deno"}
-```sh
-npm install etaf-md
-npm run build
-npm ci
-```
-:::
-
-# 三、站点组件
-
-## 行内记号
-
-四种记号在同一句里：==高亮==、::check:: 图标、:kbd[Ctrl+B] 按键、:badge[v2]{.tip} 徽章，再加一个表情 :tada:。
-
-配色各来一遍：==警告=={.warning}、==危险=={.danger}、==成功=={.success}、==提示=={.tip}、==信息=={.info}。
-
-按键的三种写法：:kbd[Esc]、:kbd[Ctrl+Shift+P]、:kbd[Cmd+K]。
-
-图标：::check::、::close::、::bell-off::、::search::。
-
-徽章：:badge[稳定]{.success}、:badge[实验]{.warning}、:badge[废弃]{.danger}、:badge[新]{.info}。
-
-## 首屏
-
-:::home-box {title="把文档当页面读" description="一个首屏大块：强调标题、摘要、行动链接和正文都在里面。" href="https://etaf.top/"}
-首屏里的正文照常写，列表、代码和链接都能放。
-:::
-
-:::home-box {title="只有标题的首屏"}
-标题以外的参数都省略时，只剩标题和正文。
-:::
-
-:::home-box {title="换一种强调色" description="accent 可以取 success、warning、danger、important 或 neutral。" accent="success" background="sunken"}
-底色同样可以换。
-:::
-
-## 字段
-
-一个参数的说明卡：名字一行，状态徽标跟在后面，类型、默认值和引入版本一行，正文就是说明。
-
-:::field {name="text" type="string" default="空字符串" required=true since="0.1"}
-要画成链接的文字，必填。
-:::
-
-:::field {name="width" type="number" default="46" unit="列" constraint="8 ≤ width ≤ 120" enum="8 | 16 | 46 | 120" format="整数"}
-图片卡的最大列数，超出页面宽度时自动收窄。
-:::
-
-:::field {name="tabs" type="string" enum="npm | pnpm | yarn | bun | deno" deprecated="0.2" experimental="1.0"}
-要显示的包管理器，逗号分隔；第二个参数已弃用，第四个还在试验。
-:::
-
-:::field {name="type-link" type="string" type-link="https://etaf.top/" since="0.3"}
-类型名可以是一个链接，点它打开目标页。
-:::
-
-:::field
-- 版本：12.3.0
-- 渲染器：Chromium，常驻
-- 缓存：`~/.cache/etaf-md/typeset`
-:::
-
-## 表格
-
-:::table {title="三个版本的打开耗时" align=center}
-| 版本 | 耗时 | 内存 |
-| --- | --- | --- |
-| 0.1.9 | 5.4 s | 380 MB |
-| 0.2.0 | 0.33 s | 92 MB |
-| 0.3.0 | 0.18 s | 74 MB |
-:::
-
-:::table {title="高亮一行、一列和一个格子" highlight-rows="2" highlight-columns="3" highlight-cells="3:1" copy=true}
-| 版本 | 耗时 | 内存 |
-| --- | --- | --- |
-| 0.1.9 | 5.4 s | 380 MB |
-| 0.2.0 | 0.33 s | 92 MB |
-| 0.3.0 | 0.18 s | 74 MB |
-:::
-
-:::table {title="只有两列的表"}
-| 名称 | 值 |
-| --- | --- |
-| 缓存 | 命中 |
-:::
-
-## 图片卡片
-
-:::image-card {src="etaf-md-preview-wide.png" title="完整的预览" description="图片在上，标题和说明在下；整张卡片都能点。" href="https://etaf.top/"}
-:::
-
-:::image-card {src="etaf-md-preview-media.png" title="只有标题" width="40"}
-:::
-
-:::image-card {src="../tests/fixtures/wide-400x100.png" width="52"}
-:::
-
-## 卡片网格
-
-:::columns {columns=2}
-:::col
-:::image-card {src="etaf-md-preview-wide.png" title="网格里的第一张" width="38"}
-:::
-:::
-:::col
-:::image-card {src="etaf-md-preview-media.png" title="网格里的第二张" width="38"}
-:::
-:::
-:::
-
-:::columns {columns=2}
-:::col
-:::link-card {href="https://etaf.top/" title="两张卡片并排" description="每一栏各放一张，卡片自己负责边界和底色。"}
-:::
-:::
-:::col
-:::link-card {href="https://github.com/emacs-taf" title="右栏的链接" description="link-card 在栏里自动铺满可用宽度。"}
-:::
-:::
-:::
-
-## 弹性布局
-
-Plume 的 `flex` 和 `card-grid` 在这套语法里都是 `columns`：数字是等宽几栏，一串轨道是按比例或固定宽分栏，`wrap`、`gap`、`justify-content` 与它同名同义。
-
-:::columns {columns=3 gap="2ch" divider=false}
-:::col
-:::card {title="等宽一" description="三栏等宽。"}
-:::
-:::
-:::col
-:::card {title="等宽二" description="三栏等宽。"}
-:::
-:::
-:::col
-:::card {title="等宽三" description="三栏等宽。"}
-:::
-:::
-:::
-
-:::columns {columns="22ch 22ch 22ch" gap="3ch" wrap=true divider=false}
-:::col
-:::card {title="固定宽一"}
-:::
-:::
-:::col
-:::card {title="固定宽二"}
-:::
-:::
-:::col
-:::card {title="固定宽三"}
-:::
-:::
-:::col
-:::card {title="换行的第四张"}
-:::
-:::
-:::
-
-## 提示块
-
-八个名字共用同一个视图，只是强调色和固定标题不同。
-
-:::note {title="Note 是默认标题"}
-标题可以覆盖。
-:::
-
-:::info
-info 与 note 同色，名字不同。
-:::
-
-:::tip {title="提示"}
-成功色。
-:::
-
-:::important
-重要色。
-:::
-
-:::warning
-警告色。
-:::
-
-:::caution
-注意色。
-:::
-
-:::danger {title="危险"}
-危险色。
-:::
-
-:::note {collapsible=true title="可收起的提示"}
-点标题收起或展开。
-:::
-
-## 对齐
-
-:::center
-这一行居中。
-:::
-
-:::right
-这一行靠右。
-:::
-
-:::justify
-两端对齐适合较长的说明文字。它会把每一行的两端都排齐，只在最后一行留出自然的空隙，读起来像排过版的正文而不是随手写的段落。
-:::
-
-## 折叠与详情
-
-:::details {title="默认收起的一块"}
-这里的正文只在展开后出现。
-:::
-
-:::details {title="默认展开的一块" open=true}
-打开页面时就能看到这段正文。
-:::
-
-:::accordion
-:::collapse {title="第二块"}
-这里同时只开一块。
-:::
-:::collapse {title="第一块" index=1 open=true}
-`index` 决定显示顺序。
-:::
-:::
-
-:::accordion {accordion=false}
-:::collapse {title="可以同时打开的一"}
-:::
-:::collapse {title="可以同时打开的二" open=true}
-这一块默认就展开，可以和上面那块一起开着。
-:::
-:::
-
-## 卡片图标与窗口
 
 :::columns {columns=2 divider=false}
 :::col
@@ -1628,55 +1722,39 @@ info 与 note 同色，名字不同。
 `no-padding` 让内容贴着边框。
 :::
 
-## 链接卡片
 
-:::link-card {href="https://etaf.top/" title="ETAF 主页" description="整张卡片都可以点，箭头下面是目标地址。"}
-:::
-
-:::link-card {href="https://github.com/emacs-taf" title="只有标题和地址"}
-:::
-
-## npm 徽章
-
-:::npm-badge {name="etaf-md" version="0.1.0" downloads="1.2k"}
-:::
-
-:::npm-badge {name="etaf-ui"}
-:::
-
-:::npm-badge {name="etaf" version="0.9.2"}
-:::
-
-## 二维码
-
-:::qrcode {text="https://etaf.top/" title="扫码打开 etaf.top"}
-:::
-
-:::qrcode {text="ETAF 把文档当页面读"}
-:::
-
-:::qrcode {text="https://github.com/emacs-taf/etaf-md/blob/main/docs/extensions.zh-CN.md" title="长一点的地址也能装下"}
-:::
-
-## 轮播
-
-:::swiper
-@slide {title="宽图"}
-![预览](etaf-md-preview-wide.png)
-@slide {title="第二张"}
-第二页是文字，轮播不只能放图片。
-@slide {title="第三张"}
-![另一张](etaf-md-preview-media.png)
-:::
-
-:::swiper
-@slide
-![没有标题就显示页码](../tests/fixtures/wide-400x100.png)
-@slide {selected=true}
-第二页默认打开。
-:::
 
 ## 源码树
+
+左边文件列表，右边选中文件的代码。
+
+**属性**
+
+- `height`（数字）：代码区行数，超出可滚动，默认 18
+
+子块 `file`：
+
+- `title`（字符串，必填）：文件路径
+
+**例子**
+
+:::code-tree {height=10}
+@file lisp/etaf-md-env.el
+```elisp
+(defun etaf-md--hairline (env)
+  (etaf-theme-token
+   :ui-panel-border
+   (or (etaf-md--palette-value (etaf-md-env-palette env) :border)
+       "#3a3f4b")))
+```
+@file lisp/etaf-md-nodes.el
+```elisp
+(etaf-md--define-shipped 'chat
+  :name "chat"
+  :summary "一问一答的对话，不画气泡"
+  :attrs '((title :type string)))
+```
+:::
 
 :::code-tree {height=20}
 @file Makefile
@@ -1937,7 +2015,17 @@ COMMAND runs when the line is activated."
 ```
 :::
 
-## 包管理器命令
+
+
+## npm 命令
+
+把 npm 命令改写成别的包管理器。
+
+**属性**
+
+- `tabs`（字符串）：要显示的包管理器，逗号分隔
+
+**例子**
 
 :::npm-to
 ```sh
@@ -1969,16 +2057,222 @@ npm install vue && npm run build
 ```
 :::
 
-## 组件的其它取值
+:::npm-to {tabs="npm,pnpm,yarn,bun"}
+```sh
+npm install etaf-md
+npm run build
+npm uninstall foo
+npm create vite
+npx etaf-md
+```
+:::
 
-### 首屏的强调色与底色
+只显示 yarn 与 deno：
+
+:::npm-to {tabs="yarn,deno"}
+```sh
+npm install etaf-md
+npm run build
+npm ci
+```
+:::
+
+
+
+## 嵌套与围栏
+
+容器里再放容器，以及围栏里出现的同名字样。
+
+:::card {title="外层卡片" description="里面再放盒子和分栏"}
+:::box {surface=sunken}
+卡片里的盒子。
+:::
+
+:::columns {columns=2}
+
+:::col
+嵌套左栏
+:::
+
+:::col
+嵌套右栏
+:::
+
+:::
+:::
+
+下面这段是代码，不是容器：
+
+```markdown
+:::card {title="这是代码"}
+:::
+```
+
+
+
+# 三、站点组件
+
+
+## 首屏
+
+站点首页的大块：标题、摘要、行动链接与正文。
+
+**属性**
+
+- `title`（字符串）：主标题
+- `description`（字符串）：标题下的摘要
+- `href`（字符串）：行动链接地址
+- `accent`（强调色，默认 `primary`）：标题的强调色
+  可选：`neutral` `primary` `success` `warning` `danger` `important`
+- `background`（底色，默认 `raised`）：底色
+  可选：`none` `page` `raised` `sunken` `quote` `table-header` `table-stripe`
+
+**例子**
+
+:::home-box {title="把文档当页面读" description="一个首屏大块：强调标题、摘要、行动链接和正文都在里面。" href="https://etaf.top/"}
+首屏里的正文照常写，列表、代码和链接都能放。
+:::
+
+:::home-box {title="只有标题的首屏"}
+标题以外的参数都省略时，只剩标题和正文。
+:::
+
+:::home-box {title="换一种强调色" description="accent 可以取 success、warning、danger、important 或 neutral。" accent="success" background="sunken"}
+底色同样可以换。
+:::
+
 :::home-box {title="换一种强调色" description="accent 可以取 success、warning、danger、important 或 neutral。" accent="success" background="sunken"}
 底色同时换成 sunken。
 :::
 
-### 图片卡片的宽度与链接
+
+
+## 图片卡片
+
+图片加标题与说明，边框贴着图片。
+
+**属性**
+
+- `src`（字符串，必填）：图片路径，相对路径按文档解析
+- `title`（字符串）：图片下的标题
+- `description`（字符串）：标题下的说明
+- `href`（字符串）：整张卡片可点，跳到这个地址
+- `width`（数字）：图片列数上限，默认 46
+
+**例子**
+
+:::image-card {src="etaf-md-preview-wide.png" title="完整的预览" description="图片在上，标题和说明在下；整张卡片都能点。" href="https://etaf.top/"}
+:::
+
+:::image-card {src="etaf-md-preview-media.png" title="只有标题" width="40"}
+:::
+
+:::image-card {src="../tests/fixtures/wide-400x100.png" width="52"}
+:::
+
 :::image-card {src="etaf-md-preview-media.png" title="媒体页" description="点击打开 ETAF" href="https://etaf.top/" width=30}
 :::
+
+
+
+## 链接卡片
+
+一张可点的链接卡。
+
+**属性**
+
+- `href`（字符串，必填）：跳转地址
+- `title`（字符串，必填）：卡片标题
+- `description`（字符串）：标题下的说明
+
+**例子**
+
+:::link-card {href="https://etaf.top/" title="ETAF 主页" description="整张卡片都可以点，箭头下面是目标地址。"}
+:::
+
+:::link-card {href="https://github.com/emacs-taf" title="只有标题和地址"}
+:::
+
+
+
+## npm 徽章
+
+包名、版本与下载量的小徽章。
+
+**属性**
+
+- `name`（字符串，必填）：包名
+- `version`（字符串）：版本号，省略就不画
+- `downloads`（字符串）：下载量文字，省略就不画
+
+**例子**
+
+:::npm-badge {name="etaf-md" version="0.1.0" downloads="1.2k"}
+:::
+
+:::npm-badge {name="etaf-ui"}
+:::
+
+:::npm-badge {name="etaf" version="0.9.2"}
+:::
+
+
+
+## 二维码
+
+把一段文本画成二维码。
+
+**属性**
+
+- `text`（字符串，必填）：要编码的文本
+- `title`（字符串）：二维码上方的说明
+
+**例子**
+
+:::qrcode {text="https://etaf.top/" title="扫码打开 etaf.top"}
+:::
+
+:::qrcode {text="ETAF 把文档当页面读"}
+:::
+
+:::qrcode {text="https://github.com/emacs-taf/etaf-md/blob/main/docs/extensions.zh-CN.md" title="长一点的地址也能装下"}
+:::
+
+
+
+## 轮播
+
+一页一页切换的内容块。
+
+**属性**
+
+（无属性）
+
+子块 `slide`：
+
+- `title`（字符串）：切换条上的文字
+- `selected`（布尔，默认 `false`）：默认停在这一页
+  可选：`true` `false`
+
+**例子**
+
+:::swiper
+@slide {title="宽图"}
+![预览](etaf-md-preview-wide.png)
+@slide {title="第二张"}
+第二页是文字，轮播不只能放图片。
+@slide {title="第三张"}
+![另一张](etaf-md-preview-media.png)
+:::
+
+:::swiper
+@slide
+![没有标题就显示页码](../tests/fixtures/wide-400x100.png)
+@slide {selected=true}
+第二页默认打开。
+:::
+
+
 
 # 四、图表
 
@@ -2525,7 +2819,7 @@ flowchart LR
 
 # 五、检查清单
 
-- 每个组件的每个属性、每个可选值都在右边出现。
+- 每一类的语法、全部属性与每个可选值都在右边出现。
 - 没有失败行，也没有落到源码的容器。
 - 代码块的标题、行号、行状态都按预期出现。
 - 每一种图表都有示例；缺 `mmdc` 时保留源码。
