@@ -34,13 +34,13 @@
 (defun etaf-md--paint (node env)
   "Return the view ENV's definition gives NODE, or a failure line."
   (let* ((type (etaf-md-node-type node))
-         (definition (etaf-md-node-definition type)))
+         (definition (etaf-md-node-definition type))
+         (problems (and definition (plist-get definition :view)
+                        (etaf-md--all-problems node))))
     (cond
-     ((and definition (plist-get definition :view)
-           (etaf-md--problems node))
+     (problems
       (etaf-md--failure-view
-       env (or (etaf-md-node-source node) "")
-       (cadr (car (etaf-md--problems node)))))
+       env (or (etaf-md-node-source node) "") (cadr (car problems))))
      ((and definition (plist-get definition :view))
       (let ((inner (etaf-md-env-create
                     :session (etaf-md-env-session env)

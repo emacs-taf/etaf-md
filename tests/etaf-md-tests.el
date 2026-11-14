@@ -1539,3 +1539,41 @@ a session text that is not published yet would paint a skeleton over its data."
       (etaf-runtime-flush (etaf-runtime-for-buffer preview))
       (should (string-match-p "title is required" (buffer-string)))
       (should (string-match-p ":::card" (buffer-string))))))
+
+;;; ---------------------------------------------------------------------------
+;;; The definition API on its own
+;;; ---------------------------------------------------------------------------
+
+(defun etaf-md-tests--probe-view (env)
+  "Paint ENV's :value so a test can read what resolution produced."
+  (etaf-view (text (expr (format "%s" (etaf-md-attr env :value))))))
+
+(ert-deftest etaf-md-tests-value-order-ends-at-the-shipped-default ()
+  (unwind-protect
+      (progn
+        (etaf-md-define-node 'probe
+          :name "probe"
+          :attrs '((value :type string :default "base"))
+          :view #'etaf-md-tests--probe-view)
+        (etaf-md-set-attr '(probe) '((:value :default)))
+        (etaf-md-tests--with-preview-source ":::probe {value=doc}\n:::\n"
+          (with-current-buffer preview
+            (etaf-runtime-flush (etaf-runtime-for-buffer preview))
+            (should (string-match-p "base" (buffer-string))))))
+    (etaf-md-undefine-node 'probe)))
+
+(ert-deftest etaf-md-tests-a-rule-that-names-no-attribute-is-reported ()
+  (unwind-protect
+      (progn
+        (etaf-md-define-node 'probe
+          :name "probe"
+          :attrs '((value :type string :default "base"))
+          :view #'etaf-md-tests--probe-view)
+        (etaf-md-set-attr '(probe) '((:nope 1)))
+        (etaf-md-tests--with-preview-source ":::probe\n:::\n"
+          (with-current-buffer preview
+            (etaf-runtime-flush (etaf-runtime-for-buffer preview))
+            (should (string-match-p "nope is not an attribute of probe"
+                                    (buffer-string))))))
+    (etaf-md-undefine-node 'probe)))
+

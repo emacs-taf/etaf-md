@@ -309,6 +309,16 @@
       "name": "etaf-md-tests-a-block-that-breaks-its-declaration-shows-a-line",
       "file": "tests/etaf-md-tests.el",
       "purpose": "A container missing a required attribute keeps its source and reports the missing attribute on the page."
+    },
+    {
+      "name": "etaf-md-tests-value-order-ends-at-the-shipped-default",
+      "file": "tests/etaf-md-tests.el",
+      "purpose": "A style rule set to :default restores the declaration's shipped default, even when the document wrote a value."
+    },
+    {
+      "name": "etaf-md-tests-a-rule-that-names-no-attribute-is-reported",
+      "file": "tests/etaf-md-tests.el",
+      "purpose": "A style rule naming an attribute the type does not declare is ignored, one line is reported, and the block still paints."
     }
   ]
 }

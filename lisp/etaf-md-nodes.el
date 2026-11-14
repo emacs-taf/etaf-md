@@ -97,5 +97,58 @@
                                       row)))
                         rows)))))
 
+
+;;; Callouts
+
+(defun etaf-md--callout-accent (type)
+  "Return the accent word a callout TYPE fixes."
+  (pcase type
+    ('note 'primary)
+    ('tip 'success)
+    ('important 'important)
+    ('warning 'warning)
+    ('caution 'danger)
+    (_ 'neutral)))
+
+(defconst etaf-md--callout-titles
+  '((note . "Note") (tip . "Tip") (important . "Important")
+    (warning . "Warning") (caution . "Caution"))
+  "The fixed title each callout name draws when the document gives none.")
+
+(defun etaf-md--callout-view (env)
+  "Paint a callout; the five names share this view."
+  (let* ((type (etaf-md-type env))
+         (accent (etaf-md--callout-accent type))
+         (title (or (etaf-md-attr env :title)
+                    (alist-get type etaf-md--callout-titles))))
+    (etaf-view
+     (box :width 'stretch
+          :padding '((lh 1) (ch 2))
+          :background-color (etaf-md-surface env (etaf-md-attr env :background))
+          :border-left (list (etaf-md-attr env :border-left-width) 'solid
+                             (etaf-md-accent env accent))
+       (column :item-gap '(lh 1)
+         (text :font-weight 'bold
+               :color (etaf-md-accent env accent)
+           (expr title))
+         (expr (unless (and (etaf-md-attr env :collapsible)
+                            (not (etaf-md-attr env :open)))
+                 (etaf-md-content env))))))))
+
+(dolist (type '(note tip important warning caution))
+  (etaf-md--define-shipped type
+    :name (symbol-name type)
+    :summary "提示块，一个名字一个固定强调色"
+    :attrs '((title            :type string  :doc "提示块的标题，省略用固定标题")
+             (collapsible      :type boolean :default nil   :doc "允许收起")
+             (open             :type boolean :default t     :doc "收起时默认展开")
+             (background       :type surface :default quote :doc "底色")
+             (border-left-width :type length :default "1ch" :doc "左侧竖条宽度"))
+    :view #'etaf-md--callout-view))
+
+;; Reader definitions load after the shipped ones, so :extends can rely
+;; on them and a plain definition may still add a new type.
+(etaf-md-load-node-directory)
+
 (provide 'etaf-md-nodes)
 ;;; etaf-md-nodes.el ends here

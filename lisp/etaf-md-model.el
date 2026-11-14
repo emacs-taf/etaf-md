@@ -209,18 +209,19 @@ their block ranges move to where the stretch sits in TEXT."
                 (cl-decf depth)
               (progn
                 (let ((inner-start (plist-get container :content-start)))
-                  (push (list :type 'container
-                              :name (plist-get container :name)
-                              :attrs (plist-get container :attrs)
-                              :children (plist-get (etaf-md--parse
-                                          (substring text inner-start line-start)
-                                          flavor)
-                                         :children)
-                              :begin (plist-get container :begin)
-                              :end line-end
-                              :source (substring text (plist-get container :begin)
-                                                 line-end))
-                          result))
+                  (setq result
+                        (nconc result
+                               (list (list :type 'container
+                                           :name (plist-get container :name)
+                                           :attrs (plist-get container :attrs)
+                                           :children (plist-get (etaf-md--parse
+                                                                 (substring text inner-start line-start)
+                                                                 flavor)
+                                                                :children)
+                                           :begin (plist-get container :begin)
+                                           :end line-end
+                                           :source (substring text (plist-get container :begin)
+                                                              line-end))))))
                 (setq container nil
                       plain-start (min (length text) (1+ line-end))))))
            ((and container (string-match etaf-md--container-open line))
@@ -228,21 +229,38 @@ their block ranges move to where the stretch sits in TEXT."
           (setq offset (1+ line-end))))
       (if container
           (let ((inner-start (plist-get container :content-start)))
-            (push (list :type 'container
-                        :name (plist-get container :name)
-                        :attrs (plist-get container :attrs)
-                        :children (plist-get (etaf-md--parse (substring text inner-start) flavor)
-                                         :children)
-                        :begin (plist-get container :begin)
-                        :end (length text)
-                        :source (substring text (plist-get container :begin)))
-                  result))
+            (setq result
+                  (nconc result
+                         (list (list :type 'container
+                                     :name (plist-get container :name)
+                                     :attrs (plist-get container :attrs)
+                                     :children (plist-get (etaf-md--parse
+                                                           (substring text inner-start) flavor)
+                                                          :children)
+                                     :begin (plist-get container :begin)
+                                     :end (length text)
+                                     :source (substring text (plist-get container :begin)))))))
         (flush (length text)))
       (let ((document (copy-sequence (or template
                                             (etaf-ui-markdown-parse "" flavor)))))
-        (setf (plist-get document :children) (nreverse result))
+        (setf (plist-get document :children) result)
         (plist-put document :meta (or (plist-get document :meta) nil))
         document))))
+
+(defun etaf-md--container-syntax-p (text)
+  "Return non-nil when TEXT has a container line outside a fenced block.
+A fence is opened and closed by the same marker, so a `:::` inside a code
+sample stays code."
+  (let ((fence nil) (found nil))
+    (dolist (line (split-string text "\n") found)
+      (cond
+       ((string-match "\\`[ \t]*\\(```+\\|~~~+\\)" line)
+        (let ((marker (match-string 1 line)))
+          (if fence
+              (when (string= fence marker) (setq fence nil))
+            (setq fence marker))))
+       ((and (not fence) (string-match "\\`:::" line))
+        (setq found t))))))
 
 (defun etaf-md--parse (text flavor)
   "Parse TEXT with FLAVOR, reporting failures as `etaf-md-error'.
@@ -250,7 +268,7 @@ Container syntax is this package's own; everything else is shared with the
 other document viewers, and this package keeps its own error type at its
 boundary."
   (condition-case err
-      (if (string-match-p "^:::" text)
+      (if (etaf-md--container-syntax-p text)
           (etaf-md--parse-containers text flavor)
         (etaf-ui-markdown-parse text flavor))
     (etaf-ui-markdown-error

@@ -143,6 +143,14 @@ ATTRS uses keyword names, the same names a style rule writes."
   "Return TYPE's closed word list, or nil."
   (cdr (assq type etaf-md--domains)))
 
+(defun etaf-md--converts-p (type value)
+  "Return non-nil when VALUE converts to TYPE.
+A boolean false converts to nil, which is a value and not a failure."
+  (pcase type
+    ('boolean (or (memq value '(t nil))
+                  (and (stringp value) (member value '("true" "false")))))
+    (_ (and (etaf-md--convert type value) t))))
+
 (defun etaf-md--value-problem (key decl value source)
   "Return a message when VALUE breaks DECL of KEY from SOURCE, else nil.
 SOURCE is `document' or `rule'."
@@ -150,7 +158,7 @@ SOURCE is `document' or `rule'."
          (converted (etaf-md--convert type value))
          (name (substring (symbol-name key) 1)))
     (cond
-     ((null converted)
+     ((not (etaf-md--converts-p type value))
       (format "%s: %S is not a %s" name value type))
      ((and (eq type 'string) (plist-get decl :pattern)
            (not (string-match-p (plist-get decl :pattern) converted)))
@@ -291,7 +299,8 @@ type must say :extends or :replace; without either it is an error."
                    :contract (or (plist-get args :contract)
                                  (plist-get old :contract)
                                  etaf-md-contract)
-                   :shipped (plist-get old :shipped))))
+                   :shipped (plist-get old :shipped)
+                   :overridden (and old t))))
         (puthash type definition etaf-md-node-definitions)
         definition))))
 
@@ -413,7 +422,7 @@ Later rules win, as the table is kept in order."
     (dolist (entry etaf-md-styles)
       (when (etaf-md--selector-match-p node (car entry))
         (when-let* ((rule (assq (etaf-md--key key) (cdr entry))))
-          (setq result (list (cdr rule))))))
+          (setq result (list (cadr rule))))))
     result))
 
 (defun etaf-md--derived-p (type key)
@@ -432,11 +441,12 @@ Later rules win, as the table is kept in order."
          (rule (etaf-md--rule-value node key))
          (raw (cond
                (rule
-                (pcase (car rule)
-                  ('nil nil)
-                  (:default (plist-get (etaf-md--shipped-declaration type key)
-                                       :default))
-                  (value value)))
+                (let ((value (car rule)))
+                  (cond ((null value) nil)
+                        ((eq value :default)
+                         (plist-get (etaf-md--shipped-declaration type key)
+                                    :default))
+                        (t value))))
                (derived (plist-get (etaf-md-node-attrs node) key))
                ((plist-member (etaf-md-node-attrs node) key)
                 (plist-get (etaf-md-node-attrs node) key))
@@ -482,6 +492,44 @@ source, and a style rule with a bad key or value is ignored with its own line."
                       (format "%s is required" (substring (symbol-name (car decl)) 1)))
                 problems))))
     (nreverse problems)))
+
+
+(defun etaf-md--rule-problems (node)
+  "Return (KEY MESSAGE) for every rule that names something NODE's type lacks.
+A rule key must be an ordinary attribute of the type; a derived key may only be
+a selector; a value must fit its declaration.  The bad rule is ignored and the
+page reports one line, never aborting."
+  (let* ((type (etaf-md-node-type node))
+         (definition (etaf-md-node-definition type))
+         (attrs (plist-get definition :attrs))
+         (derived (plist-get definition :derived))
+         (problems nil))
+    (dolist (entry etaf-md-styles)
+      (when (etaf-md--selector-match-p node (car entry))
+        (dolist (rule (cdr entry))
+          (let ((key (car rule)))
+            (cond
+             ((etaf-md--declaration derived key)
+              (push (list key (format "%s is derived; it can only be a selector"
+                                      (substring (symbol-name key) 1)))
+                    problems))
+             ((null (etaf-md--declaration attrs key))
+              (push (list key (format "%s is not an attribute of %s"
+                                      (substring (symbol-name key) 1) type))
+                    problems))
+             ((let ((value (cadr rule)))
+                (and (not (eq value :default))
+                     (etaf-md--value-problem
+                      key (etaf-md--declaration attrs key) value 'rule)))
+              (push (list key (etaf-md--value-problem
+                               key (etaf-md--declaration attrs key)
+                               (cadr rule) 'rule))
+                    problems)))))))
+    (nreverse problems)))
+
+(defun etaf-md--all-problems (node)
+  "Return NODE's declaration and rule problems, in that order."
+  (append (etaf-md--problems node) (etaf-md--rule-problems node)))
 
 ;;; Derive
 
@@ -561,6 +609,17 @@ With TYPE, describe only that one."
                                  "  "))
               lines)))
     (mapconcat #'identity (nreverse lines) "\n")))
+
+
+(defun etaf-md-load-node-directory ()
+  "Load every `.el' file in `etaf-md-node-directory', in file-name order.
+A missing directory is not an error: most readers keep their definitions in
+their init file."
+  (interactive)
+  (when (file-directory-p etaf-md-node-directory)
+    (dolist (file (sort (directory-files etaf-md-node-directory t "\\.el\\'")
+                        #'string<))
+      (load file nil t))))
 
 (provide 'etaf-md-node)
 ;;; etaf-md-node.el ends here
