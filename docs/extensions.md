@@ -1139,6 +1139,8 @@ A definition is data plus one function, not code inside a document.
   :view (lambda (env) …))
 ```
 
+**"Derived" is this document's name for one class of values: the ones the parse or the derive stage computes and writes, which have no spelling in the Markdown text.** `level` comes from the number of `#` characters and `number` from the document's section order; neither is something the author types. They therefore get their own `:derived` table, apart from the `:attrs` the author writes.
+
 | Keyword | Value | Meaning |
 | --- | --- | --- |
 | The name | A symbol, the first argument | The type name, the registry key |
