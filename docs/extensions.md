@@ -198,7 +198,7 @@ Four conventions.
 
 Writing the same attribute twice is an error, not a last-one-wins. The reason: a duplicate usually means the author changed half of it, and silently picking one hides the problem.
 
-The shared attribute table is Appendix A; containers only reference it.
+The shared attribute table is Appendix A; containers only reference it. How a definition declares these types is 9.2.
 
 ### 3.4 Validation, degradation and the failure catalogue
 
@@ -842,10 +842,11 @@ A definition is data, not code inside a document.
  'card
  :kind 'block
  :summary "A titled card"
- :attrs '((title :string :doc "Card title")
-          (description :string :doc "Summary under the title")
-          (surface :enum (none panel quote sunken page) :default panel :doc "Fill")
-          (tone :enum (neutral info ok warn danger important) :default neutral :doc "Tone"))
+ :attrs '((title   :type string :doc "Card title")
+          (surface :type enum :one-of (none panel quote sunken page)
+                   :default panel :doc "Fill")
+          (tone    :type enum :one-of (neutral info ok warn danger important)
+                   :default neutral :doc "Tone"))
  :body (lambda (attrs body env)
          (etaf-node 'box
                     (list :width 'stretch
@@ -865,7 +866,7 @@ A definition is data, not code inside a document.
 | The name | The first argument, a symbol. `:::card` in a document looks it up |
 | `:kind` | `block`, `parent` or `child` |
 | `:summary` | One line, used in help and errors |
-| `:attrs` | The attribute table; each entry follows 9.2: `(name type :default value :doc docstring)` |
+| `:attrs` | The attribute table; each entry follows 9.2: `(name :type type :default value :doc docstring)`, and a `nil` default is never written |
 | `:children` | Parent only: the child names and their attributes |
 | `:body` | A function taking three arguments and returning an ETAF view |
 
@@ -897,7 +898,7 @@ The `&rest options` on `etaf-md-render` are for wrapping containers. `table` tur
 A parent adds one field.
 
 ```elisp
-:children '((col :attrs ((grow :number :default 1 :doc "Width share"))))
+:children '((col :attrs ((grow :type number :default 1 :doc "Width share"))))
 ```
 
 The three built-in structure containers take this road too. `box`, `card` and `columns` are not special cases; they are three definitions in the same registry. The reason is simple: as long as one container has a private branch in the renderer, the API has never been exercised, and a user will eventually hit a capability only that branch has.
@@ -905,10 +906,13 @@ The three built-in structure containers take this road too. `box`, `card` and `c
 ### 9.2 Rules for attributes and children
 
 - A definition references names from the shared attribute table, or declares its own. A private attribute says in `:summary` that it only works with that container.
-- Every cell of an attribute table is named except the first two: the first is the name, the second the type, and everything after is a named field such as `:default`, `:doc` or `:required`. Two positional slots only; a third would send the reader back to the manual.
-- An omitted `:default` means `nil`. A required attribute says `:required t` instead of hiding it behind `nil`. Writing both is an error.
+- An entry has exactly one position: its first element is the name, which is the entry's key. Everything after is a named field, the same shape as `:children '((col ...))`.
+- `:type` is required and takes `string`, `number`, `bool`, `length`, `color`, `enum` or `regex`. An enum writes `:type enum :one-of (...)`, a pattern writes `:type regex :pattern "..."`. There is one spelling for a type, not a keyword for some kinds and a list for others.
+- An omitted `:default` means `nil`, so a `nil` default takes no characters at all.
+- A required attribute writes `:required t`, as in `(label :type string :required t :doc "Tab label")`, and then no `:default`; writing both is an error at load. Required exists only on the document side; reader-side keys are always optional.
+- `:doc` is optional but recommended; it appears in help and in errors.
 - A `child` definition declares no `:children`.
-- A definition may not read files, make network requests or start timers. It receives `attrs`, `children`, `content` and `env`, nothing else.
+- A definition may not read files, make network requests or start timers. It receives `attrs`, `body` and `env`, and reads the rest from `env` by name.
 - The renderer's dispatch contains no container names. It looks a definition up by role and attributes, and never branches on a name.
 - Shipped definitions and user definitions load from the same table. A test must replace the shipped `card` with a user definition and render the result.
 
@@ -943,7 +947,7 @@ When the style table is not enough, supply a function. The function can also giv
 ```elisp
 (etaf-md-define-render 'heading
   :extends t
-  :keys '((background :color :doc "Heading fill"))
+  :keys '((background :type color :doc "Heading fill"))
   (lambda (node env)
     (etaf-node 'box
                (list :width 'stretch

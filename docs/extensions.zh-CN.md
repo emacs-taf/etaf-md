@@ -198,7 +198,7 @@
 
 同一个属性写两次是错误，不取后者。理由：重复通常意味着作者改了一半，静默取一个会把问题藏起来。
 
-共享属性表在附录 A，容器只引用它。
+共享属性表在附录 A，容器只引用它。定义里怎么声明这些类型，见 9.2。
 
 ### 3.4 校验、降级与失败目录
 
@@ -842,10 +842,11 @@ print("hi")
  'card
  :kind 'block
  :summary "一张带标题的卡片"
- :attrs '((title :string :doc "卡片标题")
-          (description :string :doc "标题下的摘要")
-          (surface :enum (none panel quote sunken page) :default panel :doc "底色")
-          (tone :enum (neutral info ok warn danger important) :default neutral :doc "语气"))
+ :attrs '((title   :type string :doc "卡片标题")
+          (surface :type enum :one-of (none panel quote sunken page)
+                   :default panel :doc "底色")
+          (tone    :type enum :one-of (neutral info ok warn danger important)
+                   :default neutral :doc "语气"))
  :body (lambda (attrs body env)
          (etaf-node 'box
                     (list :width 'stretch
@@ -865,7 +866,7 @@ print("hi")
 | 名字 | 第一个参数，符号。文档写 `:::card` 就找它 |
 | `:kind` | `block`、`parent`、`child` |
 | `:summary` | 一行说明，出现在帮助和报错里 |
-| `:attrs` | 属性表，每项写法见 9.2：`(名字 类型 :default 值 :doc 说明)` |
+| `:attrs` | 属性表，每项写法见 9.2：`(名字 :type 类型 :default 值 :doc 说明)`，`nil` 默认值不用写 |
 | `:children` | 只有父容器要写，声明子块名字和它们的属性 |
 | `:body` | 函数，收三样东西，返回 ETAF 视图 |
 
@@ -897,7 +898,7 @@ print("hi")
 父容器多写一个字段。
 
 ```elisp
-:children '((col :attrs ((grow :number :default 1 :doc "宽度份数"))))
+:children '((col :attrs ((grow :type number :default 1 :doc "宽度份数"))))
 ```
 
 三个内置结构容器也走这条路。`box`、`card`、`columns` 不是特例，它们是同一张注册表里的三条定义。理由很简单：只要有一个容器在渲染器里有专属分支，这套 API 就没被验证过，用户迟早撞上只有那条分支才有的能力。
@@ -905,10 +906,13 @@ print("hi")
 ### 9.2 属性与子块的规则
 
 - 定义只能引用共享属性表里的名字，或者自己声明的专有属性。专有属性要在 `:summary` 里说清只能和它一起用。
-- 属性表的每一格都具名，前两位除外：第一个是名字，第二个是类型，后面全是 `:default`、`:doc`、`:required` 这类具名字段。位置参数只留两位，多一位就要查文档。
-- `:default` 不写就是 `nil`。要必填就写 `:required t`，不能再靠 `nil` 隐含。两个都写是错误。
+- 每一项只有一个位置：第一个元素是名字，它是这一项的键。后面全是具名字段，和 `:children '((col ...))` 一个形状。
+- `:type` 必写，取值是 `string`、`number`、`bool`、`length`、`color`、`enum`、`regex`。枚举写 `:type enum :one-of (...)`，正则写 `:type regex :pattern "..."`。类型只有一种写法，不再有「关键字还是列表」两种形状。
+- `:default` 不写就是 `nil`，所以 `nil` 默认值一个字都不用写。
+- 必填写 `:required t`，例如 `(label :type string :required t :doc "标签文字")`。此时不许写 `:default`，两个都写是加载错误。必填只用于文档侧属性，读者侧的键一律可选。
+- `:doc` 可选，但建议写。它出现在帮助和报错里。
 - `:kind` 是 `child` 的定义不写 `:children`。
-- 定义不能自己读文件、发网络请求、起定时器。它只能拿到 `attrs`、`children`、`content`、`env`。
+- 定义不能自己读文件、发网络请求、起定时器。它只能拿到 `attrs`、`body`、`env`，其余从 `env` 具名取。
 - 渲染器的分发代码里不出现容器名字。它只按角色的和属性找定义，不按名字写分支。
 - 内置定义和用户定义从同一张表加载。测试要能用一份用户定义替换内置的 `card`，并把结果渲染出来。
 
@@ -943,7 +947,7 @@ print("hi")
 ```elisp
 (etaf-md-define-render 'heading
   :extends t
-  :keys '((background :color :doc "标题底色"))
+  :keys '((background :type color :doc "标题底色"))
   (lambda (node env)
     (etaf-node 'box
                (list :width 'stretch
