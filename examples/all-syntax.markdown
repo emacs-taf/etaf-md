@@ -712,10 +712,15 @@ HTML 块按原样显示，不解析其中的标记。
 ### 文件树
 
 :::file-tree {title="lisp/"}
-- lisp/
-  - etaf-md-model.el
-  - etaf-md-views.el
+- **lisp/** # 这一层是渲染核心
+  - **etaf-md-model.el** # 解析、派生与增量发布
+  - etaf-md-views.el # 页面与媒体
+  - ++ etaf-md-typeset.el # 这次新增的排版层
+  - -- etaf-md-old.el # 已删除的旧实现
+  - tests/
+    - etaf-md-tests.el
 - etaf-md.el
+- … 
 :::
 
 ### 对话

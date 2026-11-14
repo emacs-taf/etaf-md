@@ -514,7 +514,7 @@ repeats; the list form below still describes a whole set of facts."
          (constraint (etaf-md-attr env :constraint))
          (muted (etaf-md--muted env))
          (name-row
-          (etaf-node 'row (list :width 'stretch :item-gap '(ch 1))
+          (etaf-node 'flex (list :width 'stretch :column-gap '(ch 1))
                      (cons (etaf-node 'text (list :font-weight 'bold)
                                       (list name))
                            (etaf-md--field-state-chips env))))
@@ -538,7 +538,7 @@ repeats; the list form below still describes a whole set of facts."
                        (list (format "自 %s" since)))))
          (meta-row
           (when (or type-node default-node since-node)
-            (etaf-node 'row (list :width 'stretch :item-gap '(ch 2))
+            (etaf-node 'flex (list :width 'stretch :column-gap '(ch 2))
                        (delq nil (list type-node default-node since-node)))))
          (extras
           (delq nil
@@ -621,39 +621,82 @@ repeats; the list form below still describes a whole set of facts."
               (etaf-md--field-card env)
             (etaf-md--field-list env))))
 
-(defun etaf-md--tree-entries (env nodes)
-  "Return list item NODES as nested `etaf-tree' items.
-The parser already nests an item's sub-list under the item, so the entries
-follow the children instead of a flat depth sequence."
-  (let ((counter 0))
-    (cl-labels
-        ((build (children)
-           (mapcar
-            (lambda (node)
-              (list :key (cl-incf counter)
-                    :label (or (etaf-md-attr env :text node) "")
-                    :children (build (etaf-md-children env node))))
-            children)))
-      (build nodes))))
+(defun etaf-md--tree-entry-info (text)
+  "Return (NAME COMMENT DIFF FOCUS) read from a file tree item's TEXT.
+Plume writes a comment after `#', a new file as `++ name' and a removed one as
+`-- name'; a name wrapped in `**' is the one the reader should look at."
+  (let ((text (string-trim (or text "")))
+        (diff nil)
+        (focus nil))
+    (when (string-match "\\`\\(++\\|--\\)[ \t]*\\(.+\\)\\'" text)
+      (setq diff (if (equal (match-string 1 text) "++") 'add 'remove))
+      (setq text (match-string 2 text)))
+    (when (string-match "\\`\\*\\*\\(.+\\)\\*\\*\\'" text)
+      (setq focus t)
+      (setq text (match-string 1 text)))
+    (let ((comment nil))
+      (when (string-match "\\`\\(.+?\\)[ \t]+#[ \t]+\\(.+\\)\\'" text)
+        (setq comment (match-string 2 text))
+        (setq text (string-trim (match-string 1 text))))
+      (list text comment diff focus))))
 
-(defun etaf-md--tree-branch-keys (items)
-  "Return the keys of ITEMS that have children."
-  (cl-loop for item in items
-           append (append (when (plist-get item :children)
-                            (list (plist-get item :key)))
-                          (etaf-md--tree-branch-keys (plist-get item :children)))))
+(defun etaf-md--tree-rows (env items prefix)
+  "Return the painted rows of ITEMS under PREFIX.
+The parser flattens a nested list into its item's children, so the rows walk
+each item's own list-item children."
+  (let* ((items (seq-filter (lambda (node)
+                              (eq (etaf-md-node-type node) 'list-item))
+                            items))
+         (count (length items))
+         (rows nil))
+    (cl-loop for item in items
+             for index from 0
+             for last = (= index (1- count))
+             do (let* ((info (etaf-md--tree-entry-info
+                              (etaf-md-attr env :text item)))
+                       (name (nth 0 info))
+                       (comment (nth 1 info))
+                       (diff (nth 2 info))
+                       (focus (nth 3 info))
+                       (guide (concat prefix (if last "└─ " "├─ ")))
+                       (ink (pcase diff
+                              ('add (etaf-md--palette-value
+                                     (etaf-md-env-palette env) :ok))
+                              ('remove (etaf-md--palette-value
+                                        (etaf-md-env-palette env) :danger)))))
+                  (push (etaf-node
+                         'flex
+                         (list :width 'stretch)
+                         (delq nil
+                               (list
+                                (etaf-node 'text
+                                           (list :font-family
+                                                 (face-attribute 'fixed-pitch :family nil t)
+                                                 :color (or ink (etaf-md--muted env))
+                                                 :font-weight (and focus 'bold))
+                                           (list (concat guide name
+                                                         (when comment "  "))))
+                                (when comment
+                                  (etaf-node 'text
+                                             (list :color (etaf-md--muted env))
+                                             (list comment))))))
+                        rows)
+                  (dolist (row (etaf-md--tree-rows
+                                env (etaf-md-children env item)
+                                (concat prefix (if last "   " "│  "))))
+                    (push row rows))))
+    (nreverse rows)))
 
 (etaf-md--define-shipped 'file-tree
   :name "file-tree"
   :summary "带树线的目录树"
   :attrs '((title :type string :doc "树上方一行标题")
-           (lines :type boolean :default t :doc "画不画树线"))
+           (lines :type boolean :default t :doc "画不画树线")
+           (icon  :type enum :one-of (simple colored)
+                  :doc "plume 的图标样式，文字页面里不画图标，只接受这个参数"))
   :accepts '((list :attrs nil))
   :view (lambda (env)
-          (let* ((list-node (car (etaf-md-children env)))
-                 (items (and list-node
-                             (etaf-md--tree-entries
-                              env (etaf-md-children env list-node)))))
+          (let ((list-node (car (etaf-md-children env))))
             (etaf-node
              'box
              (list :width 'stretch
@@ -667,12 +710,7 @@ follow the children instead of a flat depth sequence."
                 (when-let* ((title (etaf-md-attr env :title)))
                   (list (etaf-node 'text (list :font-weight 'bold)
                                    (list title))))
-                (list (etaf-node
-                       'etaf-tree
-                       (list :items items
-                             :lines (etaf-md-attr env :lines)
-                             :expanded (etaf-md--tree-branch-keys items))
-                       nil)))))))))
+                (etaf-md--tree-rows env (etaf-md-children env list-node) ""))))))))
 
 ;;; Chat
 

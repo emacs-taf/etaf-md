@@ -888,7 +888,13 @@ The body is an indented list, one `-` per level.
 
 The case it solves: saying what a directory holds. A fenced block can show the same thing, but its lines have to line up with the indentation, and hand-written ones are off by a cell sooner or later. The marks use only the characters 4.6 allows.
 
-Component: `etaf-tree`.
+A comment after `#` follows the name in muted ink; `++ name` marks a new file
+and `-- name` a removed one, green and red; a name wrapped in `**` is bold, to
+point at the entry a reader should look at first.  `icon` accepts plume's values
+and paints no file icon on a text page.
+
+Component: the page draws its own guides, one row per entry, with no
+interaction.
 
 ### 6.10 Chat
 
