@@ -512,8 +512,10 @@ follow the children instead of a flat depth sequence."
       (etaf-md--tab-language env tab)
       ""))
 
-(defun etaf-md--tabs-view (env)
-  "Paint a tab strip and the selected page; both tab styles share it."
+(defun etaf-md--tabs-view (env &optional page-view)
+  "Paint a tab strip and the selected page; both tab styles share it.
+PAGE-VIEW, when given, paints the selected page's body instead of the
+default child view."
   (let* ((tabs (etaf-md-children env))
          (count (length tabs))
          (initial (or (cl-position-if
@@ -539,7 +541,33 @@ follow the children instead of a flat depth sequence."
        (box :width 'stretch
             :padding '((lh 1) (ch 2))
             :border-top (etaf-md--hairline env)
-         (expr (when selected (etaf-md--child-view env selected))))))))
+         (expr (when selected
+                 (if page-view
+                     (funcall page-view env selected)
+                   (etaf-md--child-view env selected)))))))))
+
+(defun etaf-md--code-tabs-view (env)
+  "Paint a code tab strip and the selected page without a repeated language."
+  (etaf-md--tabs-view env #'etaf-md--code-tab-page))
+
+(defun etaf-md--code-tab-page (env page)
+  "Paint PAGE's body in ENV the way a code tab shows it.
+The strip already names the page's language, so a fence that repeats it in a
+header strip inside the page reads as a second header.  The code keeps its
+frame and its colours; only the language row is left out."
+  (etaf-view
+   (column :width 'stretch :item-gap '(lh 0)
+    (expr
+     (mapcar
+      (lambda (child)
+        (if (eq (etaf-md-node-type child) 'code-block)
+            (etaf-ui-markdown-view-block
+             (plist-put (copy-sequence (etaf-md-node-block child)) :header nil)
+             (list :theme (etaf-md-env-theme env)
+                   :palette (etaf-md-env-palette env)
+                   :width (etaf-md-env-width env)))
+          (etaf-md--paint child env)))
+      (etaf-md-children env page))))))
 
 (etaf-md--define-shipped 'tabs
   :name "tabs"
@@ -555,7 +583,7 @@ follow the children instead of a flat depth sequence."
   :accepts '((tab :attrs ((title    :type string :doc "标签文字，省略取围栏语言")
                           (selected :type boolean :default nil :doc "打开时选中这一页"))))
   :child-syntax 'markers
-  :view #'etaf-md--tabs-view)
+  :view #'etaf-md--code-tabs-view)
 
 (etaf-md--define-shipped 'accordion
   :name "accordion"
@@ -678,7 +706,10 @@ follow the children instead of a flat depth sequence."
            :item-gap '(lh 0))
      (append
       (when-let* ((title (etaf-md-attr env :title)))
-        (list (etaf-node 'text (list :font-weight 'bold) (list title))))
+        (list (etaf-node 'text (list :font-weight 'bold) (list title))
+              ;; A title that sits on the header row reads as part of it;
+              ;; one blank row separates the caption from the table.
+              (etaf-node 'text nil (list " "))))
       (nreverse row-views)))))
 
 (etaf-md--define-shipped 'window
