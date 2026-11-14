@@ -138,7 +138,7 @@ Three consequences.
 
 1. **A token never enters a paint.** A paint reads attributes, an attribute's value points at a token inside a style rule, so the reader can always override the colour.
 2. **A document-wide value is written onto the node.** The section number arrives that way; env offers no function to read it.
-3. **Anything that lives on the node gets no env function.** env holds only what is outside the node: render services and block state.
+3. **The node is the only source of data.** `attr` reads it and a rule overrides it, both on the same node; `env` adds render services, appearance conversion and block state, and keeps no second copy.
 
 ### 2.4 The pipeline
 
@@ -263,8 +263,6 @@ Nine types. Attributes come in two classes, separated by one flag.
 
 The test is one sentence: **does this value have a spelling in the Markdown text?** If it does, it goes in `:attrs`; if it does not, it goes in `:derived`. Two tables side by side, never mixed.
 
-Nine types.
-
 | Type | Spelling | Domain | Invalid |
 | --- | --- | --- | --- |
 | `string` | `title="Cache hit"` | An optional `:pattern` | `title=cache hit` |
@@ -275,7 +273,7 @@ Nine types.
 | `accent` | `accent=warning` | `neutral`, `primary`, `success`, `warning`, `danger`, `important` | `accent=urgent` |
 | `align` | `text-align=center` | `start`, `center`, `end` | `text-align=middle` |
 | `enum` | `list-style=decimal` | The declaration's `:one-of`, which is required | `list-style=number` |
-| `color` | `color=primary` | A token name, or a literal colour | `color=blue` |
+| `color` | `color=primary` | A token name; only a reader rule may write a literal | `color=blue` |
 
 The three semantic types keep their word lists as constants of the package, see 4.1, so a declaration never repeats them. A type that wants only some of the words narrows them right there:
 
@@ -290,7 +288,7 @@ Validation converts each value into the shape the renderer wants, so a declarati
 | `string` | `title="Cache Hit"` | The string `"Cache Hit"` |
 | `number` | `start=2` | The number `2` |
 | `boolean` | `selected=true` | `t` or `nil` |
-| `length` | `padding="1lh"` | ETAF's length `(lh 1)`, ready to pass as a property |
+| `length` | `padding="2ch"` | ETAF's length `(ch 2)`, ready to pass as a property |
 | `surface` | `surface=raised` | The symbol `raised` |
 | `accent` | `accent=warning` | The symbol `warning` |
 | `align` | `text-align=center` | The symbol `center` |
@@ -508,7 +506,7 @@ Editing the table repaints the page and recomputes the derive step, but never re
 
 | Who | May write | Why |
 | --- | --- | --- |
-| The document | Semantic words such as `surface=raised`, `accent=warning` | A document has to read on any theme and any machine |
+| The document | Semantic words and token names such as `surface=raised`, `accent=warning`, `color=heading` | A document has to read on any theme and any machine |
 | The reader's style rules | A token name, or a literal `"#ff0000"` | The reader owns the page |
 
 A literal costs something: it stops following the theme. A blue chosen on a dark page may be unreadable on a paper one, so a document never writes a literal, and that is a hard rule.
@@ -547,7 +545,7 @@ There is one way to make columns: `columns`. The former `layout`, `flex` and `ca
 | --- | --- | --- | --- |
 | `columns` | number or string | none | A number of equal columns, or a track list in `fr`, `ch` or `%` |
 | `gap` | length | `"2ch"` | Space between columns |
-| `padding` | length | none | Padding on all four sides |
+| `padding` | length | none | Left and right padding; the block axis comes from the view |
 | `min-width` | length | `"24ch"` | Smallest column; below it the columns stack |
 | `align-items` | enum | `stretch` | Cross-axis alignment: `start`, `center`, `end`, `stretch` |
 | `justify-content` | enum | `start` | Main axis: `start`, `center`, `end`, `between` |
@@ -627,7 +625,7 @@ There are only three, and the test is the content's relationship.
 | Family | Containers | Shared property |
 | --- | --- | --- |
 | Structure | `columns`, `card`, `box` | Decide placement and boundary only, never interpret content |
-| Callouts | `note`, `tip`, `important`, `warning`, `caution` | One definition, five fixed accent values |
+| Callouts | `note`, `tip`, `important`, `warning`, `caution` | Five definitions sharing one view, fixed accent values |
 | Collections | `steps`, `timeline`, `stats`, `field`, `file-tree`, `chat` | Children carry labels and are ordered or named |
 | Interaction | `tabs`, `code-tabs`, `accordion` (child `collapse`) | Stateful, switchable by key |
 | Documents | `table`, `window` | Wrap something else and change how it presents |
@@ -641,13 +639,15 @@ What ships today is the GitHub spelling, with the marker on the first line of a 
 > This only works on Emacs 30 and later.
 ```
 
-The planned container spelling shares one attribute set across five names.
+The planned container spelling gives five definitions one shared attribute set and one shared view.
 
 | Attribute | Type | Default | Meaning |
 | --- | --- | --- | --- |
 | `title` | string | The accent's fixed title | Replaces the title text |
 | `collapsible` | boolean | `false` | Allow the block to collapse |
 | `open` | boolean | `true` | Whether it starts expanded |
+| `background` | surface | `quote` | Fill, see 4.1 |
+| `border-left-width` | length | `1ch` | Width of the left bar |
 
 ```markdown
 :::warning {title="Compatibility" collapsible=true}
@@ -655,7 +655,7 @@ This only works on Emacs 30 and later.
 :::
 ```
 
-Both spellings render the same thing, from the same definition. The name-to-accent mapping is fixed: `note` to `primary`, `tip` to `success`, `important` to `important`, `warning` to `warning`, `caution` to `danger`.
+Both spellings render the same thing, from one view. The name-to-accent mapping is fixed: `note` to `primary`, `tip` to `success`, `important` to `important`, `warning` to `warning`, `caution` to `danger`.
 
 Why keep both. A document pasted from GitHub works immediately, which is the commonest entry; a long document written with containers aligns with the other containers and can carry attributes.
 
@@ -665,7 +665,6 @@ Why keep both. A document pasted from GitHub works immediately, which is the com
 | --- | --- | --- | --- |
 | `title` | string | none | Title; omit it and there is no title row |
 | `description` | string | none | One muted summary line under the title |
-| `surface` | surface | `raised` | See 4.1 |
 | `accent` | accent | `neutral` | See 4.1 |
 | `href` | string | none | The whole card activates and opens this target |
 | `text-align` | align | `start` | Horizontal position of its content |
@@ -673,7 +672,7 @@ Why keep both. A document pasted from GitHub works immediately, which is the com
 
 The case it solves: a group of parallel material needs one boundary. A section heading lifts it to the level of a section, and a list flattens a figure into one item.
 
-Component: `etaf-card`, whose default slot takes the body and whose `title` and `description` map directly. `surface` needs the component to accept a fill, which is a component-side change; see 9.6.
+Component: `etaf-card`, whose default slot takes the body and whose `title` and `description` map directly. A card's fill is the component's own panel, so `card` declares no `surface`.
 
 ### 6.4 Box
 
@@ -846,7 +845,7 @@ Interaction follows the contract in chapter 7; no rules are restated here. The c
 
 ### 6.12 Code tabs
 
-The same as `tabs`, except the children hold fenced code, and an omitted `title` comes from the fence's language.
+The children are `tab` too, but `title` is optional here and falls back to the fence's language. So `code-tabs` has its own `:accepts` rather than copying `tabs`.
 
 ````markdown
 :::code-tabs
@@ -863,7 +862,7 @@ print("hi")
 :::
 ````
 
-It is one definition, not new meaning. It renders along the same path as `tabs`; the only difference is where the label comes from by default, which is the language of the first fenced block when `title` is omitted.
+It is not new meaning. It renders along the same path as `tabs` with a different declaration: `title` on `tab` is optional here and falls back to the language of the first fenced block.
 
 ### 6.13 Collapse
 
@@ -911,6 +910,14 @@ With a title as its only job, the name would belong to captions. It also carries
 | `highlight-rows` | string | none | Highlighted row numbers, space separated, e.g. `2 3` |
 | `highlight-columns` | string | none | Highlighted column numbers, space separated, e.g. `1` |
 | `highlight` | accent | `warning` | Which accent the highlight uses |
+| `background` | surface | `page` | Table fill |
+| `color` | color | `foreground` | Table ink |
+| `header-background` | surface | `table-header` | Header fill |
+| `stripe-background` | surface | `table-stripe` | Stripe fill |
+| `text-align` | align | `start` | Cell text position |
+| `margin-top` | length | `0` | Distance from the block above |
+| `margin-bottom` | length | `0` | Distance from the block below |
+| `numbering` | enum | `decimal` | Table numbering format, read by derive |
 
 ```markdown
 :::table {title="Opening cost" highlight-rows="3" highlight=warning}
@@ -1063,23 +1070,33 @@ Step 3 is not an exception, it is the first implementation. Its risk is staying 
 
 A type definition writes three things, and no more.
 
-1. **Declare**: which attributes a document may write, which are derived, at which type and value domain.
+1. **Declare**: which attributes a document may write, which are derived, each one's type and value domain.
 2. **Validate**: the renderer does it uniformly; the declaration only describes.
 3. **Translate**: the document's semantics into component parameters.
 
 ```elisp
 (etaf-md-define-node 'card
   :name "card"
-  :attrs '((title  :type string :required t :pattern "\\S" :doc "Card title")
-           (accent :type accent :default neutral          :doc "Emphasis"))
+  :summary "A card with a title"
+  :attrs '((title       :type string :required t :pattern "\\S" :doc "Card title")
+           (description :type string                          :doc "One line under the title")
+           (href        :type string                          :doc "The whole card opens this target")
+           (accent      :type accent  :default neutral        :doc "Emphasis")
+           (text-align  :type align   :default start          :doc "Horizontal position")
+           (width       :type length                          :doc "Its own width"))
   :view (lambda (env)
           (etaf-view
-           (etaf-card :title (etaf-md-attr env :title)
-                      :variant (etaf-md-attr env :accent)
-             (expr (etaf-md-content env))))))
+           (box :width (or (etaf-md-attr env :width) 'stretch)
+                :text-align (etaf-md-attr env :text-align)
+                :on-press (when-let* ((href (etaf-md-attr env :href)))
+                            (lambda () (etaf-md-follow-link env href)))
+             (etaf-card :title (etaf-md-attr env :title)
+                        :description (etaf-md-attr env :description)
+                        :variant (etaf-md-attr env :accent)
+               (expr (etaf-md-content env))))))
 ```
 
-No line in the definition draws a border or sets padding; those live in `etaf-card`. The definition only translates the document's words into component parameters, and **`accent` passes straight through**: the six accents are shared vocabulary, so the component reads all of them and the definition maps nothing.
+The outer `box` carries only width, position and the click; borders and padding still live in `etaf-card`. The definition only translates the document's words into component parameters, and **`accent` passes straight through**: the six accents are shared vocabulary, so the component reads all of them and the definition maps nothing.
 
 ### 9.4 Components take semantic parameters
 
@@ -1175,7 +1192,7 @@ Nothing beyond these exists, which is why a definition cannot read a file, reach
 
 `content` and `render` split one way: a component that takes the content whole gets `content`; a component that takes one item at a time gets each item from `render`. `children` serves only the second case, to walk the blocks and read each one's attributes.
 
-Twelve, no thirteenth. `etaf-md-format-number` is not among them: it takes no `env` and is a pure function that formats an ordinal with a `list-style-type` word.
+Twelve, no thirteenth. Formatting an ordinal belongs to the derive step and never reaches a view, so there is no function for it either.
 
 ### 10.2 Declaring an attribute
 
@@ -1328,7 +1345,7 @@ heading            built in; a document cannot write its name
 | --- | --- | --- |
 | 0 | GitHub alerts | Implemented, covered by 51 tests |
 | 1 | Render path: parsing, derive, style rules, the failure catalogue, with `heading`, `box`, `columns` and `card` written as definitions | One assertion for each of the 17 failure kinds; three-level nesting and the limit; captures at three widths; a user definition replaces the shipped `card`; one reader attribute changes each built-in type; editing rules never re-parses |
-| 2 | Callout containers: five names sharing one definition with the GitHub spelling | Both spellings produce the same buffer text; each of the five accents maps to its own type |
+| 2 | Callout containers: five definitions share one view and land on the GitHub spelling's result | Both spellings produce the same buffer text; each of the five accents maps to its own type |
 | 3 | Collections: `steps`, `timeline`, `stats`, `field`, `file-tree`, `chat` | Each container has a positive case, a counter-example and captures in three palettes |
 | 4 | Interaction: `tabs`, `code-tabs`, `accordion` and its child `collapse` | Keys go through the command loop; state survives reflow and a theme change; flattened output loses nothing |
 | 5 | Documents: `table`, `window` | Row and column highlights land; the window draws only a title bar |
@@ -1387,24 +1404,28 @@ Two tables. An ordinary attribute is written by the document and overridden by t
 | `description` | string | | none | Summary under the title | card |
 | `href` | string | | none | Target | card |
 | `id` | string | `:pattern "^[^\\s]+$"` | none | Stable anchor | every block |
-| `surface` | surface | five surfaces | see 6.x | Fill | box, card |
+| `surface` | surface | five surfaces | see 6.x | Fill | box |
 | `accent` | accent | six accents | see 6.x | Emphasis | box, card, callouts |
 | `text-align` | align | three positions | start | Horizontal position of content | box, card |
 | `width` | length | `ch`, `lh`, `%` | omitted means full | Own width | box, card |
 | `height` | length | same | omitted follows content | Content height | window |
 | `padding` | length | same | none | Inner padding | box, columns |
 | `gap` | length | same | 2ch | Gap between children | columns |
-| `columns` | number | `:min 1`, `:max 6`, `:integer t` | 2 | Column count | columns, stats |
+| `columns` | number or string | 1 to 6, or a track string | see 6.x | Column count or tracks | columns, stats |
 | `min-width` | length | | 24ch | Minimum column width | columns |
 | `align-items` | enum | start center end stretch | stretch | Cross-axis alignment | columns |
 | `justify-content` | enum | start center end between | start | Main-axis alignment | columns |
 | `align-self` | enum | start center end | start | Its own position in the parent | columns |
 | `wrap` | boolean | | false | Wrap when it does not fit | columns |
-| `list-style` | enum | decimal bullet none | bullet | List marker | steps, timeline |
+| `list-style` | enum | decimal bullet none | see 6.x | List marker | steps, timeline |
 | `start` | number | `:integer t` | 1 | First number | steps |
-| `open` | boolean | | false | Starts expanded | Callouts, the collapse child |
+| `open` | boolean | | see 6.x | Starts expanded | Callouts, the collapse child |
 | `collapsible` | boolean | | false | May be folded | Callouts |
 | `selected` | boolean | | false | This child starts selected | The tab child |
+| `grow` | number | | 1 | Share of the width | `col` children |
+| `time` | string | | none | Time text | `event` and `message` children |
+| `value` | string | | none | Numeric text | `stat` children |
+| `from` | string | | none | Sender | `message` children |
 | `label-width` | length | | automatic | Width of the label column | field |
 | `separator` | enum | colon none | colon | Separator between label and value | field |
 | `self` | enum | left right | left | Which side is you | chat |
@@ -1412,19 +1433,20 @@ Two tables. An ordinary attribute is written by the document and overridden by t
 | `highlight-columns` | string | space-separated column numbers | none | Columns to highlight | table |
 | `highlight` | accent | six accents | warning | Which accent the highlight uses | table |
 | `lines` | boolean | | true | Draw tree lines | file-tree |
-| `background` | surface or colour | five surfaces, or a literal | none | Fill | quote, code, table, callout |
-| `color` | color | a token, or a literal | heading | Ink | heading, strong, em, link, code |
-| `font-weight` | enum | normal bold | bold | Weight | heading, strong |
-| `font-style` | enum | normal italic | normal | Slant | em, quote |
-| `text-decoration` | enum | none underline | none | Decoration | link, strong |
+| `background` | surface or colour | five surfaces, or a literal | none | Fill | quote, code, table, callouts |
+| `color` | color | a token, or a literal | heading | Ink | heading, code |
+| `font-weight` | enum | normal bold | bold | Weight | heading |
+| `font-style` | enum | normal italic | normal | Slant | quote |
 | `prefix` | string | | `""` | Heading prefix, never the anchor | heading |
 | `numbering` | enum | none decimal lower-roman upper-alpha | decimal | Section number format, read by derive | heading, table |
-| `margin-top` | length | | `0` | Space above | heading, quote, code, table |
-| `margin-bottom` | length | | `0` | Space below | heading, quote, code, table |
-| `border-left-width` | length | | `1ch` | Width of the left rule | quote, callout |
+| `margin-top` | length | | `0` | Space above | quote, code, table |
+| `margin-bottom` | length | | `0` | Space below | quote, code, table |
+| `border-left-width` | length | | `1ch` | Width of the left rule | quote, callouts |
 | `label-color` | color | | muted | Fence language label | code |
 | `header-background` | surface or colour | | table-header | Table header fill | table |
 | `stripe-background` | surface or colour | | table-stripe | Table stripe fill | table |
+
+The default column states the shared default; when a type's own table gives another value, that table wins.
 
 A type declares only the ones it reads; the rest need not appear.
 
@@ -1479,11 +1501,11 @@ Every `surface` value maps to one token, and every `accent` value maps to a pair
 | `accent=danger` | `danger` | `danger-soft` | Danger |
 | `accent=important` | `important` | `important-soft` | Important |
 
-The five callout names map to accent values fixedly: `note` to `primary`, `tip` to `success`, `important` to `important`, `warning` to `warning`, `caution` to `danger`.
+The mapping from the five callout names to accents is in 6.2.
 
 ## Appendix C: writing a style rule
 
-A rule is data with four parts: a selector, key-value pairs, three special values, and the door for new attributes. A key is an attribute name the type declares in A.2, so this appendix lists no second key table.
+A rule is data with four parts: a selector, key-value pairs, three special values, and the door for new attributes. A key is an ordinary attribute name the type declares in A.1, so this appendix lists no second key table.
 
 ```elisp
 (setq etaf-md-styles
@@ -1507,7 +1529,7 @@ Three special values.
 | Deleting the `:prefix` key | Does not override; the node's attribute value or the `:default` applies |
 | `(:color :default)` | Returns to the shipped value, whatever was written elsewhere |
 
-Giving a type a new attribute happens only inside `etaf-md-set-view`'s `:style-keys`, and only with a function; see 10.5. A new attribute lands in A.2 first and is then used by the type's declaration; a key in neither place is a load error.
+Giving a type a new attribute happens only inside `etaf-md-set-view`'s `:style-keys`, and only with a function; see 10.5. A new attribute joins the `:style-keys` declaration first, then A.1; a key declared in neither place is a load error.
 
 ## Appendix D: the plume map
 
@@ -1520,7 +1542,7 @@ Giving a type a new attribute happens only inside `etaf-md-set-view`'s `:style-k
 | `card-masonry` | Declined | Row heights are fixed, so packing yields a grid |
 | `steps` | Absorbed as `steps` + `step` | Number plus title |
 | `tabs` | Absorbed as `tabs` + `tab` | Keyboard reachable; a switch repaints one block |
-| `code-tabs` | Kept as one definition on top of `tabs` | Children hold fenced code; an omitted `title` comes from the fence's language |
+| `code-tabs` | Based on `tabs`, with its own declaration | Children hold fenced code; `title` is optional and defaults to the fence's language |
 | `collapse` | Absorbed as the child of `accordion` | One open at a time, plus auto-expansion on a search hit |
 | `field` | Absorbed as `field` | Auto-aligned name column |
 | `timeline` | Absorbed as `timeline` + `event` | Optional marks |
@@ -1539,7 +1561,7 @@ Giving a type a new attribute happens only inside `etaf-md-set-view`'s `:style-k
 
 This table is the ground for naming. A new name is looked up here first; if it is absent, borrow one from the authority column and add it here.
 
-### E.1 Document attributes
+### E.1 Attribute names
 
 | Name | Source | Meaning | Not |
 | --- | --- | --- | --- |
@@ -1665,7 +1687,6 @@ This table is the ground for naming. A new name is looked up here first; if it i
 | `etaf-md-block-state` | Read this block's state |
 | `etaf-md-set-block-state` | Write this block's state |
 | `etaf-md-available-width` | This block's usable width |
-| `etaf-md-format-number` | Format an ordinal by a `list-style-type` word; a pure function |
 
 `etaf-card`, `etaf-tabs`, `etaf-accordion`, `etaf-steps`, `etaf-timeline`, `etaf-statistic` and `etaf-tree` belong to the `etaf-ui` component catalogue; this package calls them and renames none.
 
@@ -1676,25 +1697,17 @@ One custom container and one built-in syntax. Both run from document to page, an
 ### F.1 A custom container: the document
 
 ````markdown
-:::card {title="Cache hit" accent=warning}
+:::card {title="Cache hit" description="One scale, no redraw" href="#cache"
+        accent=warning text-align=start width="48ch"}
 Images and figures scale with the page instead of being redrawn.
 :::
 ````
 
-### F.2 A custom container: definition and styles
+### F.2 A custom container: styles
+
+The definition is in 9.3; this section shows only the styles and the page.
 
 ```elisp
-(etaf-md-define-node 'card
-  :name "card"
-  :summary "A card with a title"
-  :attrs '((title  :type string :required t :pattern "\\S" :doc "Card title")
-           (accent :type accent :default neutral          :doc "Emphasis"))
-  :view (lambda (env)
-          (etaf-view
-           (etaf-card :title (etaf-md-attr env :title)
-                      :variant (etaf-md-attr env :accent)
-             (expr (etaf-md-content env))))))
-
 ;; The shipped rule: a card has one overridable attribute; the rest is etaf-card's baseline
 (setq etaf-md-styles '(((card) (:accent neutral))))
 
@@ -1718,10 +1731,11 @@ The page:
 
 | Step | Written where | Value | Read by |
 | --- | --- | --- | --- |
-| The document | In the braces | `title="Cache hit"`, `accent=warning` | Validation |
-| The declaration | `:attrs` | `title` required and non-blank, `accent` defaulting to `neutral` | Validation, `describe-nodes` |
-| The view | `attr` | The title text and the accent value | Component parameters |
-| The component | `etaf-card`'s `:title` and `:variant` | Unchanged, no mapping | The component paints it |
+| The document | In the braces | `title`, `description`, `href`, `accent`, `text-align`, `width` | Validation |
+| The declaration | `:attrs` | `title` required, `accent` defaulting to `neutral`, the rest optional | Validation, `describe-nodes` |
+| The view | `attr` | Title, description and accent | Component parameters |
+| The component | `etaf-card`'s `:title`, `:description` and `:variant` | Unchanged, no mapping | The component paints it |
+| The shell | The outer `box`'s `:width`, `:text-align`, `:on-press` | Unchanged | Width, position, the click |
 | The reader | `set-attr '(card)` | `:accent danger` | Overrides the document, see 10.3 |
 
 `env` functions used: `attr`, `content`. `surface` is absent because the fill belongs to the component.
@@ -1736,36 +1750,20 @@ The page:
 
 What the parser produces:
 
-```
-(:type heading :attrs ((level . 1) (number . "1"))   :children ("Install"))
-(:type heading :attrs ((level . 2) (number . "1.1")) :children ("Dependencies"))
-```
+| Item | The first heading | The second heading |
+| --- | --- | --- |
+| Type | `heading` | `heading` |
+| `level` | `1` | `2` |
+| `number` | `"1"` | `"1.1"` |
+| Children | One text node | One text node |
 
 The `#` characters leave no trace and become `level`; document order yields `number`. The type has no `:name`, so `:::heading` does not exist.
 
 ### F.5 A built-in syntax: definition and styles
 
-```elisp
-(etaf-md-define-node 'heading
-  :summary "A heading whose level comes from the number of #"
-  :derived '((level  :type number :min 1 :max 6 :integer t :doc "Number of # characters")
-             (number :type string                            :doc "Section number; absent when numbering is off"))
-  :attrs '((font-weight :type enum :one-of (normal bold)     :default bold    :doc "Weight")
-           (color      :type color                           :default heading :doc "Ink")
-           (prefix     :type string                          :default ""      :doc "Display prefix")
-           (numbering  :type enum  :one-of (none decimal lower-roman upper-alpha)
-                       :default decimal :doc "Section number format, read by derive"))
-  :view (lambda (env)
-          (etaf-view
-           (row :item-gap '(ch 0)
-             (text :font-weight (etaf-md-attr env :font-weight)
-                   :color      (etaf-md-attr env :color)
-               (expr (concat (etaf-md-attr env :prefix)
-                             (if-let* ((n (etaf-md-attr env :number)))
-                                 (concat n " ")
-                               ""))))
-             (expr (etaf-md-content env))))))
+The definition is the same as in 10.1; this section shows only the rules and the page.
 
+```elisp
 ;; The shipped rules; every selector is a list
 (setq etaf-md-styles
       '(((heading)          (:font-weight bold) (:color heading) (:numbering decimal))
@@ -1805,7 +1803,7 @@ The page:
 | `:name` | `"card"`; a document writes it | Absent; only the parser makes one |
 | Document attributes | `title`, `accent` | None |
 | Reader attributes | None; appearance belongs to the component | `font-weight`, `color`, `prefix`, `numbering` |
-| Machine attributes | None | `level`, `number` |
+| Derived attributes | None | `level`, `number` |
 | Selectors | `(card)` | `(heading)`, `(heading :level 2)` |
 | Entry | `etaf-md-define-node` | The same |
 
