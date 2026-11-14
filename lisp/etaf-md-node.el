@@ -469,7 +469,13 @@ Later rules win, as the table is kept in order."
                 (plist-get (etaf-md-node-attrs node) key))
                (t (plist-get decl :default)))))
     (when raw
-      (or (etaf-md--convert (plist-get decl :type) raw) raw))))
+      (let ((converted (etaf-md--convert (plist-get decl :type) raw)))
+        (cond ((not (null converted)) converted)
+              ;; A boolean's false converts to nil, which is the value it
+              ;; means.  Falling back to the raw string made every
+              ;; `x=false' a truthy setting.
+              ((eq (plist-get decl :type) 'boolean) nil)
+              (t raw))))))
 
 (defun etaf-md--problems (node)
   "Return (KEY MESSAGE) for every attribute of NODE that breaks its declaration.
