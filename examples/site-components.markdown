@@ -124,7 +124,36 @@
 
 ## 源码树
 
-:::code-tree {height=14}
+:::code-tree {height=20}
+@file Makefile
+```make
+.DEFAULT_GOAL := check
+.NOTPARALLEL:
+EMACS ?= emacs
+# Providers are siblings in the workspace and in a standalone clone;
+# override PROVIDER_ROOT to pin another checkout.
+PROVIDER_ROOT ?= ..
+LOAD_PATH = -L . -L lisp -L tests -L $(PROVIDER_ROOT)/etaf -L $(PROVIDER_ROOT)/etaf-ui -L $(PROVIDER_ROOT)/ebox -L $(PROVIDER_ROOT)/ecss
+SOURCES = $(wildcard lisp/*.el)
+SOURCES += etaf-md.el
+SOURCES += $(wildcard examples/*.el)
+SOURCES += scripts/etaf-md-gui-probe.el
+SOURCES += benchmarks/performance-scenarios.el
+
+.PHONY: compile load check clean structure-check setup-hooks acceptance api-check test benchmark mermaid-check
+
+compile:
+	rm -f *.elc lisp/*.elc tests/*.elc examples/*.elc scripts/*.elc
+	$(EMACS) -Q --batch $(LOAD_PATH) \
+		--eval '(setq load-prefer-newer t byte-compile-error-on-warn t)' \
+		--eval '(require (quote cl-lib))' \
+		--eval '(unless (cl-every (function byte-compile-file) (quote ($(foreach file,$(SOURCES),"$(file)")))) (kill-emacs 1))'
+
+load: compile
+	$(EMACS) -Q --batch $(LOAD_PATH) --eval '(require (quote etaf-md))' --eval '(princ "etaf-md load OK\n")'
+
+check: structure-check compile acceptance api-check
+```
 @file lisp/etaf-md-env.el
 ```elisp
 (defun etaf-md--paint (node env)
@@ -155,30 +184,202 @@
       (etaf-ui-markdown-view-block
        (etaf-md-node-block node)
        ;; A block painted below a container keeps the page services: media,
-       ;; links and the page directory are part of the environment the block
-       ;; was written for, and a minimal plist would show a placeholder.
-       (plist-put (copy-sequence (etaf-md--env (etaf-md-env-session env)))
 ```
 @file lisp/etaf-md-views.el
 ```elisp
-(defun etaf-md--block-view (session key block ref widths)
-  "Return the keyed Component call that renders BLOCK."
-  ...)
+    (warning . "警告") (caution . "小心"))
+  "Chinese labels of the GitHub alert kinds, for ENV's `:alert-labels'.")
+
+(defconst etaf-md--video-extensions
+  '("mp4" "mov" "m4v" "webm" "avi" "mkv" "ogv" "mpg" "mpeg" "wmv" "flv" "3gp")
+  "File extensions rendered as a video card.")
+
+(defun etaf-md--env-color (env key)
+  "Return ENV's color for semantic KEY.
+ENV's face-derived `:palette', when present, wins over the named theme; an
+unknown key in either source signals `etaf-md-error'."
+  (if-let* ((palette (plist-get env :palette)))
+      (or (cdr (assq key palette))
+          (signal 'etaf-md-error
+                  (list (format "Unknown markdown preview color: %S" key))))
+    (etaf-md-color key (plist-get env :theme))))
+
+(defconst etaf-md--meta-labels
+  '(("author" . "作者") ("date" . "日期") ("version" . "版本")
+    ("license" . "许可") ("status" . "状态"))
+  "Front matter keys shown in the document header, with their labels.")
+
+(defun etaf-md--meta-tags (meta)
+  "Return the tag list of front matter META.
+Both `[a, b]' and `a, b' spellings are accepted."
+  (let ((raw (cdr (assoc "tags" meta))))
+    (when (and raw (not (string-empty-p raw)))
+      (let ((raw (replace-regexp-in-string "[][]" "" raw)))
+```
+@file lisp/etaf-md-nodes.el
+```elisp
+    (open              :type boolean :default t   :doc "收起时默认展开")
+    (background        :type surface :default quote :doc "底色")
+    (border-left-width :type length :default "1ch" :doc "左侧竖条宽度"))
+  "Attributes every callout name shares.")
+
+(defun etaf-md--toggle-line (label color command)
+  "Return LABEL painted in COLOR as a focusable disclosure line.
+COMMAND runs when the line is activated."
+  (etaf-node 'box
+             (list :color color :font-weight 'bold :on-press command)
+             (list (etaf-node 'text nil (list label)))))
+
+(defun etaf-md--callout-open-p (env)
+  "Return non-nil when ENV's callout shows its body."
+  (if (etaf-md-attr env :collapsible)
+      (etaf-md-block-state env :open (etaf-md-attr env :open))
+    t))
+
+(defun etaf-md--callout-view (env)
+  "Paint a callout; the five names share this view."
+  (let* ((accent (etaf-md--callout-accent (etaf-md-type env)))
+         (title (or (etaf-md-attr env :title)
+                    (alist-get (etaf-md-type env) etaf-md--callout-titles)))
+         (open (etaf-md--callout-open-p env))
+         (collapsible (etaf-md-attr env :collapsible)))
+    (etaf-node
+```
+@file tests/etaf-md-tests.el
+```elisp
+;;; etaf-md-tests.el --- Acceptance tests for etaf-md -*- lexical-binding: t; -*-
+
+;; SPDX-License-Identifier: GPL-3.0-or-later
+
+;;; Commentary:
+;;
+;; Public behaviour tests.  Every scenario drives the previewer through the
+;; interfaces declared in `etaf-md.el'.  Rendering scenarios mount a
+;; real runtime in a batch Emacs and read the visible buffer back, so they
+;; assert what a reader sees instead of internal parse structures.
+
+;;; Code:
+
+(require 'ert)
+(require 'cl-lib)
+(require 'outline)
+(require 'markdown-mode nil t)
+(require 'etaf)
+(require 'etaf-md)
+
+(defconst etaf-md-tests--directory
+  (file-name-directory (or load-file-name buffer-file-name))
+  "Directory of this test file, resolved while it is loaded.")
+
+(defun etaf-md-tests--fixture (name)
+  "Return the absolute path of fixture NAME."
 ```
 @file scripts/etaf-md-gui-probe.el
 ```elisp
-(require 'etaf-md)
+;;; etaf-md-gui-probe.el --- Drive and inspect a live preview -*- lexical-binding: t; -*-
+
+;; SPDX-License-Identifier: GPL-3.0-or-later
+
+;;; Commentary:
+;;
+;; The preview's typography can only be judged in a real graphical frame:
+;; heading scales, the reading measure, media grids and link hit areas depend
+;; on the frame's fonts and pixel metrics.  This file is the maintained probe
+;; a GUI check loads, so probes stop being throwaway files that bypass the
+;; byte-compilation gate.
+;;
+;; Load it in a graphical Emacs with this repository and the provider roots on
+;; `load-path', then:
+;;
+;;   (etaf-md-gui-open "README.md" "150x44")  ; open at a frame size
+;;   (etaf-md-gui-status)                     ; one-line state for logs
+;;   (etaf-md-gui-keys "nt")                  ; real keys through the loop
+;;   (etaf-md-gui-follow "appended by a tool")  ; write the source
+;;   (etaf-md-gui-follow-report "appended by a tool" LINE) ; then wait
+;;   (etaf-md-gui-check)                      ; invariants; nil when healthy
+;;   (etaf-md-gui-close)                      ; release the preview buffer
+;;
+;; Nothing here is part of the package's public API.
 ```
 :::
 
-:::code-tree {height=6}
-@file index.ts
-```ts
-export const site = 'etaf';
+:::code-tree {height=8}
+@file etaf-md.el
+```elisp
+;;; etaf-md.el --- Modern Markdown preview in ETAF -*- lexical-binding: t; -*-
+
+;; SPDX-License-Identifier: GPL-3.0-or-later
+;; Author: ETAF contributors
+;; Version: 0.2.0
+;; Package-Requires: ((emacs "29.1") (etaf "0.3.0") (etaf-ui "0.2.0"))
+;; Keywords: hypermedia, docs
+;; URL: https://github.com/emacs-taf/etaf-md
+
+;;; Commentary:
+
+;; Public API
+;;
+;; Load this package with (require 'etaf-md) after adding this
+;; repository and the ETAF, ETAF UI, Ebox and ECSS roots to `load-path'.  The
+;; previewer renders a local Markdown document as a modern reading view: a
+;; centered measure with a typographic heading scale, fenced code blocks with
+;; language tags, blockquotes, nested lists, task list markers, pipe tables,
+;; thematic breaks, footnotes, clickable links and inline images, plus local
+;; image and video cards whose poster frame is prepared through ETAF's image
+;; Host; activating a video card plays it inline through ETAF's video
+;; Component.  Front matter is stripped into document metadata.  The whole
+;; document publishes into one buffer with native Emacs scrolling, isearch
+;; and window splitting, so no pane owns a private scrolling model.
 ```
-@file README.md
-```markdown
-# ETAF
+@file lisp/etaf-md-theme.el
+```elisp
+;;; etaf-md-theme.el --- Palettes for etaf-md -*- lexical-binding: t; -*-
+
+;; SPDX-License-Identifier: GPL-3.0-or-later
+
+;;; Commentary:
+;;
+;; Internal palettes of the markdown previewer.  A palette is a plain alist of
+;; semantic color keys; the views read every color through
+;; `etaf-md-color', so both palettes share one layout and a palette
+;; change never leaks a half-updated set of colors.
+
+;;; Code:
+
+(require 'cl-lib)
+(require 'etaf-ui)
+
+(defconst etaf-md-themes
+  '((dark . ((:bg . "#191a1c")
+             (:ink . "#e6edf3")
+             (:muted . "#9198a1")
+             (:faint . "#6e7681")
+             (:accent . "#4493f8")
+             (:accent-soft . "#152c4d")
+             (:border . "#303338")
+```
+@file tests/etaf-md-tests.el
+```elisp
+(defconst etaf-md-tests--directory
+  (file-name-directory (or load-file-name buffer-file-name))
+  "Directory of this test file, resolved while it is loaded.")
+
+(defun etaf-md-tests--fixture (name)
+  "Return the absolute path of fixture NAME."
+  (expand-file-name (concat "fixtures/" name) etaf-md-tests--directory))
+
+(defun etaf-md-tests--mount (session)
+  "Mount SESSION in a fresh buffer and return that buffer."
+  (etaf-mount (generate-new-buffer " *md-preview-test*")
+              (etaf-md-view session)
+              '(:viewport-width 900 :viewport-height 60)))
+
+(defmacro etaf-md-tests--with-mount (session &rest body)
+  "Mount SESSION, run BODY in its buffer, and always kill the buffer."
+  (declare (indent 1) (debug t))
+  `(let ((buffer (etaf-md-tests--mount ,session)))
+     (unwind-protect
+         (with-current-buffer buffer ,@body)
 ```
 :::
 

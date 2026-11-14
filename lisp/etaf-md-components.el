@@ -147,42 +147,39 @@ in both palettes."
            (title       :type string :doc "图片下的标题")
            (description :type string :doc "标题下的说明")
            (href        :type string :doc "整张卡片可点，跳到这个地址")
-           (width       :type number :doc "卡片宽度上限（列），默认 46"))
+           (width       :type number :doc "图片列数上限，默认 46"))
   :view
   (lambda (env)
     (let* ((src (etaf-md-attr env :src))
            (title (etaf-md-attr env :title))
            (description (etaf-md-attr env :description))
            (href (etaf-md-attr env :href))
-           (max-width (min (or (etaf-md-attr env :width) 46)
-                           (max 20 (- (etaf-md-env-width env) 2))))
+           (max-columns (min (or (etaf-md-attr env :width) 46)
+                             (max 20 (- (etaf-md-env-width env) 2))))
            (view-env (etaf-md--component-view-env env))
-           (grid (etaf-md--media-picture-size src view-env
-                                              (- max-width 4) 14))
-           ;; The card wraps its picture exactly: the picture's columns plus
-           ;; the two-cell padding on each side.  A fixed outer width left the
-           ;; picture short of the right border and the card looked crooked.
-           (columns (if grid (car grid) (- max-width 4)))
-           (width (+ columns 4)))
+           (grid (etaf-md--media-picture-size src view-env max-columns 14))
+           (columns (if grid (car grid) max-columns))
+           (muted (etaf-md--component-ink env :muted)))
+      ;; A frame around a picture cannot line up: the picture is drawn in
+      ;; whole character cells and the box is measured in ch, so one edge
+      ;; always loses a pixel or a cell.  The picture is the card; its title
+      ;; and copy sit under it, inset by the cell the picture itself keeps.
       (etaf-view
-        (column :width (list 'ch width)
-                :background-color (etaf-md-surface env 'raised)
-                :border (etaf-md--hairline env)
-                :padding '((lh 1) (ch 2))
+        (column :width 'max-content
                 :item-gap '(lh 0)
                 :on-press (when href
                             (lambda () (etaf-md-follow-link env href)))
           (expr (list (etaf-md--media-picture src view-env columns 14)))
-          (expr
-           (when (or title description)
-             (append
-              (list (etaf-node 'text nil (list " ")))
-              (when title
-                (list (etaf-node 'text (list :font-weight 'bold) (list title))))
-              (when description
-                (list (etaf-node 'text
-                                 (list :color (etaf-md--component-ink env :muted))
-                                 (list description))))))))))))
+          (expr (when title
+                  (list (etaf-node 'text
+                                   (list :font-weight 'bold)
+                                   (list title)))))
+          (expr (when (or title description)
+                  (list (etaf-node 'text nil (list " ")))))
+          (expr (when description
+                  (list (etaf-node 'text
+                                   (list :color muted)
+                                   (list description))))))))))
 
 (etaf-md--define-shipped 'link-card
   :name "link-card"
@@ -435,9 +432,9 @@ halves read as separate things rather than one surface with a rule."
          (selected (nth active files))
          (rows (etaf-md--code-tree-rows files))
          (height (max 4 (or (etaf-md-attr env :height) 18)))
-         (width (min 34
+         (width (min 40
                      (max 14
-                          (+ 3 (seq-max
+                          (+ 7 (seq-max
                                 (mapcar (lambda (row)
                                           (if (eq (car row) 'dir)
                                               (length (cdr row))
@@ -457,10 +454,11 @@ halves read as separate things rather than one surface with a rule."
              ;; and neither may shrink back to its content.
              :height (list 'lh height)
              :min-height (list 'lh height)
+             :max-height (list 'lh height)
              :flex-shrink 0
              :border (etaf-md--hairline env)
              :background-color (etaf-md-surface env 'raised)
-             :padding '((lh 1) (ch 1))
+             :padding '((lh 0) (ch 1))
           (column :width 'stretch
                   :cross-align 'stretch
                   :item-gap '(lh 0)
@@ -470,6 +468,7 @@ halves read as separate things rather than one surface with a rule."
                 (if (eq (car row) 'dir)
                     (etaf-node 'box
                                (list :width 'stretch
+                                     :height (list 'lh 1)
                                      :padding-inline '(ch 1))
                                (list (etaf-node 'text
                                                 (list :color faint)
@@ -479,26 +478,33 @@ halves read as separate things rather than one surface with a rule."
                          (chosen (= index active)))
                     (etaf-node 'box
                                (list :width 'stretch
-                                     :padding-inline '(ch 1)
-                                     :background-color (when chosen accent-soft)
+                                     :height (list 'lh 1)
+                                     :padding-inline '(ch 2)
                                      :role 'button :tab-index 0
                                      :on-press (lambda ()
                                                  (etaf-md-set-block-state
                                                   env :active index)))
                                (list (etaf-node 'text
-                                                (list :color (if chosen accent muted)
+                                                ;; The fill is the text's own
+                                                ;; line; a box fill stretches
+                                                ;; over the rows it is given.
+                                                (list :background-color (when chosen accent-soft)
+                                                      :color (if chosen accent muted)
                                                       :font-weight (when chosen 'bold))
-                                                (list (concat "  " name))))))))
+                                                (list name)))))))
               rows))))
         (box :width 'stretch
              :height (list 'lh height)
              :min-height (list 'lh height)
+             :max-height (list 'lh height)
              :flex-shrink 0
              :border (etaf-md--hairline env)
+             ;; The bare code block inside paints the same surface, so the
+             ;; short-content rows and the scroll area read as one panel.
              :background-color (or (etaf-md--palette-value
                                     (etaf-md-env-palette env) :code-bg)
                                    (etaf-md--palette-value
-                                    (etaf-md-env-palette env) :panel2))
+                                    (etaf-md-env-palette env) :panel))
              :overflow 'scroll
              :tab-index 0
              :aria-label "代码，滚动查看"
