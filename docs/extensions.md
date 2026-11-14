@@ -669,6 +669,16 @@ The gate for each step: `make check` passes, the affected tests are green, and a
 - No rounded corners, shadows, gradients or animation. On a character grid these can only be faked with special glyphs, and the result is garbled.
 - No second document format beside Markdown.
 
+## 9. The boundary: documents and pages
+
+This package does one thing: Markdown text into ETAF views. It knows nothing about pages, directories, routes, navigation, data or publishing.
+
+Pages belong to an application above it. That layer owns the page model, the layout registry, the outline and navigation, the data sources and the export. It requires this package's root entry and calls only the public interfaces; nothing here grows a switch for that layer's policy.
+
+The seam has one place: a document becomes a view. That interface does not exist yet; what is public today is creating a session, opening, closing, navigating, reading state and reporting capability. When the application needs to embed a rendered document, this package adds two entries: one returns a view for a text or a file that can be mounted in any region, and one registers a container. Both are planned.
+
+The package also emits no HTML. It paints a buffer. Serving a page to a browser is the application's own backend, and no container syntax buys it.
+
 ## Appendix A: the plume container map
 
 | Plume | Our decision | Note |
