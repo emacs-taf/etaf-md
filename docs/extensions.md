@@ -913,7 +913,7 @@ The budget is written down so acceptance has a number to compare with. The concr
 
 A rendered page carries no markup, so the whole cost of it falls on the writer. Everything here happens in the source buffer. It changes neither the syntax nor the rendered result.
 
-Four layers, in order of payoff. All four form one optional minor mode, off by default.
+Four layers, in order of payoff. All four form one optional minor mode named `etaf-md-edit-mode`, off by default.
 
 | Layer | What it does | What it fixes |
 | --- | --- | --- |
@@ -1052,6 +1052,7 @@ A definition is data, not code inside a document.
 | `:kind` | `block`, `parent` or `child` |
 | `:summary` | One line, used in help and errors |
 | `:attrs` | The attribute table; each entry follows 10.2 |
+| `:contract` | Contract version, an integer. It is `1` today. An attribute rename or a child-name change bumps it, and older documents degrade under 3.4, see 10.5 |
 | `:children` | Parent only: the child names and their attributes |
 | `:body` | A function taking three arguments and returning an ETAF view |
 
@@ -1073,7 +1074,7 @@ What `env` offers is all a definition can reach.
 | Block tree | `(etaf-md-content env)`, the parsed blocks, not views | `field`, `code-tabs`, `table` |
 | Render blocks | `(etaf-md-render env blocks &rest options)` | `field`, `chat`, `table` |
 | Follow a link | `(etaf-md-follow-link env href)` | `card`'s `href` |
-| This block's state | `(etaf-md-state env :selected)` | `tabs`, `collapse` |
+| This block's state | `(etaf-md-block-state env :selected)` | `tabs`, `collapse` |
 | Available width | `(etaf-md-available-width env)` | `columns` degradation |
 
 The state row is the key one. `etaf-tabs` in the catalogue is a controlled component: `selected` and `on-change` come from the caller, and a definition has nowhere to keep state. So every block gets its own state cell, created by the renderer and isolated per block.
@@ -1086,6 +1087,8 @@ A parent adds one field.
 :children '((col :attrs ((grow :type number :default 1 :doc "Width share"))))
 ```
 
+A child carries a `label` attribute of type `string` supplied by the renderer, so a definition never redeclares it in `:attrs`. Its value is `nil` when omitted, and the parent fills in a default inside `:body`: `col` leaves it empty, `tab` fills an empty string, `code-tabs` fills the language of the first fenced block.
+
 ### 10.2 Rules for attributes and children
 
 - A definition references names from the shared attribute table, or declares its own. A private attribute says in `:summary` that it only works with that container.
@@ -1096,6 +1099,7 @@ A parent adds one field.
 - An appearance attribute writes `:appearance t`. It means "the reader may override the document's value", see 4.4. It may only mark an appearance type such as `surface`, `accent` or `text-align`; marking a `string` is an error at load.
 - `:doc` is optional but recommended; it appears in help and in errors.
 - A `child` definition declares no `:children`.
+- **The child label comes from the renderer, not from the definition.** Every `:children` entry gets one extra `label` of type `string`. A definition may fill a default inside `:body` (`code-tabs` takes the fence language); it never renames the attribute or changes its type.
 - A definition may not read files, make network requests or start timers. It receives `attrs`, `body` and `env`, and reads the rest from `env` by name.
 - The renderer's dispatch contains no container names. It looks a definition up by role and attributes, and never branches on a name.
 
@@ -1188,6 +1192,7 @@ Name clashes resolve by load order: when two third-party packages change one typ
 
 ### 10.6 Where definitions live and when they are read
 
+- The shipped definitions live in `lisp/etaf-md-containers.el` and are registered once at load time in one order: callouts, then structure, then collections, then interaction. They go through the same `etaf-md-define-container` as user definitions; there is no second registration path.
 - Definitions are `.el` files in a user directory named by `etaf-md-container-directory`.
 - Load order is fixed: the package's own definitions first, the user directory after, and file name order within a directory. A later definition may override an earlier one, but only by saying so; see 10.5.
 - A session reads the registry once when created and does not touch the disk again. A changed definition needs `r` or a fresh preview.
@@ -1221,7 +1226,7 @@ Name clashes resolve by load order: when two third-party packages change one typ
 | 4 | Interaction: `tabs`, `code-tabs`, `collapse`, `accordion` | Keys go through the command loop; state survives reflow and a theme change; flattened output loses nothing |
 | 5 | Documents: `table`, `window` | Row and column highlights land; the window draws only a title bar |
 | 6 | Registry and user definitions | A sample definition installs and uninstalls; a new key on a shipped type takes effect; `:default` still reaches the shipped view after an override; a contract mismatch is reported; `doctor` reports counts and the override chain |
-| 7 | Editing the source buffer: dimming, pair hint, insert and complete, folding, as one optional minor mode | `font-lock-keywords` is `equal` before and after an enable-and-disable cycle; `buffer-string` is unchanged; a 2000-line document costs 50 milliseconds of extra work at most; typing inside one line triggers no pair computation |
+| 7 | Editing the source buffer: dimming, pair hint, insert and complete, folding, as `etaf-md-edit-mode` | `font-lock-keywords` is `equal` before and after an enable-and-disable cycle; `buffer-string` is unchanged; a 2000-line document costs 50 milliseconds of extra work at most; typing inside one line triggers no pair computation |
 
 ### 11.2 The acceptance matrix per container
 
@@ -1490,7 +1495,7 @@ The key names are CSS property names. Four have no CSS counterpart; they are lis
 | `etaf-md-content` | Read the parsed block tree, not views |
 | `etaf-md-render` | Paint blocks, passing options down |
 | `etaf-md-follow-link` | Open a target |
-| `etaf-md-state` | Read or write this block's state |
+| `etaf-md-block-state` | Read or write this block's state |
 | `etaf-md-available-width` | This block's usable width, for degradation |
 | `etaf-md-style` | Read this block's style value |
 | `etaf-md-number` | Read the number the derive step computed |

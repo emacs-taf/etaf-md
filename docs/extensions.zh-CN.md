@@ -913,7 +913,7 @@ print("hi")
 
 渲染出来的页面没有标记，所以标记的代价全落在写的人身上。这一节说的东西全部发生在源码 buffer，不改语法，也不改渲染结果。
 
-四层，按收益排。四层合成一个可选 minor mode，默认关。
+四层，按收益排。四层合成一个可选 minor mode，名字是 `etaf-md-edit-mode`，默认关。
 
 | 层 | 做什么 | 解决什么 |
 | --- | --- | --- |
@@ -1052,6 +1052,7 @@ print("hi")
 | `:kind` | `block`、`parent`、`child` |
 | `:summary` | 一行说明，出现在帮助和报错里 |
 | `:attrs` | 属性表，每项写法见 10.2 |
+| `:contract` | 契约版本，整数。当前是 `1`。属性改名、子块名字改动要加一，旧文档按 3.4 降级，见 10.5 |
 | `:children` | 只有父容器要写，声明子块名字和它们的属性 |
 | `:body` | 函数，收三样东西，返回 ETAF 视图 |
 
@@ -1073,7 +1074,7 @@ print("hi")
 | 块树 | `(etaf-md-content env)` 给解析好的块，不是视图 | `field`、`code-tabs`、`table` |
 | 画子块 | `(etaf-md-render env blocks &rest options)` | `field`、`chat`、`table` |
 | 打开链接 | `(etaf-md-follow-link env href)` | `card` 的 `href` |
-| 本块状态 | `(etaf-md-state env :selected)` | `tabs`、`collapse` |
+| 本块状态 | `(etaf-md-block-state env :selected)` | `tabs`、`collapse` |
 | 可用宽度 | `(etaf-md-available-width env)` | `columns` 的降级判断 |
 
 状态那一行是关键。目录里的 `etaf-tabs` 是受控组件，`selected` 和 `on-change` 都由调用方给；定义本身没有地方存状态，所以每个块要有一个自己的状态格子，由渲染器创建，按块隔离。
@@ -1086,6 +1087,8 @@ print("hi")
 :children '((col :attrs ((grow :type number :default 1 :doc "宽度份数"))))
 ```
 
+子块自带一个 `label` 属性，类型 `string`，由渲染器提供，不在 `:attrs` 里重复声明。省略时它的值是 `nil`，父容器在 `:body` 里自己补默认值：`col` 不补，`tab` 补成空字符串，`code-tabs` 补成第一段围栏代码的语言名。
+
 ### 10.2 属性与子块的规则
 
 - 定义只能引用共享属性表里的名字，或者自己声明的专有属性。专有属性要在 `:summary` 里说清只能和它一起用。
@@ -1096,6 +1099,7 @@ print("hi")
 - 外观属性写 `:appearance t`。它表示「读者可以盖掉文档给的值」，见 4.4。只能标在 `surface`、`accent`、`text-align` 这类外观类型上，标在 `string` 上是加载错误。
 - `:doc` 可选，但建议写。它出现在帮助和报错里。
 - `:kind` 是 `child` 的定义不写 `:children`。
+- **子块标签是渲染器给的，不是定义声明的。** 每个 `:children` 项都多一个 `label`，类型 `string`。定义只能在 `:body` 里给它补默认值（`code-tabs` 取围栏语言），不能改它的名字或类型。
 - 定义不能自己读文件、发网络请求、起定时器。它只能拿到 `attrs`、`body`、`env`，其余从 `env` 具名取。
 - 渲染器的分发代码里不出现容器名字。它只按角色和属性找定义，不按名字写分支。
 
@@ -1188,6 +1192,7 @@ print("hi")
 
 ### 10.6 定义放在哪、什么时候读
 
+- 内置定义写在 `lisp/etaf-md-containers.el`，包加载时按注册表顺序注册一次：先提示块，再结构，再集合，最后交互。它们和用户定义走同一个 `etaf-md-define-container`，没有第二套注册路径。
 - 定义放在用户目录里的 `.el` 文件，路径写进 `etaf-md-container-directory`。
 - 加载顺序固定：包自带的先，用户目录后，同一目录内按文件名排序。后加载的能覆盖先加载的，但必须显式声明，见 10.5。
 - 一个 session 创建时读一次注册表，之后不再读盘。改了定义要 `r` 重载，或者重开预览。
@@ -1221,7 +1226,7 @@ print("hi")
 | 4 | 交互：`tabs`、`code-tabs`、`collapse`、`accordion` | 按键走命令循环；状态经重排与换主题不丢；扁平化输出不缺内容 |
 | 5 | 文稿：`table`、`window` | 表格高亮按行列生效；窗口只画标题栏 |
 | 6 | 注册表与用户定义 | 示例定义能装能卸；给内置类型加一个键并生效；覆盖后 `:default` 仍回内置；契约版本不符有提示；`doctor` 报数量与覆盖链 |
-| 7 | 源码 buffer 的编辑体验：降权、配对提示、插入与补全、折叠，合成一个可选 minor mode | 关闭后 `font-lock-keywords` 与开启前 `equal`；`buffer-string` 不变；2000 行文档额外耗时 50 毫秒以内；同一行内打字不触发配对计算 |
+| 7 | 源码 buffer 的编辑体验：降权、配对提示、插入与补全、折叠，合成 `etaf-md-edit-mode` | 关闭后 `font-lock-keywords` 与开启前 `equal`；`buffer-string` 不变；2000 行文档额外耗时 50 毫秒以内；同一行内打字不触发配对计算 |
 
 ### 11.2 每个容器的验收矩阵
 
@@ -1490,7 +1495,7 @@ print("hi")
 | `etaf-md-content` | 取解析好的块树，不是视图 |
 | `etaf-md-render` | 画一串块，可传选项给下层 |
 | `etaf-md-follow-link` | 打开一个目标 |
-| `etaf-md-state` | 读写本块的状态 |
+| `etaf-md-block-state` | 读写本块的状态 |
 | `etaf-md-available-width` | 本块可用的宽度，用于降级判断 |
 | `etaf-md-style` | 读本块的样式值 |
 | `etaf-md-number` | 读派生阶段算好的编号 |
