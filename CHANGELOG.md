@@ -338,3 +338,9 @@ pixels below itself.  A picture now takes the size of the page it sits on.
   closed section's header row under the following block.  A toggle that moves
   several rows repaints the page instead of patching the lines the previous
   layout wrote.
+
+- A code tab names its language once: the selected page's fence no longer
+  repeats it in a header strip under the tab strip.
+
+- A table caption stands on its own line: one blank row separates it from the
+  header, so a caption no longer reads as part of the first row.
