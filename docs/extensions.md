@@ -258,10 +258,10 @@ Nine types. Attributes come in two classes, separated by one flag.
 
 | Class | Who writes it | Who may change it | How it is marked |
 | --- | --- | --- | --- |
-| Derived | The parser or the derive step | Neither; a reader may only select on it | `:derived t` |
-| Ordinary | The document, in the braces, with `:default` when omitted | The reader, with `set-attr` | No flag |
+| Derived | The parser or the derive step | Neither; a reader may only select on it | Its own `:derived` table |
+| Ordinary | The document, in the braces, with `:default` when omitted | The reader, with `set-attr` | The `:attrs` table |
 
-The test is one sentence: **does this value have a spelling in the Markdown text?** If it does, it is ordinary; if it does not, it is derived.
+The test is one sentence: **does this value have a spelling in the Markdown text?** If it does, it goes in `:attrs`; if it does not, it goes in `:derived`. Two tables side by side, never mixed.
 
 Nine types.
 
@@ -1063,7 +1063,7 @@ Step 3 is not an exception, it is the first implementation. Its risk is staying 
 
 A type definition writes three things, and no more.
 
-1. **Declare**: which attributes a document may write, which a reader may write, which the machine fills, at which type and value domain.
+1. **Declare**: which attributes a document may write, which are derived, at which type and value domain.
 2. **Validate**: the renderer does it uniformly; the declaration only describes.
 3. **Translate**: the document's semantics into component parameters.
 
@@ -1129,9 +1129,9 @@ A definition is data plus one function, not code inside a document.
 ```elisp
 (etaf-md-define-node 'heading
   :summary "A heading whose level comes from the number of #"
-  :attrs '((level  :type number :derived t :min 1 :max 6 :integer t :doc "Number of # characters")
-           (number :type string :derived t                            :doc "Section number such as 1.1; absent when numbering is off")
-           (font-weight :type enum :one-of (normal bold)     :default bold    :doc "Weight")
+  :derived '((level  :type number :min 1 :max 6 :integer t :doc "Number of # characters")
+             (number :type string                            :doc "Section number such as 1.1; absent when numbering is off"))
+  :attrs '((font-weight :type enum :one-of (normal bold)     :default bold    :doc "Weight")
            (color      :type color                           :default heading :doc "Ink")
            (prefix     :type string                          :default ""      :doc "Display prefix")
            (numbering  :type enum  :one-of (none decimal lower-roman upper-alpha)
@@ -1144,14 +1144,15 @@ A definition is data plus one function, not code inside a document.
 | The name | A symbol, the first argument | The type name, the registry key |
 | `:name` | A string | The spelling a document writes; `"card"` is `:::card`. Omitted means a document cannot |
 | `:summary` | A string | One line, used in help and errors |
-| `:attrs` | An attribute table | Every attribute; a derived one writes `:derived t` |
+| `:attrs` | An attribute table | Ordinary attributes: a document writes them, a reader overrides them |
+| `:derived` | An attribute table | Derived attributes: parse or derive fills them, nobody writes them |
 | `:accepts` | A child table | Which children it takes; with it the type is a parent |
 | `:contract` | An integer, `1` today | The version of the document-side table, see 10.6 |
 | `:view` | A function | `(lambda (env) VIEW)`, the default paint |
 | `:extends t` | A flag | Keep the shipped declaration and paint, add yours |
 | `:replace t` | A flag | Drop the shipped declaration and paint |
 
-**`view` takes one argument, `env`.** It is what you hold while painting one block: the current node plus the capabilities the renderer lends you. One is built per block and dropped when the block is done; two cards painted at once each get their own. Attributes are validated and defaulted, machine attributes included.
+**`view` takes one argument, `env`.** It is what you hold while painting one block: the current node plus the capabilities the renderer lends you. One is built per block and dropped when the block is done; two cards painted at once each get their own. Attributes are validated and defaulted, derived ones included.
 
 Nothing beyond these exists, which is why a definition cannot read a file, reach the network or change a global.
 
@@ -1174,30 +1175,33 @@ Twelve, no thirteenth. `etaf-md-format-number` is not among them: it takes no `e
 
 ### 10.2 Declaring an attribute
 
-Each entry states five things: name, type, value domain, who writes it, default. Missing one is a load error.
+An ordinary attribute states four things: name, type, value domain, default. A derived one states three: name, type, value domain, because it has no default. Missing one is a load error.
 
 ```elisp
+;; Ordinary attributes, in :attrs
 (title  :type string :required t :pattern "\\S" :doc "Card title")
 (accent :type accent :default neutral :one-of (neutral warning) :doc "Emphasis")
-(level  :type number :derived t :min 1 :max 6 :integer t :doc "Number of # characters")
 (prefix :type string :default "" :doc "Display prefix")
+
+;; Derived attributes, in :derived; same shape, without :default or :required
+(level  :type number :min 1 :max 6 :integer t :doc "Number of # characters")
+(number :type string                         :doc "Section number")
 ```
 
 | Field | Required | Meaning |
 | --- | --- | --- |
 | `:type` | Yes | `string`, `number`, `boolean`, `length`, `surface`, `accent`, `align`, `enum`, `color` |
-| `:derived` | No | `t` marks a derived attribute with no spelling in the text; absent means ordinary |
-| `:default` | No | Omitted means `nil`. A derived attribute needs none; parse or derive supplies it |
+| `:default` | No | Omitted means `nil`; it applies inside `:attrs` only |
 | `:required` | No | Ordinary attributes only, and exclusive with `:default` |
 | `:pattern` | No | `string` only |
 | `:min`, `:max`, `:integer` | No | `number` only |
 | `:one-of` | No | Required for `enum`; the three semantic types use it to narrow |
 | `:doc` | Recommended | Appears in help and in errors |
 
-Four rules.
+Three rules.
 
-- **A derived attribute** (`:derived t`): a document cannot write it, a reader cannot change it, and a rule selector may match on it.
-- **An ordinary attribute**: a document writes it, and a reader may override it with `set-attr`.
+- **Two tables, two classes.** `:attrs` holds ordinary attributes: a document writes them and a reader overrides them. `:derived` holds derived ones: a document cannot write them, a reader cannot change them, and only a selector may match on them.
+- **The derived table writes no `:default` and no `:required`.** Parse or derive supplies the value, and its absence means `nil`.
 - **A child table** entry, `:accepts`, is written the same way with one extra `title` supplied by the renderer, never redeclared here.
 
 ### 10.3 How one value is decided
@@ -1296,9 +1300,9 @@ Removing a shipped type restores the shipped definition; removing a user type ma
 
 ```
 heading            built in; a document cannot write its name
-  machine  level  number
-  reader   font-weight  color  prefix  numbering
-  rules    (heading)  (heading :level 1)  (heading :level 2)
+  derived   level  number
+  ordinary  font-weight  color  prefix  numbering
+  rules     (heading)  (heading :level 1)  (heading :level 2)
 ```
 
 - When something looks wrong, follow one chain: what type is this block, which definition renders it, which component it calls, which layer supplied each value, and which token that landed on.
@@ -1431,23 +1435,27 @@ A document cannot write these, a reader cannot change them, but a style rule may
 | `table` | `number` | Derive |
 | Every other type | None | — |
 
-That table is a variable in code, and the shipped definitions live inside it, so nothing has to be guessed:
+This table is not a second copy; it is the printed form of the registry. The registry is a variable with one writer: `etaf-md-define-node`, which is how both shipped and user definitions arrive. Nobody `setq`s the variable.
 
 ```elisp
-;; The registry: type -> definition. Shipped and user definitions both live here, one per type
-(defvar etaf-md-node-definitions
-  '((heading . (:summary "A heading whose level comes from the number of #"
-                :attrs ((level  :type number :derived t :min 1 :max 6 :integer t)
-                        (number :type string :derived t)
-                        (prefix :type string :default ""))
-                :view my-heading-view))
-    (code    . (:attrs ((language :type string :derived t))
-                :view my-code-view))))
+;; Shipped definitions are etaf-md-define-node calls in lisp/etaf-md-nodes.el,
+;; so once loaded the registry holds one entry per type and nothing else.
+(alist-get 'heading etaf-md-node-definitions)
+;; => (:summary "A heading whose level comes from the number of #"
+;;     :derived ((level …) (number …))
+;;     :attrs ((font-weight …) (prefix …) …)
+;;     :view …)
 
-;; Read one type's derived attribute names; derive and validation both do
+;; Derived attributes are not another table; they are filtered out of that entry
 (etaf-md-derived-attributes 'heading)   ; => (level number)
 (etaf-md-derived-attributes 'paragraph) ; => nil
 ```
+
+Three rules.
+
+- **Only `etaf-md-define-node` writes the registry.** A user does not `setq` it either; to change an entry, define it again with `:extends` or `:replace`.
+- **Derived attributes get their own table.** Inside one definition `:derived` sits beside `:attrs`, with the same entry shape, and `etaf-md-derived-attributes` reads `:derived`.
+- **Three places, one source.** `describe-nodes`, the derive step and this appendix all read that same variable, so they cannot drift apart.
 
 ## Appendix B: surfaces, accents and tokens
 
@@ -1618,7 +1626,7 @@ This table is the ground for naming. A new name is looked up here first; if it i
 | `:extends` / `:replace` | General | Which shipped definition is overridden | `:override`, `:merge` |
 | `:style-keys` | Naming rule of this table | Attributes added with a new paint | `:keys` |
 | `:type` | JSON Schema | The attribute's type | `:kind`, `:value-type` |
-| `:derived` | Naming rule of this table | A derived attribute with no spelling in the text | `:read-only`, `:computed`, `:source` |
+| `:derived` | Naming rule of this table | The table of derived attribute declarations | `:read-only`, `:computed`, `:source` |
 | `:default` | JSON Schema | The default value | `:fallback` |
 | `:required` | JSON Schema | Must be written | `:mandatory` |
 | `:pattern` | JSON Schema | A regular expression for `string` | `:regex` |
@@ -1736,9 +1744,9 @@ The `#` characters leave no trace and become `level`; document order yields `num
 ```elisp
 (etaf-md-define-node 'heading
   :summary "A heading whose level comes from the number of #"
-  :attrs '((level  :type number :derived t :min 1 :max 6 :integer t :doc "Number of # characters")
-           (number :type string :derived t                            :doc "Section number; absent when numbering is off")
-           (font-weight :type enum :one-of (normal bold)     :default bold    :doc "Weight")
+  :derived '((level  :type number :min 1 :max 6 :integer t :doc "Number of # characters")
+             (number :type string                            :doc "Section number; absent when numbering is off"))
+  :attrs '((font-weight :type enum :one-of (normal bold)     :default bold    :doc "Weight")
            (color      :type color                           :default heading :doc "Ink")
            (prefix     :type string                          :default ""      :doc "Display prefix")
            (numbering  :type enum  :one-of (none decimal lower-roman upper-alpha)

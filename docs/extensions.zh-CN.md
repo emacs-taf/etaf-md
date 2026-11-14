@@ -258,10 +258,10 @@
 
 | 类别 | 谁写 | 谁能改 | 怎么标 |
 | --- | --- | --- | --- |
-| 派生属性 | 解析器或派生阶段 | 谁都不能改，读者只能拿它当选择器 | `:derived t` |
-| 普通属性 | 文档写在花括号里，省略就取 `:default` | 读者用 `set-attr` 盖掉 | 不写标记 |
+| 派生属性 | 解析器或派生阶段 | 谁都不能改，读者只能拿它当选择器 | 单独一张 `:derived` 表 |
+| 普通属性 | 文档写在花括号里，省略就取 `:default` | 读者用 `set-attr` 盖掉 | 写在 `:attrs` 表 |
 
-判断只需一句话：**这个值在 Markdown 文本里有没有写法。** 有，就是普通属性；没有，就是派生属性。
+判断只需一句话：**这个值在 Markdown 文本里有没有写法。** 有，就写进 `:attrs`；没有，就写进 `:derived`。两张表并列，不混在一起。
 
 九种类型。
 
@@ -1129,9 +1129,9 @@ print("hi")
 ```elisp
 (etaf-md-define-node 'heading
   :summary "标题，级别由 # 的个数决定"
-  :attrs '((level  :type number :derived t :min 1 :max 6 :integer t :doc "井号个数")
-           (number :type string :derived t                            :doc "章节号，不编号时没有")
-           (font-weight :type enum :one-of (normal bold)     :default bold    :doc "字重")
+  :derived '((level  :type number :min 1 :max 6 :integer t :doc "井号个数")
+             (number :type string                            :doc "章节号，不编号时没有"))
+  :attrs '((font-weight :type enum :one-of (normal bold)     :default bold    :doc "字重")
            (color      :type color                           :default heading :doc "字色")
            (prefix     :type string                          :default ""      :doc "显示前缀")
            (numbering  :type enum  :one-of (none decimal lower-roman upper-alpha)
@@ -1144,14 +1144,15 @@ print("hi")
 | 名字 | 符号，第一个参数 | 类型名，注册表里的键 |
 | `:name` | 字符串 | 文档写得出的写法，`"card"` 对应 `:::card`。省略表示文档写不出 |
 | `:summary` | 字符串 | 一行说明，进帮助与报错 |
-| `:attrs` | 属性表 | 这个类型的全部属性，派生的写 `:derived t` |
+| `:attrs` | 属性表 | 普通属性：文档写得进，读者盖得掉 |
+| `:derived` | 属性表 | 派生属性：解析或派生阶段填，谁都不能写 |
 | `:accepts` | 子块表 | 收哪些子块。有它就是父类型，没有就是任意块 |
 | `:contract` | 整数，当前 `1` | 文档侧属性表的版本，见 10.6 |
 | `:view` | 函数 | `(lambda (env) VIEW)`，默认画法 |
 | `:extends t` | 标记 | 保留内置的声明与画法，你的追加 |
 | `:replace t` | 标记 | 丢掉内置的声明与画法 |
 
-**`view` 只收一个 `env`。** 它是画这一块时手里有的东西：当前节点，加上渲染器借给你的能力。一个块画一次建一个，画完就丢；两个卡片同时画，各拿各的。属性已经校验、补过默认值，机器属性也在里面。
+**`view` 只收一个 `env`。** 它是画这一块时手里有的东西：当前节点，加上渲染器借给你的能力。一个块画一次建一个，画完就丢；两个卡片同时画，各拿各的。属性已经校验、补过默认值，派生属性也在里面。
 
 除了下面这些，`env` 给不了别的东西，所以定义读不到文件、发不出网络请求、改不了全局。
 
@@ -1174,30 +1175,33 @@ print("hi")
 
 ### 10.2 属性怎么声明
 
-每项写五件事：名字、类型、值域、谁写、默认值。缺一件就是加载错误。
+普通属性的每项写四件事：名字、类型、值域、默认值。派生属性的每项写三件：名字、类型、值域，它没有默认值。缺一件就是加载错误。
 
 ```elisp
+;; 普通属性，写在 :attrs
 (title  :type string :required t :pattern "\\S" :doc "卡片标题")
 (accent :type accent :default neutral :one-of (neutral warning) :doc "强调")
-(level  :type number :derived t :min 1 :max 6 :integer t :doc "井号个数")
 (prefix :type string :default "" :doc "显示前缀")
+
+;; 派生属性，写在 :derived；条目形状相同，但没有 :default 与 :required
+(level  :type number :min 1 :max 6 :integer t :doc "井号个数")
+(number :type string                         :doc "章节号")
 ```
 
 | 字段 | 必写 | 说明 |
 | --- | --- | --- |
 | `:type` | 是 | `string`、`number`、`boolean`、`length`、`surface`、`accent`、`align`、`enum`、`color` |
-| `:derived` | 否 | 写 `t` 表示派生属性，文本里没有写法；不写就是普通属性 |
-| `:default` | 否 | 不写就是 `nil`。派生属性不用写，值由解析或派生给 |
+| `:default` | 否 | 不写就是 `nil`；只在 `:attrs` 里有效 |
 | `:required` | 否 | 只对普通属性有效，与 `:default` 互斥 |
 | `:pattern` | 否 | 只对 `string` |
 | `:min`、`:max`、`:integer` | 否 | 只对 `number` |
 | `:one-of` | 否 | `enum` 必写；三个语义类型可用来收窄 |
 | `:doc` | 建议 | 出现在帮助与报错里 |
 
-四条规则。
+三条规则。
 
-- **派生属性**（`:derived t`）：文档写不出，读者改不了，但样式规则的选择器可以按它选。
-- **普通属性**：文档写得进，读者也能用 `set-attr` 盖掉。
+- **两张表，两类属性。** `:attrs` 里是普通属性，文档写得进，读者盖得掉；`:derived` 里是派生属性，文档写不出，读者改不了，只能当选择器。
+- **派生表不写 `:default` 与 `:required`。** 值由解析或派生阶段给，没给就是 `nil`。
 - **子块表** `:accepts` 的每项写法相同，只多一个 `title`，由渲染器提供，定义不要重复声明。
 
 ### 10.3 一个值怎么定下来
@@ -1296,9 +1300,9 @@ print("hi")
 
 ```
 heading            内置语法，文档写不出名字
-  machine  level  number
-  reader   font-weight  color  prefix  numbering
-  rules    (heading)  (heading :level 1)  (heading :level 2)
+  derived   level  number
+  ordinary  font-weight  color  prefix  numbering
+  rules     (heading)  (heading :level 1)  (heading :level 2)
 ```
 
 - 出问题先查一条链：这块是什么类型 → 哪条定义 → 调了哪个组件 → 属性值来自哪一层 → 落到哪个令牌。
@@ -1431,23 +1435,27 @@ heading            内置语法，文档写不出名字
 | `table` | `number` | 派生 |
 | 其余类型 | 没有 | — |
 
-这张表在代码里是一个变量，内置定义就写在其中，所以代码不用猜：
+这张表不是另抄一份，它是注册表的印刷版。注册表是一个变量，只有一个写入口：`etaf-md-define-node`，内置定义和用户定义都从它进去，谁都不直接 `setq` 这个变量。
 
 ```elisp
-;; 注册表：类型 → 定义。内置定义与用户定义都在这里，一个类型一条
-(defvar etaf-md-node-definitions
-  '((heading . (:summary "标题，级别由 # 的个数决定"
-                :attrs ((level  :type number :derived t :min 1 :max 6 :integer t)
-                        (number :type string :derived t)
-                        (prefix :type string :default ""))
-                :view my-heading-view))
-    (code    . (:attrs ((language :type string :derived t))
-                :view my-code-view))))
+;; 内置定义写在 lisp/etaf-md-nodes.el，是一串 etaf-md-define-node 调用；
+;; 加载完就在注册表里，一个类型一条，没有第二份声明。
+(alist-get 'heading etaf-md-node-definitions)
+;; => (:summary "标题，级别由 # 的个数决定"
+;;     :derived ((level …) (number …))
+;;     :attrs ((font-weight …) (prefix …) …)
+;;     :view …)
 
-;; 取某个类型的派生属性名，派生阶段与校验都读它
+;; 派生属性不是另一张表，是从同一条定义里筛出来的
 (etaf-md-derived-attributes 'heading)   ; => (level number)
 (etaf-md-derived-attributes 'paragraph) ; => nil
 ```
+
+三条规矩。
+
+- **只有 `etaf-md-define-node` 写注册表。** 用户也不 `setq` 它；要改就再定义一次，加 `:extends` 或 `:replace`。
+- **派生属性单独一张表。** 同一条定义里 `:derived` 与 `:attrs` 并列，条目形状相同；`etaf-md-derived-attributes` 读的就是 `:derived`。
+- **三处同源。** `describe-nodes`、派生阶段、这张附录读的都是同一个变量，不会各说一套。
 
 ## 附录 B：底色、强调与令牌
 
@@ -1618,7 +1626,7 @@ heading            内置语法，文档写不出名字
 | `:extends` / `:replace` | 通用 | 覆盖的内置定义 | `:override`、`:merge` |
 | `:style-keys` | 本表命名规矩 | 换画法时新加的属性 | `:keys` |
 | `:type` | JSON Schema | 属性的类型 | `:kind`、`:value-type` |
-| `:derived` | 本表命名规矩 | 派生属性，文本里没有写法 | `:read-only`、`:computed`、`:source` |
+| `:derived` | 本表命名规矩 | 派生属性的声明表 | `:read-only`、`:computed`、`:source` |
 | `:default` | JSON Schema | 默认值 | `:fallback` |
 | `:required` | JSON Schema | 必填 | `:mandatory` |
 | `:pattern` | JSON Schema | `string` 的正则 | `:regex` |
@@ -1736,9 +1744,9 @@ heading            内置语法，文档写不出名字
 ```elisp
 (etaf-md-define-node 'heading
   :summary "标题，级别由 # 的个数决定"
-  :attrs '((level  :type number :derived t :min 1 :max 6 :integer t :doc "井号个数")
-           (number :type string :derived t                            :doc "章节号，不编号时没有")
-           (font-weight :type enum :one-of (normal bold)     :default bold    :doc "字重")
+  :derived '((level  :type number :min 1 :max 6 :integer t :doc "井号个数")
+             (number :type string                            :doc "章节号，不编号时没有"))
+  :attrs '((font-weight :type enum :one-of (normal bold)     :default bold    :doc "字重")
            (color      :type color                           :default heading :doc "字色")
            (prefix     :type string                          :default ""      :doc "显示前缀")
            (numbering  :type enum  :one-of (none decimal lower-roman upper-alpha)
