@@ -1,8 +1,8 @@
 # Extension syntax
 
-> **Status.** The only thing the page renders today is the GitHub alert block: `> [!NOTE]`, `> [!TIP]`, `> [!IMPORTANT]`, `> [!WARNING]`, `> [!CAUTION]`. Everything else here is a design contract: it fixes the model, the syntax, the attributes and the acceptance before the code exists. Any name marked *planned* does not exist today, and its function names are proposals.
+> **Status.** The only extension the page renders today is the GitHub alert block: `> [!NOTE]`, `> [!TIP]`, `> [!IMPORTANT]`, `> [!WARNING]`, `> [!CAUTION]`. Everything else here is a design contract: it fixes the model, the syntax, the attributes and the acceptance before the code exists. Any name marked *planned* does not exist today, and its function names are proposals.
 >
-> **How to read it.** Writing a document: chapters 3, 5 and 6. Defining a container: chapter 9. Implementing the renderer: chapters 2, 7, 8 and 10. What works today: the status table in 6.16.
+> **How to read it.** Writing a document: chapters 3, 5 and 6. Writing a container definition: chapters 9 and 10. Implementing the renderer: chapters 2, 7, 8 and 11. What works today: the status table in 6.16.
 >
 > The Chinese and English versions run section for section. Change one, change the other.
 
@@ -12,7 +12,7 @@
 
 One thing: turn a Markdown document into ETAF views inside a buffer, for reading. The input is text; the output is boxes, text and faces on a character grid.
 
-It ships a container vocabulary so a document can express structures plain Markdown cannot: callouts, cards, steps, tabs, timelines. The vocabulary is closed; a user can add to it through the seam in chapter 9, but a document cannot define anything itself.
+It ships a container vocabulary so a document can express structures plain Markdown cannot: callouts, cards, steps, tabs, timelines. The vocabulary is closed; a user can add to it through the seam in chapter 10, but a document cannot define anything itself.
 
 ### 1.2 The boundary: documents and pages
 
@@ -78,13 +78,13 @@ The system has four layers, each with different rights.
 | Layer | Decided by | Changes | Open? |
 | --- | --- | --- | --- |
 | Syntax | The package's parser | How text becomes nodes | No |
-| Structure | The document and container definitions | A new kind of block, the attributes it takes | Yes, chapter 9 |
+| Structure | The document and container definitions | A new kind of block, the attributes it takes | Yes, chapter 10 |
 | Appearance | The reader's style table | Colours, weight, prefixes, spacing, numbering | Yes, 4.3 |
-| Rendering | The reader's functions | What one node is painted as | Yes, 9.4 |
+| Rendering | The reader's functions | What one node is painted as | Yes, 10.4 |
 
 The four share one node model: `(type attributes children origin)`. A built-in node and a container node are the same shape in that table: `heading` is a node whose type is heading and which carries `:level`; `card` is a node whose type is card and which carries `:title`.
 
-One more thing: **a definition can itself be overridden.** A reader may add keys to a type, replace its rendering, or replace the whole definition. Added keys are reader-side only; the document-side attribute table stays closed; see 9.5.
+One more thing: **a definition can itself be overridden.** A reader may add keys to a type, replace its rendering, or replace the whole definition. Added keys are reader-side only; the document-side attribute table stays closed; see 10.5.
 
 ### 2.4 The pipeline
 
@@ -100,7 +100,7 @@ Why derive is its own step. A block repaints alone, but a number depends on the 
 
 Two derive rules.
 
-- **Anchors come from the source, never from displayed text.** A heading's `§` prefix is a display fact. Changing it must not break someone's saved `#install` link.
+- **Anchors come from the source, never from displayed text.** A heading's `◆` prefix is a display fact. Changing it must not break someone's saved `#install` link.
 - **Numbers are computed only when the style asks for them.** With numbering off, the step is skipped.
 
 ### 2.5 Nine invariants
@@ -117,7 +117,7 @@ Every new container has to satisfy all nine. Miss one and it does not belong in 
 | One failure rule | A bad block keeps its source plus one line, and the page keeps rendering |
 | State belongs to the renderer | A document states no behaviour; interaction is implemented by the container definition |
 | One render path | Built-in nodes, container nodes and reader styles go through one table, and the code has no branch on a name |
-| Portable | Without the definition the page is still readable, minus the effect |
+| One definition boundary | A definition only declares, validates and translates; a reusable shell or interaction belongs to a component, see chapter 9 |
 
 ## 3. Syntax
 
@@ -136,27 +136,31 @@ The image and the formula are each drawn once and scaled to the page.
 | --- | --- |
 | Name | Lowercase letters, digits and hyphens: `card`, `code-tabs` |
 | Attributes | `key=value` inside braces, space separated; omit the braces when there are none |
-| Closing | As many colons as opened, three at minimum; the closing line carries no name |
-| Nesting | An outer container uses more colons: `:::card` inside `::::box` |
+| Closing | One line of three colons, no name; it closes the innermost open container |
+| Nesting | Nest directly; inner and outer both use three colons, and depth is not counted in colons |
 | Depth | Eight levels at most. The ninth is an error, not a render |
 | Empty | Allowed. It renders a title row or an empty slot, and that is not an error |
 | Line start | `:::` occupies its own line, preceded by whitespace only |
 
-A closing line carries no name on purpose. A name there would need matching in two places, and a decision about which side reports a mismatch. Without it only the colon count matters, and a mismatch is impossible.
+There is one spelling for closing, so there is one reading: **close the innermost open container.** No counting, no name matching, so nothing can fail to match.
 
-The depth limit is eight rather than unbounded. Every level is a box, and a reader in a narrow window loses track of which level they are in; every level also costs one measurement and one reflow. The limit pins the worst case.
-
-### 3.2 Children and parents
-
-To wrap a container of the same name, give the outer one an extra colon.
+Nesting needs no extra colons, and that includes a container of the same name:
 
 ````markdown
-::::box {surface=panel}
+:::card {title="Outside"}
 :::card {title="Inside"}
 Content
 :::
-::::
+:::
 ````
+
+The two `:::` lines are last-in-first-out: inside closes first, outside second. Extra colons or name matching would bring a second rule, and a second rule only adds a second way to get it wrong.
+
+The depth limit is eight rather than unbounded. Every level is a box, and a reader in a narrow window loses track of which level they are in; every level also costs one measurement and one reflow. The limit pins the worst case.
+
+One cost is worth stating: **a child with no content still needs its own closing line.** A `:::stat` that carries only attributes is written on two lines. That is what one closing rule costs; a spelling that saves the line would require the parser to know names, and it does not.
+
+### 3.2 Children and parents
 
 A child is written exactly like a container; only its name is interpreted by the parent. The parent decides which children it takes and which attributes apply to them.
 
@@ -164,8 +168,10 @@ A child is written exactly like a container; only its name is interpreted by the
 :::columns {tracks="2fr 1fr" gap="2ch"}
 :::col
 The left column is ordinary Markdown.
+:::
 :::col
 So is the right one.
+:::
 :::
 ````
 
@@ -177,7 +183,7 @@ A parent must handle three edge cases without crashing or painting half a block.
 
 ### 3.3 Attributes
 
-Seven types.
+Eight types. The first six are general types; `surface` and `tone` are two fixed word lists.
 
 | Type | Spelling | Meaning | Invalid |
 | --- | --- | --- | --- |
@@ -185,7 +191,8 @@ Seven types.
 | `number` | `start=2` | Integer or decimal, optionally signed | `start=two` |
 | `bool` | `open=true` | `true` or `false`, nothing else | `open=yes` |
 | `length` | `gap="2ch"` | A number with a unit: `ch`, `lh`, `px`, `%` | `gap=2` |
-| `color` | `tone=info` | A semantic word, see 4.1; no hexadecimal | `tone="#24262a"` |
+| `surface` | `surface=panel` | Fill: `none`, `panel`, `quote`, `sunken`, `page` | `surface="#24262a"` |
+| `tone` | `tone=warn` | Emphasis: `neutral`, `info`, `ok`, `warn`, `danger`, `important` | `tone=urgent` |
 | `enum` | `items=center` | One of the words the definition lists | `items=middle` |
 | `regex` | `id="^[a-z]+$"` | A value matching the pattern | `id="A-1"` |
 
@@ -198,21 +205,30 @@ Four conventions.
 
 Writing the same attribute twice is an error, not a last-one-wins. The reason: a duplicate usually means the author changed half of it, and silently picking one hides the problem.
 
-The shared attribute table is Appendix A; containers only reference it. How a definition declares these types is 9.2.
+Attributes come in two classes, and a definition marks them.
+
+| Class | Who decides the value | Examples |
+| --- | --- | --- |
+| Content | The document. A reader cannot change it | `title`, `label`, `href` |
+| Appearance | The document gives the default; the reader's style table may override | `surface`, `tone`, `align` |
+
+An appearance attribute says `:appearance t` in the definition; see 10.2. That keeps "which attributes are appearance" in one place instead of a second list.
+
+The shared attribute table is Appendix A; containers only reference it. How a definition declares these types is 10.2.
 
 ### 3.4 Validation, degradation and the failure catalogue
 
 Validation runs once, before a view is built, and reports every error in the block together. An error is a muted line above the block's source, numbered by the line that opened the container.
 
 ````markdown
-:::card {title="Cache hit" colour=blue tone="#24262a"}
+:::card {title="Cache hit" colour=blue surface="#24262a"}
 Content
 :::
 ````
 
 ```
 line 42: card does not take "colour"; it takes title, description, surface, tone, href, align, width
-line 42: card received tone="#24262a"; it takes neutral, info, ok, warn, danger, important
+line 42: card received surface="#24262a"; it takes none, panel, quote, sunken, page
 line 44: nesting depth 9 exceeds the limit of 8
 ```
 
@@ -229,7 +245,7 @@ Failures come in twelve kinds. Each has a determined page result; none is "it de
 | Child missing a required attribute | Source; the parent keeps parsing the rest | This child |
 | Parent without children | Empty state, no error | This block |
 | Nesting beyond eight | Source, and the line gives the depth | This block |
-| Unclosed | The opening `:::` line becomes literal text; the rest parses | That line |
+| Unclosed at end of file | Content still renders; one line at the end names the opening line | End of page |
 | Definition signals | Source, and the line names the definition and its error | This block |
 | Contract version mismatch | Source, and the line names the required version | This block |
 
@@ -243,7 +259,7 @@ Error text follows the page language. A Chinese page answers in Chinese, an Engl
 
 ### 3.5 Unclosed containers and recovery
 
-An unclosed container does not swallow the rest of the document. Its opening `:::` line becomes literal text and the rest parses normally.
+A container still open at the end of the file is treated as closed there: its content renders, and one line at the end of the page names the line that opened it.
 
 ````markdown
 :::card {title="Missing its closing line"}
@@ -252,7 +268,7 @@ This is still body text.
 ## The heading below still counts
 ````
 
-The choice favours the reader. Swallowing half a document is much worse than one extra line of text, and the author would also have a harder time finding it.
+The choice favours the reader. Turning the block into source makes the preview look broken; swallowing half a document is much worse than one extra line, and the author would also have a harder time finding it.
 
 ## 4. Appearance and style
 
@@ -281,7 +297,7 @@ Tone changes the accent colour and the soft fill only. It never changes type siz
 
 ### 4.2 Tokens
 
-A token is a name inside the renderer. A document writes `tone=info`, never `accent`, and certainly never a colour value.
+A token is a name inside the renderer. A document writes `surface=panel`, never the `panel` token, and certainly never a colour value.
 
 | Token | Use |
 | --- | --- |
@@ -311,13 +327,12 @@ The style table is where a reader changes appearance. One table, keyed by node t
 ```elisp
 (setq etaf-md-styles
       '((heading . ((:weight bold :color heading)        ; every level
-                    (:level 1 :color accent :scale 2.0 :prefix "§ ")
-                    (:level 2 :prefix "▌ ")
+                    (:level 1 :color accent :scale 2.0 :prefix "◆ ")
+                    (:level 2 :prefix "◇ ")
                     (:level 6 :weight normal :color muted)))
-        (quote   . ((:bar-color quote-bar :bar-width "3px"
-                     :background quote-bg :slant italic)))
-        (code    . ((:background panel :border border :tag-color muted)))
-        (table   . ((:header table-header :stripe table-stripe :border border)))
+        (quote   . ((:surface quote-bg :tone neutral :bar-width "3px" :slant italic)))
+        (code    . ((:surface panel :tag-color muted)))
+        (table   . ((:header-surface table-header :stripe-surface table-stripe)))
         (strong  . ((:weight bold)))
         (em      . ((:slant italic)))
         (link    . ((:color accent :underline t)))
@@ -326,25 +341,36 @@ The style table is where a reader changes appearance. One table, keyed by node t
                                    (danger . danger) (important . important)))))))
 ```
 
+Colours have two names plus one naming rule.
+
+| Key | Type | Meaning |
+| --- | --- | --- |
+| `surface` | A surface, or a colour value | Fill |
+| `color` | A token, or a colour value | Ink |
+| `<part>-surface` | A surface, or a colour value | A part's fill, e.g. `header-surface` |
+| `<part>-color` | A token, or a colour value | A part's ink, e.g. `tag-color` |
+
 Four rules.
 
 - **Omitted inherits, `nil` disables, `:default` resets to the shipped value.** Three answers to "how do I undo this". `(:level 1 :prefix nil)` drops the level-1 prefix; deleting `:prefix` entirely inherits it from the node entry; `:color :default` goes back to the shipped colour whatever the node entry said.
-- **The node entry matches first, the level entry second.** `heading`'s `:level 1` lands on the node entry, so level 1 ends up as `:weight bold :color accent :scale 2.0 :prefix "§ "`.
+- **The node entry matches first, the level entry second.** `heading`'s `:level 1` lands on the node entry, so level 1 ends up as `:weight bold :color accent :scale 2.0 :prefix "◆ "`.
 - **Every key has one type.** An unknown key is an error at load; that node type falls back to the shipped style and the page still renders.
 - **The shipped styles live in this table too.** No literal colour values in the code, so what you change and what you see are the same thing.
 
 `etaf-md-define-style` writes into this same table, not a second one. When a key is written in both places, the later one wins.
 
-Editing the table repaints the page and re-derives it, but never re-parses it; see 8.2. The keys here are the shipped vocabulary; giving a type a new key takes a render function, see 9.4.
+Editing the table repaints the page and re-derives it, but never re-parses it; see 8.2. The keys here are the shipped vocabulary; giving a type a new key takes a render function, see 10.4.
 
 ### 4.4 Two colour rights
 
 | Who | May write | Why |
 | --- | --- | --- |
-| The document | Semantic words such as `tone=warn`, `surface=panel` | A document has to read on any theme and any machine |
-| The reader's style | A token name, or a literal `"#ff0000"` | The reader owns their page |
+| The document | Semantic words such as `surface=panel`, `tone=warn` | A document has to read on any theme and any machine |
+| The reader's style | A surface or token name, or a literal `"#ff0000"` | The reader owns their page |
 
 A literal has a cost: it stops following the theme. A blue chosen on a dark page may be unreadable on a paper-coloured one. So a document never writes a literal, and that is a hard rule.
+
+An appearance attribute has a second direction: **the document's value is the default, the reader's value wins.** Only attributes declared as appearance (`:appearance t`) get that treatment; a content attribute listens to the document alone, and a reader's value has no effect.
 
 ### 4.5 Type size and measures
 
@@ -396,8 +422,10 @@ The child is `col`, with one attribute.
 ## One hit
 
 The cache holds one image; a hit reads it from disk and never starts the renderer.
+:::
 :::col
 The note beside it is an ordinary paragraph; the column decides its width.
+:::
 :::
 ````
 
@@ -407,10 +435,13 @@ Three cards side by side is `columns` holding three `card` blocks.
 :::columns {cols=3}
 :::card {title="Parse"}
 Text to a semantic tree.
+:::
 :::card {title="Lay out"}
 Tree to views.
+:::
 :::card {title="Publish"}
 Views to a buffer.
+:::
 :::
 ````
 
@@ -490,22 +521,22 @@ Why keep both. A document pasted from GitHub works immediately, which is the com
 | --- | --- | --- | --- |
 | `title` | string | none | Title; omit it and there is no title row |
 | `description` | string | none | One muted summary line under the title |
-| `surface` | enum | `panel` | See 4.1 |
-| `tone` | enum | `neutral` | See 4.1 |
+| `surface` | surface | `panel` | See 4.1 |
+| `tone` | tone | `neutral` | See 4.1 |
 | `href` | string | none | The whole card activates and opens this target |
 | `align` | enum | `start` | Horizontal position of its content |
 | `width` | length | `stretch` | Its own width |
 
 The case it solves: a group of parallel material needs one boundary. A section heading lifts it to the level of a section, and a list flattens a figure into one item.
 
-Mapping: ETAF UI's `etaf-card`, whose `default` slot takes the body and whose `title` and `description` map directly.
+Component: `etaf-card`, whose default slot takes the body and whose `title` and `description` map directly. `surface` needs the component to accept a fill, which is a component-side change; see 9.4.
 
 ### 6.4 Box
 
 | Attribute | Type | Default | Meaning |
 | --- | --- | --- | --- |
-| `surface` | enum | `none` | See 4.1 |
-| `tone` | enum | `neutral` | See 4.1 |
+| `surface` | surface | `none` | See 4.1 |
+| `tone` | tone | `neutral` | See 4.1 |
 | `pad` | length | none | Padding |
 | `align` | enum | `start` | Horizontal position of its content |
 | `width` | length | `stretch` | Its own width |
@@ -527,18 +558,20 @@ A box is a card without a title. Centring a figure is what it is for.
 
 The child is `step`, with a required `title`.
 
-```markdown
+````markdown
 :::steps
 :::step {title="Locate"}
 Take a stack with `sample` before guessing.
+:::
 :::step {title="Fix the cause"}
 Change the layer that produces the symptom, not its result.
 :::
-```
+:::
+````
 
 The case it solves: in a procedure a reader wants to see how many steps there are and which one they are on. An ordered list can do it, but the number and the title share a line, and a wrapped title leaves the number alone on its row.
 
-Mapping: ETAF UI's `etaf-steps`.
+Component: `etaf-steps`.
 
 ### 6.6 Timeline
 
@@ -548,18 +581,20 @@ Mapping: ETAF UI's `etaf-steps`.
 
 The child is `event`, with a required `title` and an optional `time`.
 
-```markdown
+````markdown
 :::timeline
 :::event {time="2026-11-12" title="Found the cost in drawing"}
 `image-size` actually drew the picture.
+:::
 :::event {time="2026-11-13" title="Read the header instead"}
 Opening dropped from 5.4 s to 0.33 s.
 :::
-```
+:::
+````
 
 The case it solves: release notes and incident timelines. A list loses the "time above, content below" alignment.
 
-Mapping: ETAF UI's `etaf-timeline`.
+Component: `etaf-timeline`.
 
 ### 6.7 Field list
 
@@ -586,17 +621,20 @@ The case it solves: parameter notes and environment facts. A two-column table ne
 | --- | --- | --- | --- |
 | `cols` | number | `3` | Numbers per row; a narrow window reduces it |
 
-The child is `stat`, with a required `title` (the caption) and a required `value` (the number as text).
+The child is `stat`, with a required `title` (the caption) and a required `value` (the number as text). A child with no content still needs its closing line.
 
-```markdown
+````markdown
 :::stats
 :::stat {title="Open" value="0.33 s"}
+:::
 :::stat {title="Resize" value="0.18 s"}
+:::
 :::stat {title="Memory" value="349 MB"}
 :::
-```
+:::
+````
 
-The number takes `ink` in bold, the caption `muted`. A fourth entry wraps instead of shrinking text. Mapping: ETAF UI's `etaf-statistic`.
+The number takes `ink` in bold, the caption `muted`. A fourth entry wraps instead of shrinking text. Component: `etaf-statistic`.
 
 ### 6.9 File tree
 
@@ -626,14 +664,16 @@ The case it solves: saying what a directory holds. A fenced block can show the s
 
 The child is `said`, with a required `from` and an optional `time`.
 
-```markdown
+````markdown
 :::chat
 :::said {from="Q" time="14:20"}
 Why does the preview not refresh?
+:::
 :::said {from="A" time="14:21"}
 It refreshes after a save; a half-finished edit does not reflow.
 :::
-```
+:::
+````
 
 The case it solves: a tutorial demonstrating one exchange. It is aligned text with an indent, and no bubble is drawn.
 
@@ -645,18 +685,20 @@ The case it solves: a tutorial demonstrating one exchange. It is aligned text wi
 
 The child is `tab`, with a required `label`.
 
-```markdown
+````markdown
 :::tabs
 :::tab {label="Emacs 29"}
 Uses the old `image-size` signature.
+:::
 :::tab {label="Emacs 30+"}
 Passes the buffer directly.
 :::
-```
+:::
+````
 
 The case it solves: several spellings of one thing in parallel, of which a reader needs one. Three parallel subsections lengthen the outline; tabs occupy one block.
 
-Interaction follows the contract in chapter 7; no rules are restated here.
+Interaction follows the contract in chapter 7; no rules are restated here. The component is `etaf-tabs`: controlled, with its state supplied by the block.
 
 ### 6.12 Code tabs
 
@@ -668,10 +710,12 @@ The same as `tabs`, except the children hold fenced code, and an omitted `label`
 ```elisp
 (etaf-md-open)
 ```
+:::
 :::tab
 ```python
 print("hi")
 ```
+:::
 :::
 ````
 
@@ -692,17 +736,17 @@ A group.
 | --- | --- | --- | --- |
 | `accordion` | bool | `false` | One open block per group |
 
-```markdown
+````markdown
 :::collapse {title="Complete error"}
 ```
 The long text goes here.
 ```
 :::
-```
+````
 
 The case it solves: long derivations, long logs, a complete error report. They stay on the page for reference without blocking the way.
 
-Mapping: ETAF UI's `etaf-accordion`.
+Component: `etaf-accordion`, controlled, with `open` and `multiple` supplied by the block.
 
 ### 6.14 Table wrapper
 
@@ -833,9 +877,90 @@ A style can change a block's height, so the flow uses each block's real height. 
 
 The budget is written down so acceptance has a number to compare with. The concrete numbers are calibrated against the benchmark during implementation, and this section changes with them.
 
-## 9. Extending
+## 9. Definitions and components
 
-### 9.1 The shape of a definition
+This chapter settles two things: how thin a definition should be, and where reusable parts live.
+
+### 9.1 Three layers
+
+| Layer | Things | In one line | Called by |
+| --- | --- | --- | --- |
+| Engine | `box`, `column`, `grid`, text properties | Places and paints, knows no meaning | Components |
+| Components | `etaf-card`, `etaf-tabs`, `etaf-accordion` | Named, parameterised, reusable | Apps and definitions |
+| Syntax | `:::card`, `:::tabs` | Turns a document's names and attributes into component calls | The renderer |
+
+The test is one line: **delete this layer, can anyone else still use it?** Delete `etaf-card` and no other app can draw a card, so it belongs to the component layer; delete `:::card` and only this document loses the spelling, so it belongs to the syntax layer.
+
+### 9.2 A definition does three things
+
+A container definition writes three things, and no more.
+
+1. **Declare**: which attributes a document may write, at which type and default.
+2. **Validate**: the renderer does it uniformly; the definition only declares.
+3. **Translate**: the document's semantics (surface, tone, attributes) into component parameters.
+
+```elisp
+(etaf-md-define-container 'card
+  :kind 'block
+  :attrs '((title :type string :doc "Card title")
+           (tone  :type tone :default neutral :appearance t :doc "Tone"))
+  :body (lambda (attrs body env)
+          (etaf-card :title (plist-get attrs :title)
+                     :variant (pcase (plist-get attrs :tone)
+                                ('warn 'warning)
+                                ('ok 'success)
+                                (tone tone))
+                     body)))
+```
+
+No line in the definition draws a border or sets padding. Those live in `etaf-card`. The definition only turns the document's words into the component's parameters.
+
+One hard constraint: **a definition cannot invent a parameter its component does not have.** Making `:::card` accept `surface` means first making `etaf-card` accept a fill, which is a component-side change; see 9.5. The only way around it is to draw a shell inside the definition, which is exactly what 9.4 forbids.
+
+### 9.3 Components take semantic parameters
+
+A component's parameters are written for Elisp, not for documents.
+
+- **No document words.** A component never mentions `:tone` as a Markdown concept, `:container` or `:::card`; no other app should have to understand Markdown.
+- **No colour values.** A component takes `surface` and `tone` as semantic roles, never `"#c00"`. Turning a role into a colour happens inside the component, so switching palettes cannot miss a container.
+- **Few geometry parameters.** Padding and spacing belong to the component's own defaults; a definition overrides them only when it must.
+
+Counter-examples: a component growing a `:markdown-level` parameter leaks syntax into the component layer; a definition drawing a card border copies the component.
+
+### 9.4 One authority per visual fact
+
+| Fact | Authority |
+| --- | --- |
+| How headings, quotes, code and tables look | The style table (chapter 4), reader-editable |
+| How a container looks | The parameters its definition passes |
+| A component's own baseline | The component |
+| Colours | Tokens, one set per palette |
+
+Two places that can change one fact is a bug. A component's default is only a baseline the definition may override; a definition's value is the document's default, which a reader may override for appearance attributes, see 4.4.
+
+### 9.5 Two uses promote a widget
+
+A new container's widget may not exist, and the definition builds it from primitives. That is not duplication, it is the first implementation. The risk is that it stays in the definition forever.
+
+The rule: **when a second app needs it, move it into `etaf-ui`**, together with its parameters, tests and documentation. The definition then shrinks back to the three lines of translation.
+
+The test is the one from 9.1: delete it, can anyone else still use it?
+
+### 9.6 Shipped definitions are definitions too
+
+`box`, `card` and `columns` are not special cases in the renderer; they are three definitions in the same registry.
+
+This is what keeps the split honest over time. As long as one container has a private branch in the renderer, the API has never been exercised, and a user will eventually hit a capability only that branch has.
+
+Three consequences.
+
+- Shipped definitions are registered through the same entry, in the package's own loading code.
+- A test must replace the shipped `card` with a user definition and still render the page.
+- When a component's parameters change, the definition tests go red before a user does.
+
+## 10. Extending
+
+### 10.1 The shape of a definition
 
 A definition is data, not code inside a document.
 
@@ -844,23 +969,15 @@ A definition is data, not code inside a document.
  'card
  :kind 'block
  :summary "A titled card"
- :attrs '((title   :type string :doc "Card title")
-          (surface :type enum :one-of (none panel quote sunken page)
-                   :default panel :doc "Fill")
-          (tone    :type enum :one-of (neutral info ok warn danger important)
-                   :default neutral :doc "Tone"))
+ :attrs '((title :type string :doc "Card title")
+          (tone  :type tone :default neutral :appearance t :doc "Tone"))
  :body (lambda (attrs body env)
-         (etaf-node 'box
-                    (list :width 'stretch
-                          :gap '((lh 1) (ch 0))
-                          :padding '((lh 1) (ch 2))
-                          :background-color (etaf-md-surface env (plist-get attrs :surface))
-                          :border-left (list '(px 3) 'solid
-                                             (etaf-md-tone env (plist-get attrs :tone))))
-                    (append
-                     (when-let* ((title (plist-get attrs :title)))
-                       (list (etaf-node 'text (list :weight 'bold) (list title))))
-                     body))))
+         (etaf-card :title (plist-get attrs :title)
+                    :variant (pcase (plist-get attrs :tone)
+                               ('warn 'warning)
+                               ('ok 'success)
+                               (tone tone))
+                    body)))
 ```
 
 | Field | Purpose |
@@ -868,7 +985,7 @@ A definition is data, not code inside a document.
 | The name | The first argument, a symbol. `:::card` in a document looks it up |
 | `:kind` | `block`, `parent` or `child` |
 | `:summary` | One line, used in help and errors |
-| `:attrs` | The attribute table; each entry follows 9.2: `(name :type type :default value :doc docstring)`, and a `nil` default is never written |
+| `:attrs` | The attribute table; each entry follows 10.2 |
 | `:children` | Parent only: the child names and their attributes |
 | `:body` | A function taking three arguments and returning an ETAF view |
 
@@ -903,22 +1020,20 @@ A parent adds one field.
 :children '((col :attrs ((grow :type number :default 1 :doc "Width share"))))
 ```
 
-The three built-in structure containers take this road too. `box`, `card` and `columns` are not special cases; they are three definitions in the same registry. The reason is simple: as long as one container has a private branch in the renderer, the API has never been exercised, and a user will eventually hit a capability only that branch has.
-
-### 9.2 Rules for attributes and children
+### 10.2 Rules for attributes and children
 
 - A definition references names from the shared attribute table, or declares its own. A private attribute says in `:summary` that it only works with that container.
 - An entry has exactly one position: its first element is the name, which is the entry's key. Everything after is a named field, the same shape as `:children '((col ...))`.
-- `:type` is required and takes `string`, `number`, `bool`, `length`, `color`, `enum` or `regex`. An enum writes `:type enum :one-of (...)`, a pattern writes `:type regex :pattern "..."`. There is one spelling for a type, not a keyword for some kinds and a list for others.
+- `:type` is required and takes `string`, `number`, `bool`, `length`, `surface`, `tone`, `enum` or `regex`. An enum writes `:type enum :one-of (...)`, a pattern writes `:type regex :pattern "..."`. There is one spelling for a type, not a keyword for some kinds and a list for others.
 - An omitted `:default` means `nil`, so a `nil` default takes no characters at all.
 - A required attribute writes `:required t`, as in `(label :type string :required t :doc "Tab label")`, and then no `:default`; writing both is an error at load. Required exists only on the document side; reader-side keys are always optional.
+- An appearance attribute writes `:appearance t`. It means "the reader may override the document's value", see 4.4. It may only mark an appearance type such as `surface`, `tone` or `align`; marking a `string` is an error at load.
 - `:doc` is optional but recommended; it appears in help and in errors.
 - A `child` definition declares no `:children`.
 - A definition may not read files, make network requests or start timers. It receives `attrs`, `body` and `env`, and reads the rest from `env` by name.
 - The renderer's dispatch contains no container names. It looks a definition up by role and attributes, and never branches on a name.
-- Shipped definitions and user definitions load from the same table. A test must replace the shipped `card` with a user definition and render the result.
 
-### 9.3 Defining one style
+### 10.3 Defining one style
 
 Same shape as the table, written as one call. Giving each level its own prefix is three lines of data.
 
@@ -938,33 +1053,34 @@ It renders like this:
 · Emacs 29 and later
 ```
 
-A prefix is a shipped key, so this needs no function. Only what the shipped definition did not foresee needs one; see 9.4.
+A prefix is a shipped key, so this needs no function. Only what the shipped definition did not foresee needs one; see 10.4.
 
 Validation happens at load: an unknown node type, an unknown key or a value of the wrong type is an error, that node type falls back to the shipped style, and the error names the node, the key and the accepted values.
 
-### 9.4 Replacing one node's rendering
+### 10.4 Replacing one node's rendering
 
 When the style table is not enough, supply a function. The function can also give the type new keys.
 
 ```elisp
 (etaf-md-define-render 'heading
   :extends t
-  :keys '((background :type color :doc "Heading fill"))
+  :keys '((surface :type surface :doc "Heading fill"))
   (lambda (node env)
     (etaf-node 'box
                (list :width 'stretch
-                     :background-color (etaf-md-color env
-                                                      (etaf-md-style env :background)))
+                     :background-color (etaf-md-surface env (etaf-md-style env :surface)))
                (list (etaf-md-style-default 'heading node env)))))
 ```
 
 | What you get | Meaning |
 | --- | --- |
 | `node` | Type, attributes and children. A `heading` carries `:level` and `:children` |
-| `env` | Tokens, measures and derived data. `(etaf-md-style env :background)` reads this block's style value; `(etaf-md-derived env :number)` reads its number |
+| `env` | Tokens, measures and derived data. `(etaf-md-style env :surface)` reads this block's style value; `(etaf-md-derived env :number)` reads its number |
 | `:extends t` | Keep the shipped keys and rendering, and add to them |
-| `:keys` | New keys, written like 9.2. Only a function may declare them |
+| `:keys` | New keys, written like 10.2. Only a function may declare them |
 | `etaf-md-style-default` | The shipped view. Wrap it, change one thing, or skip it. A heading also takes `:label` for its number |
+
+One name may appear on several types: this adds a `surface` that `heading` did not have.
 
 Three rules.
 
@@ -984,7 +1100,7 @@ A prefix built from the section number also lives here. It is not a constant, so
 
 `:label` is a heading-only keyword that takes the number the derive step computed; no other type accepts it.
 
-### 9.5 Overriding a shipped definition
+### 10.5 Overriding a shipped definition
 
 Three spellings, one table.
 
@@ -1003,30 +1119,31 @@ Four constraints.
 
 Name clashes resolve by load order: when two third-party packages change one type, the later one must say `:replace t`, or the error names both.
 
-### 9.6 Where definitions live and when they are read
+### 10.6 Where definitions live and when they are read
 
 - Definitions are `.el` files in a user directory named by `etaf-md-container-directory`.
-- Load order is fixed: the package's own definitions first, the user directory after, and file name order within a directory. A later definition may override an earlier one, but only by saying so; see 9.5.
+- Load order is fixed: the package's own definitions first, the user directory after, and file name order within a directory. A later definition may override an earlier one, but only by saying so; see 10.5.
 - A session reads the registry once when created and does not touch the disk again. A changed definition needs `r` or a fresh preview.
 - A document cannot register a container and cannot run Elisp. Sharing a document is not sharing code.
 
-### 9.7 Debugging
+### 10.7 Debugging
 
 - `etaf-md-describe-containers` lists the registry: name, kind, summary, attributes and source file. Planned.
+- When something looks wrong, follow one chain: what type is this block, which definition renders it, which component it calls, where its style value came from, and which token that landed on. Planned.
 - The error line is always on the page, so no log has to be opened.
 - When a definition signals, that block degrades to its source plus one line reading "the `card` definition failed: …", and the rest of the page keeps rendering.
-- `etaf-md-doctor` reports how many containers are registered and whether a definition file failed to load. Planned.
+- `etaf-md-doctor` reports how many containers are registered, whether a definition file failed to load, and which overrides are in place. Planned.
 
-### 9.8 Trust model
+### 10.8 Trust model
 
 - A document has no execution rights. It can name things and pass attributes.
 - Definitions load only from the configured directory. Not the current directory, not a directory beside the document.
 - A definition may not read files, make network requests, start timers or change global state. Data travels through `attrs`.
 - Rendering has no side effects. A view reads refs and cached values only.
 
-## 10. Roadmap
+## 11. Roadmap
 
-### 10.1 Phases
+### 11.1 Phases
 
 | Phase | Content | Done when |
 | --- | --- | --- |
@@ -1038,9 +1155,9 @@ Name clashes resolve by load order: when two third-party packages change one typ
 | 5 | Documents: `table`, `window` | Row and column highlights land; the window draws only a title bar |
 | 6 | Registry and user definitions | A sample definition installs and uninstalls; a new key on a shipped type takes effect; `:default` still reaches the shipped view after an override; a contract mismatch is reported; `doctor` reports counts and the override chain |
 
-### 10.2 The acceptance matrix per container
+### 11.2 The acceptance matrix per container
 
-Every container passes these five cells; fewer is not done.
+Every container passes these six cells; fewer is not done.
 
 | Cell | What it checks |
 | --- | --- |
@@ -1051,14 +1168,14 @@ Every container passes these five cells; fewer is not done.
 | Narrow | Wide, medium and narrow: nothing lost, type size unchanged |
 | Style | One style key changes its appearance; an unknown key is reported and falls back to the shipped style |
 
-The render path carries three more assertions, independent of any container.
+The render path carries four more assertions, independent of any container.
 
 - Editing the style table leaves the parse count unchanged.
 - A heading prefix does not change its anchor.
 - With numbering off, the derive step is skipped.
 - After overriding `heading`'s rendering, `etaf-md-style-default` still returns the shipped view.
 
-### 10.3 Done means
+### 11.3 Done means
 
 A phase is done only when all three hold.
 
@@ -1066,11 +1183,11 @@ A phase is done only when all three hold.
 2. The affected examples have been run in a real GUI and their captures reviewed.
 3. The attribute table in Appendix A, the style keys in Appendix C and the mapping in Appendix D are updated with it.
 
-## 11. What this will not do
+## 12. What this will not do
 
 - No HTML subset, no CSS subset, no `<style>` tag. Two layout systems in one renderer blur the boundary until nobody can say which layer produced a gap.
 - No scripts in documents, and no container registration from documents.
-- No type-size parameter and no scale parameter.
+- No type-size parameter and no scale parameter. Scaling exists only as `:scale` in the reader's style table.
 - No remote frames, remote players or remote code execution.
 - No rounded corners, shadows, gradients or animation.
 - No second document format beside Markdown.
@@ -1086,8 +1203,8 @@ The shared attributes. A container selects from here and never invents a synonym
 | `title` | string | Title text | Callouts, card, steps, timeline, file-tree, collapse, table, window, stat |
 | `label` | string | Short label | tab, stat |
 | `description` | string | Summary under the title | card |
-| `surface` | enum | Fill role | box, card |
-| `tone` | enum | Emphasis | box, card |
+| `surface` | surface | Fill role | box, card |
+| `tone` | tone | Emphasis | box, card |
 | `align` | enum | Horizontal position of content | box, card, columns |
 | `width` | length | Own width | box, card |
 | `pad` | length | Padding | box, columns |
@@ -1137,13 +1254,13 @@ The five callout names map to tones fixedly: `note` to `info`, `tip` to `ok`, `i
 
 ## Appendix C: style keys
 
-The keys a style table may write. In the type column, a colour means a token name or a literal, and a length uses `ch`, `lh` or `px`. The value `:default` means the shipped value. This is the shipped vocabulary; a user gives a type new keys with `:keys`, see 9.4.
+The keys a style table may write. In the type column, a surface is one of the five words in 4.1, a colour is a token name, and either may be a literal for a reader. The value `:default` means the shipped value. This is the shipped vocabulary; a user gives a type new keys with `:keys`, see 10.4.
 
 | Key | Type | Used by | Meaning |
 | --- | --- | --- | --- |
-| `color` | colour | heading, strong, em, link, code-inline | Text colour |
-| `background` | colour | code, table, quote, callout | Fill |
-| `border` | colour | code, table | Border colour |
+| `surface` | surface or colour | quote, code, table, callout | Fill |
+| `color` | colour | heading, strong, em, link, code | Ink |
+| `tone` | tone | quote, callout | Accent colour and soft fill |
 | `weight` | `normal` / `bold` | heading, strong | Weight |
 | `slant` | `normal` / `italic` | em, quote | Slant |
 | `underline` | bool | link, strong | Underline |
@@ -1152,10 +1269,11 @@ The keys a style table may write. In the type column, a colour means a token nam
 | `numbering` | `none` / `arabic` / `roman` | heading, table | Numbered by the derive step |
 | `scale` | number | heading | Multiple of the base size |
 | `gap-before` / `gap-after` | length | heading, quote, code, table | Space above and below |
-| `bar-color` / `bar-width` | colour / length | quote, callout | The left bar |
+| `bar-width` | length | quote, callout | The left bar's width |
 | `marker` | string | list | The bullet glyph; only characters 4.6 allows |
 | `tag-color` | colour | code | The fence's language label |
-| `header` / `stripe` | colour | table | Header and stripe fills |
+| `header-surface` | surface or colour | table | Header fill |
+| `stripe-surface` | surface or colour | table | Stripe fill |
 | `tone-colors` | alist | callout | Tone to colour |
 | `align` | `left` / `center` / `right` | table | Cell alignment |
 
