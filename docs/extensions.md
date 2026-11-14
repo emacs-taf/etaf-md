@@ -84,6 +84,8 @@ The system has four layers, each with different rights.
 
 The four share one node model: `(type attributes children origin)`. A built-in node and a container node are the same shape in that table: `heading` is a node whose type is heading and which carries `:level`; `card` is a node whose type is card and which carries `:title`.
 
+One more thing: **a definition can itself be overridden.** A reader may add keys to a type, replace its rendering, or replace the whole definition. Added keys are reader-side only; the document-side attribute table stays closed; see 9.5.
+
 ### 2.4 The pipeline
 
 ```
@@ -331,7 +333,7 @@ Four rules.
 - **Every key has one type.** An unknown key is an error at load; that node type falls back to the shipped style and the page still renders.
 - **The shipped styles live in this table too.** No literal colour values in the code, so what you change and what you see are the same thing.
 
-Editing the table repaints the page and re-derives it, but never re-parses it; see 8.2.
+Editing the table repaints the page and re-derives it, but never re-parses it; see 8.2. The keys here are the shipped vocabulary; giving a type a new key takes a render function, see 9.4.
 
 ### 4.4 Two colour rights
 
@@ -908,48 +910,95 @@ The three built-in structure containers take this road too. `box`, `card` and `c
 
 ### 9.3 Defining one style
 
-Same shape as the table, written as one call.
+Same shape as the table, written as one call. Giving each level its own prefix is three lines of data.
 
 ```elisp
 (etaf-md-define-style 'heading
-  '((:weight bold :color heading)
-    (:level 1 :scale 2.0 :prefix "§ ")))
+  '((:weight bold)
+    (:level 1 :prefix "◆ ")
+    (:level 2 :prefix "◇ ")
+    (:level 3 :prefix "· ")))
 ```
+
+It renders like this:
+
+```
+◆ Install
+◇ Requirements
+· Emacs 29 and later
+```
+
+A prefix is a shipped key, so this needs no function. Only what the shipped definition did not foresee needs one; see 9.4.
 
 Validation happens at load: an unknown node type, an unknown key or a value of the wrong type is an error, that node type falls back to the shipped style, and the error names the node, the key and the accepted values.
 
 ### 9.4 Replacing one node's rendering
 
-When the style table is not free enough, supply a function.
+When the style table is not enough, supply a function. The function can also give the type new keys.
 
 ```elisp
 (etaf-md-define-render 'heading
+  :extends t
+  :keys '((background :color nil "Heading fill"))
   (lambda (node env)
-    (etaf-md-style-default 'heading node env)))
+    (etaf-node 'box
+               (list :width 'stretch
+                     :background-color (etaf-md-color env
+                                                      (etaf-md-style env :background)))
+               (list (etaf-md-style-default 'heading node env)))))
 ```
 
-- `node`: type, attributes and children. A `heading` carries `:level` and `:children`.
-- `env`: tokens, measures and derived data (`(etaf-md-derived env :number)` reads the number).
-- `etaf-md-style-default`: the shipped view, to change on top of. It is optional.
+| What you get | Meaning |
+| --- | --- |
+| `node` | Type, attributes and children. A `heading` carries `:level` and `:children` |
+| `env` | Tokens, measures and derived data. `(etaf-md-style env :background)` reads this block's style value; `(etaf-md-derived env :number)` reads its number |
+| `:extends t` | Keep the shipped keys and rendering, and add to them |
+| `:keys` | New keys, each `(name type default docstring)`. Only a function may declare them |
+| `etaf-md-style-default` | The shipped view. Wrap it, change one thing, or skip it. A heading also takes `:label` for its number |
 
 Three rules.
 
 - It returns a view and never modifies the node tree.
 - When it signals, that node type falls back to the shipped rendering, the page keeps going, and `doctor` reports the error.
-- Precedence, highest first: `define-render`, the style table, the shipped style. All three are looked up by node type in one table.
+- **A new key needs a function.** A data definition cannot add keys, for a plain reason: a key nobody reads is dead configuration.
 
-### 9.5 Where definitions live and when they are read
+A prefix built from the section number also lives here. It is not a constant, so data cannot express it.
+
+```elisp
+(etaf-md-define-render 'heading
+  :extends t
+  (lambda (node env)
+    (etaf-md-style-default 'heading node env
+                           :label (etaf-md-roman (etaf-md-derived env :number)))))
+```
+
+`:label` is a heading-only keyword that takes the number the derive step computed; no other type accepts it.
+
+### 9.5 Overriding a shipped definition
+
+Three spellings, one table.
+
+| Spelling | Effect | Use it for |
+| --- | --- | --- |
+| `:extends t` | Keep the shipped keys and rendering; yours are added | Adding a parameter, wrapping it |
+| `:replace t` | Drop the shipped definition; you own the keys and the rendering | Replacing the look entirely |
+| Neither | Applies only when no definition of that name exists; a duplicate is an error | A new type |
+
+Four constraints.
+
+- **The document-side attribute table only grows, never changes.** A container's new attributes may only be appended; a rename or a removal is breaking, bumps `:contract`, and old documents degrade under 3.4 with a line that says so. Child names work the same way. Added keys are reader-side only.
+- **`attrs` and `keys` are two names because the rights differ.** `attrs` are written by the document and closed; `keys` are written by the reader and extensible.
+- **`:default` always means the shipped value.** Loading keeps a snapshot of the shipped definition, or "back to the default" would mean nothing.
+- **An override leaves a trace.** A `:replace t` error line names what was replaced, and `doctor` lists the override chain with each source file.
+
+Name clashes resolve by load order: when two third-party packages change one type, the later one must say `:replace t`, or the error names both.
+
+### 9.6 Where definitions live and when they are read
 
 - Definitions are `.el` files in a user directory named by `etaf-md-container-directory`.
+- Load order is fixed: the package's own definitions first, the user directory after, and file name order within a directory. A later definition may override an earlier one, but only by saying so; see 9.5.
 - A session reads the registry once when created and does not touch the disk again. A changed definition needs `r` or a fresh preview.
 - A document cannot register a container and cannot run Elisp. Sharing a document is not sharing code.
-- A duplicate name is an error. Replacing a shipped definition takes `:replace t`, and the error line names what was replaced.
-
-### 9.6 Conflicts, replacement, contract version
-
-- Every definition declares `:contract 1`. A mismatch degrades that block and says so.
-- Attribute names are half the contract. New attributes may only be appended; a rename is breaking and bumps the contract version.
-- Child names are the other half. Renaming a child degrades old documents under the failure rule instead of drawing them wrongly.
 
 ### 9.7 Debugging
 
@@ -977,7 +1026,7 @@ Three rules.
 | 3 | Collections: `steps`, `timeline`, `stats`, `field`, `file-tree`, `chat` | Each container has a positive case, a counter-example and captures in three palettes |
 | 4 | Interaction: `tabs`, `code-tabs`, `collapse`, `collapse-group` | Keys go through the command loop; state survives reflow and a theme change; flattened output loses nothing |
 | 5 | Documents: `table`, `window` | Row and column highlights land; the window draws only a title bar |
-| 6 | Registry and user definitions | A sample definition installs and uninstalls; a contract mismatch is reported; the doctor counts registrations |
+| 6 | Registry and user definitions | A sample definition installs and uninstalls; a new key on a shipped type takes effect; `:default` still reaches the shipped view after an override; a contract mismatch is reported; `doctor` reports counts and the override chain |
 
 ### 10.2 The acceptance matrix per container
 
@@ -997,6 +1046,7 @@ The render path carries three more assertions, independent of any container.
 - Editing the style table leaves the parse count unchanged.
 - A heading prefix does not change its anchor.
 - With numbering off, the derive step is skipped.
+- After overriding `heading`'s rendering, `etaf-md-style-default` still returns the shipped view.
 
 ### 10.3 Done means
 
@@ -1077,7 +1127,7 @@ The five callout names map to tones fixedly: `note` to `info`, `tip` to `ok`, `i
 
 ## Appendix C: style keys
 
-The keys a style table may write. In the type column, a colour means a token name or a literal, and a length uses `ch`, `lh` or `px`. The value `:default` means the shipped value.
+The keys a style table may write. In the type column, a colour means a token name or a literal, and a length uses `ch`, `lh` or `px`. The value `:default` means the shipped value. This is the shipped vocabulary; a user gives a type new keys with `:keys`, see 9.4.
 
 | Key | Type | Used by | Meaning |
 | --- | --- | --- | --- |
