@@ -1731,8 +1731,9 @@ contract: 1
            (text :weight (etaf-md-style env :font-weight)
                  :color (etaf-md-theme env 'heading)
              (expr (concat (or (etaf-md-style env :prefix) "")
-                           (etaf-md-format-number (etaf-md-number env) 'decimal)
-                           " "
+                           (pcase (etaf-md-style env :numbering)
+                             ('none "")
+                             (fmt (concat (etaf-md-format-number (etaf-md-number env) fmt) " ")))
                            (etaf-md-text env)))))))
 
 ;;; 2. 提示：五个名字共用一份画法，靠类型分辨
@@ -1799,7 +1800,7 @@ contract: 1
                  (n (max 1 (etaf-md-attr env :columns)))
                  (wide (> (etaf-md-available-width env) 60))
                  (rows (seq-partition cols (if wide n 1))))
-                 ;; 行和栏的数量在运行时才知道，DSL 写不出来，用 etaf-node
+            ;; 行和栏的数量在运行时才知道，DSL 写不出来，用 etaf-node
             (etaf-node 'column
                        (list :item-gap '((lh 1)))
                        (mapcar (lambda (row)
@@ -1846,7 +1847,7 @@ contract: 1
                 (mark (pcase (etaf-md-attr env :list-style)
                         ('decimal "%d. ")
                         (_ "· "))))
-                 ;; 每一项的编号要按顺序算，DSL 写不出来，用 etaf-node
+            ;; 每一项的编号要按顺序算，DSL 写不出来，用 etaf-node
             (etaf-node 'column
                        (list :item-gap '((lh 1)))
                        (mapcar (lambda (step)
@@ -1878,11 +1879,10 @@ contract: 1
 ;; 2. 换画法：保留内置，外面包一层，顺手加一个读者键
 (etaf-md-set-view 'heading
   (lambda (env)
-    (etaf-node 'box
-               (list :padding '((lh 1) (ch 2))
-                     :background-color (etaf-md-surface env
-                                                       (etaf-md-style env :background)))
-               (list (etaf-md-default-view env))))
+    (etaf-view
+     (box :padding '((lh 1) (ch 2))
+          :background-color (etaf-md-surface env (etaf-md-style env :background))
+       (expr (etaf-md-default-view env)))))
   :extends t
   :style-keys '((background :type surface :doc "标题底色")))
 

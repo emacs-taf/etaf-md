@@ -1731,8 +1731,9 @@ Sample the stack; do not guess.
            (text :weight (etaf-md-style env :font-weight)
                  :color (etaf-md-theme env 'heading)
              (expr (concat (or (etaf-md-style env :prefix) "")
-                           (etaf-md-format-number (etaf-md-number env) 'decimal)
-                           " "
+                           (pcase (etaf-md-style env :numbering)
+                             ('none "")
+                             (fmt (concat (etaf-md-format-number (etaf-md-number env) fmt) " ")))
                            (etaf-md-text env)))))))
 
 ;;; 2. Callouts: five names share one paint and read their own type
@@ -1799,7 +1800,7 @@ Sample the stack; do not guess.
                  (n (max 1 (etaf-md-attr env :columns)))
                  (wide (> (etaf-md-available-width env) 60))
                  (rows (seq-partition cols (if wide n 1))))
-                 ;; row and column counts are known only at run time; the DSL cannot say it, so etaf-node
+            ;; row and column counts are known only at run time; the DSL cannot say it, so etaf-node
             (etaf-node 'column
                        (list :item-gap '((lh 1)))
                        (mapcar (lambda (row)
@@ -1846,7 +1847,7 @@ Sample the stack; do not guess.
                 (mark (pcase (etaf-md-attr env :list-style)
                         ('decimal "%d. ")
                         (_ "· "))))
-                 ;; each item's number is computed in sequence; the DSL cannot say it, so etaf-node
+            ;; each item's number is computed in sequence; the DSL cannot say it, so etaf-node
             (etaf-node 'column
                        (list :item-gap '((lh 1)))
                        (mapcar (lambda (step)
@@ -1878,11 +1879,10 @@ Sample the stack; do not guess.
 ;; 2. Give one type a new paint: keep the shipped one, wrap it, add a reader key
 (etaf-md-set-view 'heading
   (lambda (env)
-    (etaf-node 'box
-               (list :padding '((lh 1) (ch 2))
-                     :background-color (etaf-md-surface env
-                                                       (etaf-md-style env :background)))
-               (list (etaf-md-default-view env))))
+    (etaf-view
+     (box :padding '((lh 1) (ch 2))
+          :background-color (etaf-md-surface env (etaf-md-style env :background))
+       (expr (etaf-md-default-view env)))))
   :extends t
   :style-keys '((background :type surface :doc "Heading fill")))
 
