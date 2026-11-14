@@ -674,7 +674,9 @@ shown under a strip that names every manager the `tabs' attribute lists."
          :active active
          :framed nil
          :on-change (lambda (key) (etaf-md-set-block-state env :active key)))
-        (box :width 'stretch :padding '((lh 0.5) (ch 0))
+        ;; The fence pads itself half a line above and below; one blank line
+        ;; is the whole gap the card should keep around its code.
+        (box :width 'stretch :padding '((lh 0) (ch 0))
              :border-top (etaf-md--hairline env)
           (expr (etaf-ui-markdown-view-block
                  synthetic
