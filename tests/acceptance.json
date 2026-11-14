@@ -319,6 +319,11 @@
       "name": "etaf-md-tests-a-rule-that-names-no-attribute-is-reported",
       "file": "tests/etaf-md-tests.el",
       "purpose": "A style rule naming an attribute the type does not declare is ignored, one line is reported, and the block still paints."
+    },
+    {
+      "name": "etaf-md-tests-tabs-draw-only-the-selected-page",
+      "file": "tests/etaf-md-tests.el",
+      "purpose": "A :::tabs block draws every label and only the selected tab's body, with no failure line."
     }
   ]
 }

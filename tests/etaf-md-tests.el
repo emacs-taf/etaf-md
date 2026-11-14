@@ -1577,3 +1577,15 @@ a session text that is not published yet would paint a skeleton over its data."
                                     (buffer-string))))))
     (etaf-md-undefine-node 'probe)))
 
+
+(ert-deftest etaf-md-tests-tabs-draw-only-the-selected-page ()
+  (etaf-md-tests--with-preview-source
+      ":::tabs\n:::tab {title=\"第一页\"}\n第一页正文。\n:::\n\
+:::tab {title=\"第二页\"}\n第二页正文。\n:::\n:::\n"
+    (with-current-buffer preview
+      (etaf-runtime-flush (etaf-runtime-for-buffer preview))
+      (should (string-match-p "第一页" (buffer-string)))
+      (should (string-match-p "第二页" (buffer-string)))
+      (should (string-match-p "第一页正文" (buffer-string)))
+      (should-not (string-match-p "第二页正文" (buffer-string)))
+      (should-not (string-match-p "没有" (buffer-string))))))

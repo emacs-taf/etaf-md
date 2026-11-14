@@ -20,6 +20,8 @@
 (require 'etaf-ui)
 (require 'etaf-md-node)
 
+(declare-function etaf-md--republish "etaf-md-model" (session))
+
 (cl-defstruct (etaf-md-env (:constructor etaf-md-env-create)
                            (:copier nil))
   "The context one block is painted in."
@@ -142,18 +144,39 @@ step wrote."
       (funcall open target)
       t)))
 
+(defun etaf-md--block-identity (env)
+  "Return the identity ENV's block keeps across a repaint.
+The parsed block's start offset names it while the document lives; a block
+without one falls back to its position in the page."
+  (or (plist-get (etaf-md-node-block (etaf-md-env-node env)) :begin) 0))
+
 (defun etaf-md-block-state (env key &optional default)
-  "Return KEY's state for ENV's block, or DEFAULT."
-  (let ((cell (assq key (etaf-md-env-state env))))
+  "Return KEY's state for ENV's block, or DEFAULT.
+The state lives on the session, so a repaint keeps it."
+  (let* ((session (etaf-md-env-session env))
+         (identity (etaf-md--block-identity env))
+         (entry (and session
+                     (assq identity (plist-get session :block-state))))
+         (cell (and entry (assq key (cdr entry)))))
     (if cell (cdr cell) default)))
 
 (defun etaf-md-set-block-state (env key value)
-  "Store VALUE under KEY for ENV's block."
-  (let ((cell (assq key (etaf-md-env-state env))))
-    (if cell
-        (setcdr cell value)
-      (setf (etaf-md-env-state env)
-            (cons (cons key value) (etaf-md-env-state env)))))
+  "Store VALUE under KEY for ENV's block and repaint that block.
+The session keeps the state, and the republish hands the runtime the same
+component for every unchanged block, so only this block is painted again."
+  (let* ((session (etaf-md-env-session env))
+         (identity (etaf-md--block-identity env))
+         (table (and session (plist-get session :block-state)))
+         (entry (assq identity table)))
+    (when session
+      (if entry
+          (let ((cell (assq key (cdr entry))))
+            (if cell
+                (setcdr cell value)
+              (setcdr entry (cons (cons key value) (cdr entry)))))
+        (plist-put session :block-state
+                   (cons (cons identity (list (cons key value))) table)))
+      (etaf-md--republish session)))
   value)
 
 (defun etaf-md-available-width (env)

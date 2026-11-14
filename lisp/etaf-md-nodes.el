@@ -146,6 +146,41 @@
              (border-left-width :type length :default "1ch" :doc "左侧竖条宽度"))
     :view #'etaf-md--callout-view))
 
+
+;;; Tabs
+
+(defun etaf-md--tab-key (index) index)
+
+(etaf-md--define-shipped 'tabs
+  :name "tabs"
+  :summary "标签页，只画选中那一页的正文"
+  :accepts '((tab :attrs ((title    :type string  :required t :doc "标签文字")
+                          (selected :type boolean :default nil :doc "打开时选中这一页"))))
+  :view (lambda (env)
+          (let* ((tabs (etaf-md-children env))
+                 (count (length tabs))
+                 (initial (or (cl-position-if
+                               (lambda (tab)
+                                 (etaf-md-attr env :selected tab))
+                               tabs)
+                              0))
+                 (active (min (or (etaf-md-block-state env :active initial) 0)
+                              (max 0 (1- count))))
+                 (selected (nth active tabs)))
+            (etaf-view
+             (column :width 'stretch :item-gap '(lh 1)
+               (etaf-tabs
+                :items (seq-map-indexed
+                        (lambda (tab index)
+                          (list :key index
+                                :label (etaf-md-attr env :title tab)))
+                        tabs)
+                :active active
+                :on-change (lambda (key)
+                             (etaf-md-set-block-state env :active key)))
+               (expr (when selected
+                       (etaf-md-render env (etaf-md-children env selected)))))))))
+
 ;; Reader definitions load after the shipped ones, so :extends can rely
 ;; on them and a plain definition may still add a new type.
 (etaf-md-load-node-directory)
