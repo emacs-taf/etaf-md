@@ -1076,7 +1076,7 @@ A type definition writes three things, and no more.
           (etaf-view
            (etaf-card :title (etaf-md-attr env :title)
                       :variant (etaf-md-attr env :accent)
-             (expr (etaf-md-render env (etaf-md-children env)))))))
+             (expr (etaf-md-content env))))))
 ```
 
 No line in the definition draws a border or sets padding; those live in `etaf-card`. The definition only translates the document's words into component parameters, and **`accent` passes straight through**: the six accents are shared vocabulary, so the component reads all of them and the definition maps nothing.
@@ -1162,16 +1162,18 @@ Nothing beyond these exists, which is why a definition cannot read a file, reach
 | --- | --- | --- |
 | The node | `(etaf-md-attr env :title)` | One attribute's final value, see 10.3. For a child, pass the node last: `(etaf-md-attr env :title tab)` |
 | | `(etaf-md-type env)` | The type name, for a paint shared by several names |
-| | `(etaf-md-children env)` | The child nodes in order |
-| | `(etaf-md-plain-text env)` | The children's plain text. **Inline emphasis and links are lost**; use it only when the children are known to be plain |
+| | `(etaf-md-children env)` | The child nodes in order. Walk them only when placing blocks one at a time |
 | Appearance | `(etaf-md-surface env 'raised)` | A surface as a fill; `none` gives `nil` |
 | | `(etaf-md-accent env 'warning)` | An accent value as a colour |
-| Painting | `(etaf-md-render env nodes)` | A list of nodes as a view |
+| Painting | `(etaf-md-content env)` | Every child of this block as a view. Use it when the content goes in whole |
+| | `(etaf-md-render env nodes)` | The given nodes as a view, one or several. Use it when placing blocks one at a time |
 | | `(etaf-md-default-view env)` | This node painted with the shipped view |
 | Services | `(etaf-md-follow-link env href)` | Open a target |
 | | `(etaf-md-block-state env :selected)` | Read this block's state, with a default `(etaf-md-block-state env :selected v)` |
 | | `(etaf-md-set-block-state env :selected VALUE)` | Write this block's state |
 | | `(etaf-md-available-width env)` | This block's usable width |
+
+`content` and `render` split one way: a component that takes the content whole gets `content`; a component that takes one item at a time gets each item from `render`. `children` serves only the second case, to walk the blocks and read each one's attributes.
 
 Twelve, no thirteenth. `etaf-md-format-number` is not among them: it takes no `env` and is a pure function that formats an ordinal with a `list-style-type` word.
 
@@ -1227,7 +1229,7 @@ The first three answer for ordinary attributes. The fourth is the only source fo
 (etaf-view
  (box :padding '((lh 1) (ch 2))
    (text "Title")
-   (expr (etaf-md-render env (etaf-md-children env)))))
+   (expr (etaf-md-content env))))
 ```
 
 Exactly one case drops to `etaf-node`: a tag or a property that is only known at run time, as when `mapcar` builds a list of rows. The DSL cannot say that, so it is a limit of the language, not a style choice.
@@ -1371,7 +1373,7 @@ A phase is done only when all three hold.
 - No second document format beside Markdown.
 - No pages, routes, navigation or publishing. That is the application's work, see 1.2.
 - No `justify` text. A character grid has no inter-word space to stretch, so it can only pad with blanks, and Chinese paragraphs get holes at the line ends.
-- The first version does not parse inline emphasis or links. `plain-text` flattens them, and the limitation is recorded rather than papered over.
+- The first version does not parse inline emphasis or links; `**bold**` in a heading comes out as asterisks and text. The limitation is recorded rather than papered over.
 
 ## Appendix A: attribute reference
 
@@ -1653,11 +1655,11 @@ This table is the ground for naming. A new name is looked up here first; if it i
 | `etaf-md-styles` | The style rule table |
 | `etaf-md-attr` | Read one attribute's final value |
 | `etaf-md-type` | Read the type name |
-| `etaf-md-children` | Read the child nodes in order |
-| `etaf-md-plain-text` | Join the children's text into a string; inline formatting is lost |
+| `etaf-md-children` | Read the child nodes in order, for placing blocks one at a time |
 | `etaf-md-surface` | Turn a surface into a fill |
 | `etaf-md-accent` | Turn an accent value into a colour |
-| `etaf-md-render` | Paint a list of nodes |
+| `etaf-md-content` | Paint this block's children as a view, for content that goes in whole |
+| `etaf-md-render` | Paint the given nodes as a view |
 | `etaf-md-default-view` | Read one node's shipped paint |
 | `etaf-md-follow-link` | Open a target |
 | `etaf-md-block-state` | Read this block's state |
@@ -1691,7 +1693,7 @@ Images and figures scale with the page instead of being redrawn.
           (etaf-view
            (etaf-card :title (etaf-md-attr env :title)
                       :variant (etaf-md-attr env :accent)
-             (expr (etaf-md-render env (etaf-md-children env)))))))
+             (expr (etaf-md-content env))))))
 
 ;; The shipped rule: a card has one overridable attribute; the rest is etaf-card's baseline
 (setq etaf-md-styles '(((card) (:accent neutral))))
@@ -1722,7 +1724,7 @@ The page:
 | The component | `etaf-card`'s `:title` and `:variant` | Unchanged, no mapping | The component paints it |
 | The reader | `set-attr '(card)` | `:accent danger` | Overrides the document, see 10.3 |
 
-`env` functions used: `attr`, `render`, `children`. `surface` is absent because the fill belongs to the component.
+`env` functions used: `attr`, `content`. `surface` is absent because the fill belongs to the component.
 
 ### F.4 A built-in syntax: the document
 
@@ -1755,13 +1757,14 @@ The `#` characters leave no trace and become `level`; document order yields `num
                        :default decimal :doc "Section number format, read by derive"))
   :view (lambda (env)
           (etaf-view
-           (text :font-weight (etaf-md-attr env :font-weight)
-                 :color      (etaf-md-attr env :color)
-             (expr (concat (etaf-md-attr env :prefix)
-                           (if-let* ((n (etaf-md-attr env :number)))
-                               (concat n " ")
-                             "")
-                           (etaf-md-plain-text env)))))))
+           (row :item-gap '(ch 0)
+             (text :font-weight (etaf-md-attr env :font-weight)
+                   :color      (etaf-md-attr env :color)
+               (expr (concat (etaf-md-attr env :prefix)
+                             (if-let* ((n (etaf-md-attr env :number)))
+                                 (concat n " ")
+                               ""))))
+             (expr (etaf-md-content env))))))
 
 ;; The shipped rules; every selector is a list
 (setq etaf-md-styles
@@ -1790,9 +1793,10 @@ The page:
 | `level = 2` | The parser | 2 | The rule selector `(heading :level 2)` |
 | `number = "1.1"` | Derive | A formatted string | The view, via `attr` |
 | `prefix`, `color`, `font-weight` | Reader attributes | `"◇ "`, the `heading` token, `bold` | The view, via `attr` |
-| One line of text | The view | Prefix, section number and plain text | A `text` node |
+| Prefix and section number | The view | `"◇ "` and `"1.1 "` | A `text` node |
+| Heading text | The view | The children's text | `content`, painted as a view |
 
-`env` functions used: `attr`, `plain-text`.
+`env` functions used: `attr`, `content`.
 
 ### F.7 The two side by side
 

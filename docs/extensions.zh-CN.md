@@ -1076,7 +1076,7 @@ print("hi")
           (etaf-view
            (etaf-card :title (etaf-md-attr env :title)
                       :variant (etaf-md-attr env :accent)
-             (expr (etaf-md-render env (etaf-md-children env)))))))
+             (expr (etaf-md-content env))))))
 ```
 
 定义里没有一行画边框、写内边距，那些在 `etaf-card` 里。定义只把文档的词翻成组件的参数，而且 **`accent` 原样传下去**：六个强调值是共享词汇，组件必须认全，定义不做映射。
@@ -1162,16 +1162,18 @@ print("hi")
 | --- | --- | --- |
 | 读节点 | `(etaf-md-attr env :title)` | 一个属性的最终值，见 10.3。读子节点时把节点放最后：`(etaf-md-attr env :title tab)` |
 | | `(etaf-md-type env)` | 类型名，一份画法被几个名字共用时用它分支 |
-| | `(etaf-md-children env)` | 子节点，按顺序 |
-| | `(etaf-md-plain-text env)` | 子节点的纯文字。**会丢行内强调与链接**，只有确定子节点是纯文字时用 |
+| | `(etaf-md-children env)` | 子节点，按顺序。只在逐条摆放子块时用它枚举 |
 | 查外观 | `(etaf-md-surface env 'raised)` | 面换成底色，`none` 得 `nil` |
 | | `(etaf-md-accent env 'warning)` | 强调值换成颜色 |
-| 画 | `(etaf-md-render env nodes)` | 一串节点画成视图 |
+| 画 | `(etaf-md-content env)` | 这一块的全部子块，画成视图。整块放置时用它 |
+| | `(etaf-md-render env nodes)` | 指定的节点画成视图，一个或一串。逐条摆放时用它 |
 | | `(etaf-md-default-view env)` | 这个节点用内置画法再画一遍 |
 | 服务 | `(etaf-md-follow-link env href)` | 打开一个目标 |
 | | `(etaf-md-block-state env :selected)` | 读本块状态，带默认值 `(etaf-md-block-state env :selected v)` |
 | | `(etaf-md-set-block-state env :selected VALUE)` | 写本块状态 |
 | | `(etaf-md-available-width env)` | 本块可用宽度 |
+
+`content` 与 `render` 的分工只有一句：内容整块塞进组件，用 `content`；组件按项收内容，用 `render` 一块一块画。`children` 只服务后一种，用来枚举子块与读每条的属性。
 
 十二个，没有第十三个。`etaf-md-format-number` 不在里面，它不收 `env`，是纯函数：把序号按 `list-style-type` 的词格式化。
 
@@ -1227,7 +1229,7 @@ print("hi")
 (etaf-view
  (box :padding '((lh 1) (ch 2))
    (text "标题")
-   (expr (etaf-md-render env (etaf-md-children env)))))
+   (expr (etaf-md-content env))))
 ```
 
 只有一个地方降到 `etaf-node`：标签或属性要在运行时才算出来，比如用 `mapcar` 生成一串行。那种时候 DSL 写不出来，是语言限制，不是风格选择。
@@ -1371,7 +1373,7 @@ heading            内置语法，文档写不出名字
 - 不做 markdown 之外的第二种文档格式。
 - 不做页面、路由、导航、发布。那是上层应用的事，见 1.2。
 - 不做 `justify` 文本两端对齐。字符网格里没有字间距可以拉，只能填空格，中文段落行尾会出洞。
-- 第一版不解析行内强调与链接。`plain-text` 把它们拍平成纯文字，这条限制写在文档里，不假装配支持。
+- 第一版不解析行内强调与链接，标题里写 `**粗体**`，出来就是星号加文字。这条限制写在文档里，不假装配支持。
 
 ## 附录 A：属性参考
 
@@ -1653,11 +1655,11 @@ heading            内置语法，文档写不出名字
 | `etaf-md-styles` | 样式规则表 |
 | `etaf-md-attr` | 读一个属性的最终值 |
 | `etaf-md-type` | 读类型名 |
-| `etaf-md-children` | 按顺序取子节点 |
-| `etaf-md-plain-text` | 把子节点的文字拼成字符串，会丢行内格式 |
+| `etaf-md-children` | 按顺序取子节点，逐条摆放时用 |
 | `etaf-md-surface` | 面换成底色 |
 | `etaf-md-accent` | 强调值换成颜色 |
-| `etaf-md-render` | 画一串节点 |
+| `etaf-md-content` | 把这一块的子块画成视图，整块放置时用 |
+| `etaf-md-render` | 把指定的节点画成视图 |
 | `etaf-md-default-view` | 取某个节点的内置画法 |
 | `etaf-md-follow-link` | 打开一个目标 |
 | `etaf-md-block-state` | 读本块状态 |
@@ -1691,7 +1693,7 @@ heading            内置语法，文档写不出名字
           (etaf-view
            (etaf-card :title (etaf-md-attr env :title)
                       :variant (etaf-md-attr env :accent)
-             (expr (etaf-md-render env (etaf-md-children env)))))))
+             (expr (etaf-md-content env))))))
 
 ;; 包自带的样式规则：卡片只有一个可盖属性，其余外观归 etaf-card 的基线
 (setq etaf-md-styles '(((card) (:accent neutral))))
@@ -1722,7 +1724,7 @@ heading            内置语法，文档写不出名字
 | 组件 | `etaf-card` 的 `:title`、`:variant` | 原样，不做映射 | 组件自己画 |
 | 读者 | `set-attr '(card)` | `:accent danger` | 盖掉文档的值，见 10.3 |
 
-用到的 `env` 函数：`attr`、`render`、`children`。没有 `surface`，因为底色归组件。
+用到的 `env` 函数：`attr`、`content`。没有 `surface`，因为底色归组件。
 
 ### F.4 内置语法：文档
 
@@ -1755,13 +1757,14 @@ heading            内置语法，文档写不出名字
                        :default decimal :doc "章节号的格式，派生阶段读"))
   :view (lambda (env)
           (etaf-view
-           (text :font-weight (etaf-md-attr env :font-weight)
-                 :color      (etaf-md-attr env :color)
-             (expr (concat (etaf-md-attr env :prefix)
-                           (if-let* ((n (etaf-md-attr env :number)))
-                               (concat n " ")
-                             "")
-                           (etaf-md-plain-text env)))))))
+           (row :item-gap '(ch 0)
+             (text :font-weight (etaf-md-attr env :font-weight)
+                   :color      (etaf-md-attr env :color)
+               (expr (concat (etaf-md-attr env :prefix)
+                             (if-let* ((n (etaf-md-attr env :number)))
+                                 (concat n " ")
+                               ""))))
+             (expr (etaf-md-content env))))))
 
 ;; 包自带的样式规则，选择器一律是列表
 (setq etaf-md-styles
@@ -1790,9 +1793,10 @@ heading            内置语法，文档写不出名字
 | `level = 2` | 解析器 | 2 | 规则选择器 `(heading :level 2)` |
 | `number = "1.1"` | 派生 | 已经格式化好的字符串 | 视图，经 `attr` |
 | `prefix`、`color`、`font-weight` | 读者属性 | `"◇ "`、令牌 `heading`、`bold` | 视图，经 `attr` |
-| 一行文字 | 视图 | 前缀 + 章节号 + 纯文字 | `text` 节点 |
+| 前缀与章节号 | 视图 | `"◇ "` 与 `"1.1 "` | `text` 节点 |
+| 标题正文 | 视图 | 子块的文字 | `content` 画成视图 |
 
-用到的 `env` 函数：`attr`、`plain-text`。
+用到的 `env` 函数：`attr`、`content`。
 
 ### F.7 两份对照
 
