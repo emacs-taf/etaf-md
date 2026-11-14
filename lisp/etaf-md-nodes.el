@@ -563,12 +563,18 @@ follow the children instead of a flat depth sequence."
   :accepts '((collapse :attrs ((title :type string :required t :doc "收起时的标题")
                                (open  :type boolean :default nil :doc "默认展开"))))
   :view (lambda (env)
-          (let ((collapses (etaf-md-children env)))
+          (let* ((collapses (etaf-md-children env))
+                 ;; The header Hosts carry stable refs, so a repaint of the
+                 ;; page updates a title in place instead of leaving the
+                 ;; previous header above the open one.
+                 (block (etaf-md--block-identity env)))
             (etaf-view
              (etaf-accordion
               :items (seq-map-indexed
                       (lambda (collapse index)
                         (list :key index
+                              :ref (intern (format "etaf-md-accordion-%s-%d"
+                                                   block index))
                               :label (or (etaf-md-attr env :title collapse) "")
                               :content (lambda () (etaf-md--child-view env collapse))))
                       collapses)
