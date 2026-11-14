@@ -304,6 +304,57 @@ source aspect ratio instead of being squashed into a shorter box."
      (_ (etaf-md--image-pixels path)))
    max-columns))
 
+(defun etaf-md--media-grid-fit (path max-columns max-rows)
+  "Return the (COLUMNS . ROWS) grid for PATH fitted inside the two bounds.
+The picture keeps its aspect ratio: the width and the height are each capped
+and the smaller scale wins, so a tall screenshot cannot own the column and a
+wide banner cannot grow past its card."
+  (let* ((pixels (etaf-md--image-pixels path))
+         (cell (etaf-md--cell-metrics))
+         (cell-width (float (car cell)))
+         (cell-height (float (cdr cell))))
+    (if (or (not (consp pixels))
+            (not (numberp (car pixels)))
+            (not (numberp (cdr pixels))))
+        (cons (max 1 (min max-columns 40)) (max 1 (min max-rows 10)))
+      (let* ((width (float (car pixels)))
+             (height (float (cdr pixels)))
+             (scale (min (/ (* max-columns cell-width) width)
+                         (/ (* max-rows cell-height) height)
+                         1.0))
+             (columns (max 1 (min max-columns (round (/ (* width scale) cell-width)))))
+             (rows (max 1 (min max-rows (round (/ (* height scale) cell-height))))))
+        (cons columns rows)))))
+
+(defun etaf-md--media-picture (url env max-columns max-rows)
+  "Return URL drawn as a plain picture for ENV inside MAX bounds.
+No figure frame and no caption: the caller owns the card or the stage around
+it.  A remote source becomes a placeholder that opens in the browser; a
+missing file says so instead of failing the page."
+  (let* ((remote (etaf-md--remote-url-p url))
+         (path (unless remote (etaf-md--absolute-media url env)))
+         (exists (and path (file-exists-p path))))
+    (cond
+     ((and path exists (eq (etaf-md--media-kind path) 'image))
+      (let ((grid (etaf-md--media-grid-fit path max-columns max-rows)))
+        (etaf-node 'image
+                   (list :src path
+                         :columns (car grid)
+                         :rows (cdr grid)
+                         :adapter 'auto)
+                   nil)))
+     ((and path (not exists))
+      (etaf-node 'text
+                 (list :color (etaf-md--env-color env :muted))
+                 (list (format "（找不到 %s）" (file-name-nondirectory path)))))
+     (t
+      (etaf-node 'text
+                 (list :color (etaf-md--env-color env :accent)
+                       :role 'link :tab-index 0
+                       :help-echo url
+                       :on-press (lambda () (funcall (plist-get env :open-url) url)))
+                 (list (format "🔗 %s" url)))))))
+
 (defun etaf-md--media-card (url alt env)
   "Return a media card View for URL with ALT in ENV.
 Local images and videos render through the ETAF image Host, which owns the

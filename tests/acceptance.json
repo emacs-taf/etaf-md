@@ -379,6 +379,16 @@
       "name": "etaf-md-tests-a-fence-inside-a-container-does-not-close-it",
       "file": "tests/etaf-md-tests.el",
       "purpose": "A `:::' line inside a fence in a container body does not close the container, and the sample's `:::' stays in the code block."
+    },
+    {
+      "name": "etaf-md-tests-the-site-components-paint",
+      "file": "tests/etaf-md-tests.el",
+      "purpose": "A page using the whole site catalog mounts and paints every component's own text, plus the inline marks' text, without a failure line."
+    },
+    {
+      "name": "etaf-md-tests-a-site-component-follows-the-input-format",
+      "file": "tests/etaf-md-tests.el",
+      "purpose": "The plot's labels and the command group's manager list come from their attributes, so the page shows the values and the named managers rather than the attribute source."
     }
   ]
 }

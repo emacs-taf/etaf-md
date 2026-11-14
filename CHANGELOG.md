@@ -329,6 +329,10 @@ pixels below itself.  A picture now takes the size of the page it sits on.
 
 ### Fixed
 
+- A card's surface, a muted label and a bar track take their colours from the
+  page's theme palette again: the lookup read a plist while a theme palette is
+  an alist, so those fills were silently painted as nothing.
+
 - A fenced sample no longer opens or closes a container: a `:::` inside a code
   block stays the sample's text, and a fence in a container body cannot end
   the container early.  The scanner that finds containers now remembers the

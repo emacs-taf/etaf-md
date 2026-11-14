@@ -29,6 +29,7 @@
 
 (declare-function etaf-md--tabs-view "etaf-md-nodes" (env &optional page-view label-fn))
 (declare-function etaf-md--code-tab-page "etaf-md-nodes" (env page))
+(declare-function etaf-md--child-view "etaf-md-nodes" (env child))
 (declare-function etaf-md--media-card "etaf-md-views" (url alt env))
 (declare-function etaf-md-qrcode-view "etaf-md-qrcode" (env))
 (declare-function etaf-md-qrcode-cached-p "etaf-md-qrcode" (env))
@@ -77,8 +78,8 @@ The palette carries the page's own keys; a definition falls back to the same
 Theme tokens the rest of the catalog uses, so a component keeps its contrast
 in both palettes."
   (let ((palette (etaf-md-env-palette env)))
-    (or (plist-get palette key)
-        (plist-get palette :ink))))
+    (or (etaf-md--palette-value palette key)
+        (etaf-md--palette-value palette :ink))))
 
 (defun etaf-md--component-lines (text)
   "Return TEXT split into lines, or nil when it is blank."
@@ -145,37 +146,37 @@ in both palettes."
   :attrs '((src         :type string :required t :doc "图片路径，相对路径按文档解析")
            (title       :type string :doc "图片下的标题")
            (description :type string :doc "标题下的说明")
-           (href        :type string :doc "整张卡片可点，跳到这个地址"))
+           (href        :type string :doc "整张卡片可点，跳到这个地址")
+           (width       :type number :doc "卡片宽度（列），默认 46"))
   :view
   (lambda (env)
-    (let ((title (etaf-md-attr env :title))
-          (description (etaf-md-attr env :description))
-          (href (etaf-md-attr env :href))
-          (src (etaf-md-attr env :src)))
+    (let* ((src (etaf-md-attr env :src))
+           (title (etaf-md-attr env :title))
+           (description (etaf-md-attr env :description))
+           (href (etaf-md-attr env :href))
+           (width (min (or (etaf-md-attr env :width) 46)
+                       (max 20 (- (etaf-md-env-width env) 2))))
+           (inner (max 8 (- width 4)))
+           (view-env (etaf-md--component-view-env env)))
       (etaf-view
-        (column :width 'stretch :item-gap '(lh 0)
-          (expr (list (etaf-md--component-image
-                       src (or title (file-name-nondirectory src)) env)))
+        (column :width (list 'ch width)
+                :background-color (etaf-md-surface env 'raised)
+                :border (etaf-md--hairline env)
+                :padding '((lh 1) (ch 2))
+                :item-gap '(lh 0)
+                :on-press (when href
+                            (lambda () (etaf-md-follow-link env href)))
+          (expr (list (etaf-md--media-picture src view-env inner 14)))
           (expr
            (when (or title description)
-             (list
-              (etaf-view
-                (box :width 'stretch :padding '((lh 1) (ch 2))
-                  (expr
-                   (append
-                    (when title
-                      (list (etaf-node 'text
-                                       (list :font-weight 'bold
-                                             :role (and href 'link)
-                                             :tab-index (and href 0)
-                                             :on-press (when href
-                                                         (lambda ()
-                                                           (etaf-md-follow-link env href))))
-                                       (list title))))
-                    (when description
-                      (list (etaf-node 'text
-                                       (list :color (etaf-md--component-ink env :muted))
-                                       (list description))))))))))))))))
+             (append
+              (list (etaf-node 'text nil (list " ")))
+              (when title
+                (list (etaf-node 'text (list :font-weight 'bold) (list title))))
+              (when description
+                (list (etaf-node 'text
+                                 (list :color (etaf-md--component-ink env :muted))
+                                 (list description))))))))))))
 
 (etaf-md--define-shipped 'link-card
   :name "link-card"
@@ -185,19 +186,26 @@ in both palettes."
            (description :type string :doc "标题下的说明"))
   :view
   (lambda (env)
-    (let ((href (etaf-md-attr env :href)))
-      (etaf-md--component-card
-       env
-       (etaf-md-attr env :title)
-       (etaf-md-attr env :description)
-       href
-       (list (etaf-node 'text
-                        (list :color (etaf-md-accent env 'primary))
-                        (list (format "→ %s" href))))))))
-
-;;; ---------------------------------------------------------------------------
-;;; npm badges
-;;; ---------------------------------------------------------------------------
+    (let ((href (etaf-md-attr env :href))
+          (title (etaf-md-attr env :title))
+          (description (etaf-md-attr env :description)))
+      (etaf-view
+        (column :width 'stretch
+                :background-color (etaf-md-surface env 'raised)
+                :border (etaf-md--hairline env)
+                :padding '((lh 1) (ch 2))
+                :item-gap '(lh 0)
+                :on-press (lambda () (etaf-md-follow-link env href))
+          (expr (list (etaf-node 'text (list :font-weight 'bold) (list title))))
+          (expr (list (etaf-node 'text nil (list " "))))
+          (expr (when description
+                  (list (etaf-node 'text
+                                   (list :color (etaf-md--component-ink env :muted))
+                                   (list description)))))
+          (expr (list (etaf-node 'text
+                                 (list :color (etaf-md-accent env 'primary)
+                                       :role 'link :tab-index 0)
+                                 (list (format "→ %s" href))))))))))
 
 (etaf-md--define-shipped 'npm-badge
   :name "npm-badge"
@@ -234,21 +242,35 @@ in both palettes."
             (seq-filter (lambda (value) (not (string-empty-p value)))
                         (split-string (or values "") "[, \t\n]+")))))
 
+(defconst etaf-md--plot-bar-width 24
+  "Columns the bar of one plot row occupies.")
+
 (defun etaf-md--plot-line (env label value max accent)
-  "Return one bar row of LABEL at VALUE out of MAX in ACCENT."
-  (let* ((percent (max 0 (min 100 (round (/ (* 100.0 value) (float max))))))
-         (track (etaf-md-surface env 'sunken))
-         (fill (etaf-md-accent env accent)))
+  "Return one bar row of LABEL at VALUE out of MAX in ACCENT.
+The bar is a run of spaces carrying the fill, drawn inside the row's text:
+a text line keeps its own height, and the label, the bar and the value stay
+on the same baseline at every width."
+  (let* ((percent (if (<= max 0) 0 (max 0 (min 100 (* 100.0 (/ value max))))))
+         (filled (if (> value 0)
+                     (max 1 (round (* etaf-md--plot-bar-width percent 0.01)))
+                   0))
+         (empty (max 0 (- etaf-md--plot-bar-width filled)))
+         (label-text (truncate-string-to-width (or label "") 10 nil nil "…"))
+         (label-pad (concat label-text
+                            (make-string (max 0 (- 10 (string-width label-text))) ?\s)
+                            " "))
+         (fill (etaf-md-accent env accent))
+         ;; The track is the page itself: a dark panel behind a whole bar row
+         ;; reads as a block, and the length of the bar already tells the value.
+         (track (etaf-md-surface env 'page))
+         (bar (concat (when (> filled 0)
+                        (propertize (make-string filled ?\s)
+                                    'face (list :background fill)))
+                      (propertize (make-string empty ?\s)
+                                  'face (list :background track)))))
     (etaf-view
-      (row :width 'stretch :item-gap '(ch 1)
-        (box :width '(ch 10) :height '(lh 1) :overflow 'hidden
-          (text (expr (truncate-string-to-width (or label "") 10 nil nil "…"))))
-        (box :flex-grow 1 :flex-basis '(ch 0) :height '(lh 1)
-             :background-color track
-          (box :width (list '% percent) :height '(lh 1)
-               :background-color fill))
-        (box :width '(ch 8) :height '(lh 1)
-          (text (expr (format "%.4g" value))))))))
+      (text (expr (concat label-pad bar " "
+                          (format "%6s" (format "%.4g" value))))))))
 
 (etaf-md--define-shipped 'plot
   :name "plot"
@@ -273,7 +295,9 @@ in both palettes."
           (expr
            (seq-map-indexed
             (lambda (value index)
-              (etaf-md--plot-line env (nth index labels) value max accent))
+              (etaf-md--plot-line env
+                                  (or (nth index labels) (format "%d" (1+ index)))
+                                  value max accent))
             values)))))))
 
 ;;; ---------------------------------------------------------------------------
@@ -317,15 +341,57 @@ in both palettes."
   :child-syntax 'markers
   :view
   (lambda (env)
-    (etaf-md--tabs-view
-     env nil
-     (lambda (slide index total)
-       (or (etaf-md-attr env :title slide)
-           (format "%d/%d" (1+ index) total))))))
+    (let* ((slides (etaf-md-children env))
+           (count (length slides))
+           (initial (or (cl-position-if
+                         (lambda (slide) (etaf-md-attr env :selected slide))
+                         slides)
+                        0))
+           (active (min (or (etaf-md-block-state env :active initial) 0)
+                        (max 0 (1- count))))
+           (slide (nth active slides))
+           (picture (etaf-md--swiper-slide-picture env slide))
+           (view-env (etaf-md--component-view-env env)))
+      (etaf-view
+        (column :width 'stretch :item-gap '(lh 0)
+                :border (etaf-md--hairline env)
+          (etaf-tabs
+           :items (seq-map-indexed
+                   (lambda (slide index)
+                     (list :key index
+                           :label (or (etaf-md-attr env :title slide)
+                                      (format "%d/%d" (1+ index) count))))
+                   slides)
+           :active active
+           :framed nil
+           :on-change (lambda (key) (etaf-md-set-block-state env :active key)))
+          (box :width 'stretch
+               :background-color (etaf-md-surface env 'sunken)
+               :border-top (etaf-md--hairline env)
+               :padding '((lh 1) (ch 2))
+            (expr
+             (if picture
+                 (list (etaf-node 'column
+                                  (list :width 'stretch :cross-align 'center)
+                                  (list (etaf-md--media-picture
+                                         picture view-env
+                                         (max 8 (- (etaf-md-env-width env) 8))
+                                         12))))
+               (list (etaf-md--child-view env slide))))))))))
 
-;;; ---------------------------------------------------------------------------
-;;; The source tree
-;;; ---------------------------------------------------------------------------
+(defun etaf-md--swiper-slide-picture (env slide)
+  "Return SLIDE's single image URL when the slide holds only that picture.
+A slide written as one image line is a picture, not a figure: the stage draws
+it without a second frame or caption inside itself."
+  (let ((children (etaf-md-children env slide)))
+    (when (= 1 (length children))
+      (let* ((block (etaf-md-node-block (car children))))
+        (when (eq (plist-get block :type) 'paragraph)
+          (let ((images (seq-filter (lambda (node)
+                                      (eq (plist-get node :type) 'image))
+                                    (plist-get block :children))))
+            (when (= 1 (length images))
+              (plist-get (car images) :url))))))))
 
 (defun etaf-md--code-tree-view (env)
   "Paint a file list beside the selected file's code."
@@ -333,38 +399,40 @@ in both palettes."
          (count (length files))
          (active (min (or (etaf-md-block-state env :active 0) 0) (max 0 (1- count))))
          (selected (nth active files))
-         (width (max 12 (min 30 (+ 3 (seq-max (mapcar (lambda (file)
-                                                              (length (or (etaf-md-attr env :title file)
-                                                                          "")))
-                                                            files)))))))
+         (width (max 12 (min 30
+                             (+ 3 (seq-max (mapcar (lambda (file)
+                                                     (length (or (etaf-md-attr env :title file) "")))
+                                                   files))))))
+         (accent (etaf-md-accent env 'primary))
+         (accent-soft (or (etaf-md--palette-value (etaf-md-env-palette env) :accent-soft)
+                          (etaf-md-surface env 'raised)))
+         (muted (etaf-md--component-ink env :muted)))
     (etaf-view
       (column :width 'stretch :item-gap '(lh 0)
         (expr (when-let* ((title (etaf-md-attr env :title)))
                 (list (etaf-node 'text
-                                 (list :font-weight 'bold
-                                       :color (etaf-md--component-ink env :muted))
+                                 (list :font-weight 'bold :color muted)
                                  (list title)))))
-        (row :width 'stretch :item-gap '(ch 1)
-          (box :width (list 'ch width) :border (etaf-md--hairline env)
-            (column :width 'stretch :item-gap '(lh 0)
-              (expr
-               (seq-map-indexed
-                (lambda (file index)
-                  (let ((name (or (etaf-md-attr env :title file) "")))
-                    (etaf-node 'box
-                               (list :width 'stretch
-                                     :padding-inline '(ch 1)
-                                     :background-color (when (= index active)
-                                                         (etaf-md-surface env 'sunken))
-                                     :color (if (= index active)
-                                                (etaf-md-accent env 'primary)
-                                              (etaf-md--component-ink env :muted))
-                                     :role 'button :tab-index 0
-                                     :on-press (lambda ()
-                                                 (etaf-md-set-block-state env :active index)))
-                               (list (etaf-node 'text nil (list name))))))
-                files))))
-          (box :width '(px 1) :background-color (etaf-md--component-ink env :border))
+        (expr (when (etaf-md-attr env :title)
+                (list (etaf-node 'text nil (list " ")))))
+        (row :width 'stretch :item-gap '(ch 0)
+          (column :width (list 'ch width) :item-gap '(lh 0)
+            (expr
+             (seq-map-indexed
+              (lambda (file index)
+                (let ((name (or (etaf-md-attr env :title file) "")))
+                  (etaf-node 'box
+                             (list :width 'stretch
+                                   :padding-inline '(ch 1)
+                                   :background-color (when (= index active) accent-soft)
+                                   :role 'button :tab-index 0
+                                   :on-press (lambda ()
+                                               (etaf-md-set-block-state env :active index)))
+                             (list (etaf-node 'text
+                                              (list :color (if (= index active) accent muted)
+                                                    :font-weight (if (= index active) 'bold nil))
+                                              (list name))))))
+              files)))
           (box :width 'stretch
             (expr (when selected (etaf-md--code-tab-page env selected)))))))))
 

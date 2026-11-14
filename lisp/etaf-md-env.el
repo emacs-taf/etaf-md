@@ -83,7 +83,7 @@
 
 (defun etaf-md--muted (env)
   "Return the muted ink of ENV's palette."
-  (or (plist-get (etaf-md-env-palette env) :muted) "#9198a1"))
+  (or (etaf-md--palette-value (etaf-md-env-palette env) :muted) "#9198a1"))
 
 (defun etaf-md--hairline (env)
   "Return a one-pixel border as the Theme ENV's page lives in defines it.
@@ -125,28 +125,36 @@ step wrote."
    (column :item-gap '(lh 0)
      (expr (mapcar (lambda (node) (etaf-md--paint node env)) nodes)))))
 
+(defun etaf-md--palette-value (palette key)
+  "Return KEY's colour from PALETTE, in alist or plist form.
+A theme palette is an alist; a hand-built one may be a plist.  Both reach
+the same component, so the lookup accepts either."
+  (or (alist-get key palette) (plist-get palette key)))
+
 (defun etaf-md-surface (env word)
   "Return surface WORD as a colour for ENV, or nil for none."
-  (pcase word
-    ('none nil)
-    ('page (plist-get (etaf-md-env-palette env) :bg))
-    ('raised (or (plist-get (etaf-md-env-palette env) :panel)
-                 (plist-get (etaf-md-env-palette env) :panel2)))
-    ('sunken (or (plist-get (etaf-md-env-palette env) :panel2)
-                 (plist-get (etaf-md-env-palette env) :panel)))
-    ('quote (plist-get (etaf-md-env-palette env) :quote-bg))
-    ('table-header (plist-get (etaf-md-env-palette env) :table-header))
-    ('table-stripe (plist-get (etaf-md-env-palette env) :table-stripe))))
+  (let ((palette (etaf-md-env-palette env)))
+    (pcase word
+      ('none nil)
+      ('page (etaf-md--palette-value palette :bg))
+      ('raised (or (etaf-md--palette-value palette :panel)
+                   (etaf-md--palette-value palette :panel2)))
+      ('sunken (or (etaf-md--palette-value palette :panel2)
+                   (etaf-md--palette-value palette :panel)))
+      ('quote (etaf-md--palette-value palette :quote-bg))
+      ('table-header (etaf-md--palette-value palette :table-header))
+      ('table-stripe (etaf-md--palette-value palette :table-stripe)))))
 
 (defun etaf-md-accent (env word)
   "Return accent WORD as a colour for ENV."
-  (pcase word
-    ('neutral (or (plist-get (etaf-md-env-palette env) :muted) "#9198a1"))
-    ('primary (or (plist-get (etaf-md-env-palette env) :accent) "#4493f8"))
-    ('success "#2da44e")
-    ('warning "#bf8700")
-    ('danger "#cf222e")
-    ('important (or (plist-get (etaf-md-env-palette env) :heading) "#8250df"))))
+  (let ((palette (etaf-md-env-palette env)))
+    (pcase word
+      ('neutral (or (etaf-md--palette-value palette :muted) "#9198a1"))
+      ('primary (or (etaf-md--palette-value palette :accent) "#4493f8"))
+      ('success "#2da44e")
+      ('warning "#bf8700")
+      ('danger "#cf222e")
+      ('important (or (etaf-md--palette-value palette :heading) "#8250df")))))
 
 (defun etaf-md-default-view (env)
   "Return ENV's node painted with the definition's previous view."

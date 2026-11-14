@@ -1589,6 +1589,55 @@ a session text that is not published yet would paint a skeleton over its data."
       (should-not (string-match-p "第二页正文" (buffer-string)))
       (should-not (string-match-p "没有" (buffer-string))))))
 
+(ert-deftest etaf-md-tests-the-site-components-paint ()
+  "The site components paint their parts into one page.
+Every container's own text, the inline marks' text and an image card's
+caption all reach the buffer, so a page using the whole catalog renders
+through the same mount as a plain document."
+  (let ((session (etaf-md-create
+                  :text (concat
+                         "==高亮=={.warning}\n\n"
+                         ":::home-box {title=\"首屏标题\" description=\"首屏摘要\"}\n"
+                         "首屏正文。\n:::\n\n"
+                         ":::link-card {href=\"https://etaf.top/\" title=\"链接标题\""
+                         " description=\"链接说明\"}\n:::\n\n"
+                         ":::npm-badge {name=\"etaf-md\" version=\"0.1.0\"}\n:::\n\n"
+                         ":::plot {values=\"5.4,0.33\" labels=\"打开,缩放\" max=\"6\"}\n:::\n\n"
+                         ":::swiper\n@slide {title=\"第一张\"}\n第一页正文。\n:::\n\n"
+                         ":::code-tree {title=\"源码\"}\n@file demo.el\n```elisp\n(require 'etaf-md)\n```\n:::\n\n"
+                         ":::npm-to {tabs=\"npm,pnpm\"}\n```sh\nnpm install foo\n```\n:::\n")
+                  :theme 'dark)))
+    (etaf-md-tests--with-mount session
+      (switch-to-buffer (current-buffer))
+      (etaf-runtime-flush (etaf-runtime-for-buffer (current-buffer)))
+      (let ((text (buffer-string)))
+        (should (string-match-p "高亮" text))
+        (should (string-match-p "首屏标题" text))
+        (should (string-match-p "链接说明" text))
+        (should (string-match-p "etaf-md" text))
+        (should (string-match-p "5.4" text))
+        (should (string-match-p "打开" text))
+        (should (string-match-p "第一页正文" text))
+        (should (string-match-p "demo.el" text))
+        (should (string-match-p "npm install foo" text))))))
+
+(ert-deftest etaf-md-tests-a-site-component-follows-the-input-format ()
+  "The plot takes its labels and the command group its managers.
+A README line, an object-style YAML, or either kind of quote is input
+syntax, not content: they must not leave their punctuation in the page."
+  (let ((session (etaf-md-create
+                  :text (concat
+                         ":::plot {values=\"1,2\" labels=\"甲,乙\"}\n:::\n\n"
+                         ":::npm-to {tabs=\"npm, yarn\"}\n```sh\nnpm run build\n```\n:::\n")
+                  :theme 'dark)))
+    (etaf-md-tests--with-mount session
+      (let ((text (buffer-string)))
+        (should (string-match-p "甲" text))
+        (should (string-match-p "乙" text))
+        (should (string-match-p "yarn" text))
+        (should-not (string-match-p "\"values\"" text))
+        (should (string-match-p "npm run build" text))))))
+
 (ert-deftest etaf-md-tests-tab-keys-open-the-next-page ()
   "TAB enters the strip, Right moves focus, RET opens the page."
   (let ((session (etaf-md-create
