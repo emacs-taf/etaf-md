@@ -326,3 +326,15 @@ pixels below itself.  A picture now takes the size of the page it sits on.
   (`etaf-md-edit-document`, `etaf-md-insert`,
   `etaf-md-delete-char`, `etaf-md-editing-p`) are gone with
   them.
+
+### Fixed
+
+- A fenced sample no longer opens or closes a container: a `:::` inside a code
+  block stays the sample's text, and a fence in a container body cannot end
+  the container early.  The scanner that finds containers now remembers the
+  open fence and reads its body as opaque.
+
+- Closing one accordion section and opening another no longer leaves the
+  closed section's header row under the following block.  A toggle that moves
+  several rows repaints the page instead of patching the lines the previous
+  layout wrote.
