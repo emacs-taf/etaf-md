@@ -369,6 +369,16 @@
       "name": "etaf-md-tests-a-definition-declares-its-child-syntax",
       "file": "tests/etaf-md-tests.el",
       "purpose": "A definition that declares marker children parses one @item per child, an extension keeps that grammar, and the block form is rejected in the same container."
+    },
+    {
+      "name": "etaf-md-tests-a-fenced-sample-cannot-open-a-container",
+      "file": "tests/etaf-md-tests.el",
+      "purpose": "A code fence's sample container and its `:::' stay code, so the fence lines are not painted as text around a phantom container."
+    },
+    {
+      "name": "etaf-md-tests-a-fence-inside-a-container-does-not-close-it",
+      "file": "tests/etaf-md-tests.el",
+      "purpose": "A `:::' line inside a fence in a container body does not close the container, and the sample's `:::' stays in the code block."
     }
   ]
 }

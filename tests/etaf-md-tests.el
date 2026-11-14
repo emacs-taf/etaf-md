@@ -1649,6 +1649,35 @@ a session text that is not published yet would paint a skeleton over its data."
     (etaf-md-tests--with-mount session
       (should (string-match-p "@tab 只是文字" (buffer-string))))))
 
+(ert-deftest etaf-md-tests-a-fenced-sample-cannot-open-a-container ()
+  "A `:::' inside a code fence is the sample's text, not a container edge."
+  (let ((session (etaf-md-create
+                  :text (concat ":::note\n提示正文。\n:::\n\n"
+                                "```markdown\n"
+                                ":::card {title=\"这是代码\"}\n"
+                                ":::\n"
+                                "```\n")
+                  :theme 'dark)))
+    (etaf-md-tests--with-mount session
+      (should (string-match-p "提示正文" (buffer-string)))
+      (should (string-match-p ":::card {title=\"这是代码\"}" (buffer-string)))
+      (should (string-match-p "Note" (buffer-string)))
+      (should-not (string-match-p "没有" (buffer-string))))))
+
+(ert-deftest etaf-md-tests-a-fence-inside-a-container-does-not-close-it ()
+  "A fence in a container body keeps its `:::' and the container its close."
+  (let ((session (etaf-md-create
+                  :text (concat ":::note\n"
+                                "```markdown\n"
+                                ":::\n"
+                                "```\n"
+                                ":::\n")
+                  :theme 'dark)))
+    (etaf-md-tests--with-mount session
+      (should (string-match-p "Note" (buffer-string)))
+      (should (string-match-p ":::" (buffer-string)))
+      (should-not (string-match-p "没有" (buffer-string))))))
+
 (ert-deftest etaf-md-tests-a-definition-declares-its-child-syntax ()
   (unwind-protect
       (progn

@@ -263,8 +263,8 @@ inside a fence stays code.  BASE is where TEXT starts in the page."
 A container runs to the matching close, or to the end of the file for the last
 one.  Plain stretches between containers go to the shared Markdown parser, and
 their block ranges move to where the stretch sits in TEXT."
-  (let ((offset 0) (plain-start 0) (container nil) (depth 0) (result nil)
-        (template nil))
+  (let ((offset 0) (plain-start 0) (container nil) (depth 0) (fence nil)
+        (result nil) (template nil))
     (cl-flet ((flush (end)
                 (when (< plain-start end)
                   (let* ((parsed (etaf-ui-markdown-parse
@@ -278,6 +278,23 @@ their block ranges move to where the stretch sits in TEXT."
         (let ((line-start offset)
               (line-end (+ offset (length line))))
           (cond
+           ;; A fenced block is opaque: a `:::' inside a code sample is the
+           ;; sample's text, not an edge of the container around it.  The
+           ;; shared parser reads the fence itself; only this scanner has to
+           ;; stand aside so the sample cannot open or close a container.
+           ((string-match "\\`[ \t]*\\(`\\{3,\\}\\|~\\{3,\\}\\)" line)
+            (let ((marker (match-string 1 line))
+                  (bare (string-match-p "\\`[ \t]*\\'" (substring line (match-end 0)))))
+              (cond (fence
+                     ;; Only a bare fence of the same character, at least as
+                     ;; long as the opener, ends the block; the sample's own
+                     ;; lines stay its text however they look.
+                     (when (and bare
+                                (eq (aref fence 0) (aref marker 0))
+                                (>= (length marker) (length fence)))
+                       (setq fence nil)))
+                    (t (setq fence marker)))))
+           (fence nil)
            ((and (null container) (string-match etaf-md--container-open line))
             ;; Read the name and the attributes before parsing the stretch
             ;; above, because that parse moves the match data.
