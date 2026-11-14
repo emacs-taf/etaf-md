@@ -90,10 +90,12 @@ exposes the root entry through package.el does not need the manual
 M-x etaf-md-open RET README.md RET
 ```
 
-`examples/sample.markdown` is a full document written for the previewer, and
-`examples/all-syntax.markdown` writes every supported syntax once with its
-rendering next to it, so it doubles as the syntax inventory and as the page to
-open when checking a change.
+`examples/all-syntax.markdown` is the one page that writes every supported
+syntax once, with its rendering next to it: prose, containers, the site
+components, code-block options and every diagram kind.  It doubles as the
+syntax inventory and as the page to open when checking a change.
+`examples/sample.markdown` is a realistic long document written for the
+previewer and used as the performance workload.
 
 | Key | Action |
 | --- | --- |
