@@ -26,9 +26,13 @@
   again inside it.  The page title reads above an H1 again rather than at body
   size.
 
-- `examples/all-syntax.markdown` is rewritten as one classified page: basic
-  syntax, containers, site components and diagrams, with one section per
-  feature instead of stitched copies that repeated the diagram galleries.
+- `examples/all-syntax.markdown` is one classified page that covers every
+  component and every value its attributes accept: basic syntax, containers,
+  site components and diagrams, one section per feature, instead of stitched
+  copies that repeated the diagram galleries.
+
+- `:::accordion {expand=true}' opens every fold even when the group only
+  allows one open section, which it used to reject as an invalid open list.
 
 - The package is `etaf-md` and the library is `etaf-md.el`.  It renders
   Markdown documents and the container syntax that extends them, so the old

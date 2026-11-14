@@ -941,7 +941,8 @@ frame and its colours; only the language row is left out."
                            (lambda (index)
                              (etaf-md-attr env :open (nth index collapses)))
                            all)))
-              :multiple (not (etaf-md-attr env :accordion))
+              ;; Opening every fold needs the group to allow more than one.
+              :multiple (or expand (not (etaf-md-attr env :accordion)))
               :on-toggle (lambda (open)
                            (etaf-md-set-block-state env :open open)))))))
 
