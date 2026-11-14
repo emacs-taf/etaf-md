@@ -1163,25 +1163,45 @@ print("hi")
 
 `level` 文档写不出来，`###` 写几级它就是几。样式表却能拿它当选择器，见 4.3。这就是「层级」的全部定义，没有专属关键字，也没有渲染器里的分支。
 
-**`view` 只收一个 `env`。** 当前节点就在里面，属性已经校验、补过默认值，派生属性也在里面。下面就是定义能拿到的全部。
+**`view` 只收一个 `env`。** 它是画这一块时手里有的东西：当前节点，加上渲染器借给你的能力。一个块画一次建一个，画完就丢；两个卡片同时画，各拿各的。
+
+属性已经校验、补过默认值，派生属性也在里面。除了下面这些，`env` 给不了别的东西，所以定义读不到文件、发不出网络请求、改不了全局。
+
+**读节点。**
 
 | 能力 | 用法 | 给谁用 |
 | --- | --- | --- |
 | 读属性 | `(etaf-md-attr env :title)`；读某个子节点时把节点放最后：`(etaf-md-attr env :title tab)` | 所有类型 |
 | 读类型 | `(etaf-md-type env)`，一个类型的画法被几个名字共用时用它分支 | 所有类型 |
-| 文字内容 | `(etaf-md-text env)` 把子节点的文字拼成一个字符串 | 标题、段落这类纯文本 |
 | 子节点 | `(etaf-md-children env)` 按顺序给一串节点 | 所有类型 |
-| 画节点 | `(etaf-md-render env nodes)` | 只画一部分子节点时 |
-| 内置画法 | `(etaf-md-default-view env)` 这个节点用内置画法再画一遍 | 包一层时 |
-| 令牌 | `(etaf-md-token env 'muted)` | 所有类型 |
-| 行高 | `(etaf-md-token env 'lh)` | 所有类型 |
+| 文字内容 | `(etaf-md-text env)` 把子节点的文字拼成一个字符串。它是便利，不是必需：`text` 这类只收一个字符串的地方才用得上 | 标题、段落这类纯文本 |
+
+**查外观。**
+
+| 能力 | 用法 | 给谁用 |
+| --- | --- | --- |
+| 样式值 | `(etaf-md-style env :background)` 读本节点的样式值 | 自定义画法 |
+| 主题值 | `(etaf-md-theme env 'muted)`，也取行高 `(etaf-md-theme env 'lh)` | 所有类型 |
 | 面 | `(etaf-md-surface env 'raised)` 把面换成底色，`none` 返回 `nil` | 所有类型 |
 | 强调 | `(etaf-md-accent env 'warning)` 把强调值换成颜色 | 提示块、卡片 |
-| 样式值 | `(etaf-md-style env :background)` 读本节点的样式值 | 自定义画法 |
-| 编号 | `(etaf-md-number env)`，`(etaf-md-format-number N 'lower-roman)` | 标题、表格 |
+
+**画。**
+
+| 能力 | 用法 | 给谁用 |
+| --- | --- | --- |
+| 画节点 | `(etaf-md-render env nodes)` | 只画一部分子节点时 |
+| 内置画法 | `(etaf-md-default-view env)` 这个节点用内置画法再画一遍 | 包一层时 |
+
+**渲染器服务。**
+
+| 能力 | 用法 | 给谁用 |
+| --- | --- | --- |
+| 编号 | `(etaf-md-number env)` 读派生阶段算好的序号 | 标题、表格 |
 | 打开链接 | `(etaf-md-follow-link env href)` | `card` 的 `href` |
 | 本块状态 | 读 `(etaf-md-block-state env :current)`，带默认值 `(etaf-md-block-state env :current v)`；写 `(etaf-md-block-state env :current VALUE)` | `tabs`、`accordion` |
 | 可用宽度 | `(etaf-md-available-width env)` | `columns` 的降级判断 |
+
+`etaf-md-format-number` 不在四类里，因为它不收 `env`：把序号按 `list-style-type` 的词格式化，`(etaf-md-format-number (etaf-md-number env) 'lower-roman)`，是个纯函数。
 
 **画法默认用 `etaf-view` 的 DSL。** 它比手工搭节点短，也看得出结构：属性写在前面，子节点写在后面，属性值是普通 Elisp，动态子节点用 `(expr …)` 包一层。
 
@@ -1630,7 +1650,7 @@ print("hi")
 | `etaf-md-attr` | 读本节点校验过的属性 |
 | `etaf-md-type` | 读本节点的类型 |
 | `etaf-md-text` | 把子节点的文字拼成一个字符串 |
-| `etaf-md-token` | 按令牌名取颜色或行高 |
+| `etaf-md-theme` | 按名字取主题里的值，颜色令牌与行高都在这里 |
 | `etaf-md-surface` | 把面换成底色，`none` 返回 `nil` |
 | `etaf-md-accent` | 把强调值换成颜色 |
 | `etaf-md-children` | 按顺序取子节点 |
@@ -1640,7 +1660,7 @@ print("hi")
 | `etaf-md-available-width` | 本块可用的宽度，用于降级判断 |
 | `etaf-md-style` | 读本块的样式值 |
 | `etaf-md-number` | 读派生阶段算好的编号 |
-| `etaf-md-format-number` | 按 `list-style-type` 的词格式化编号 |
+| `etaf-md-format-number` | 按 `list-style-type` 的词格式化编号。不收 `env`，是纯函数 |
 | `etaf-md-default-view` | 取某个类型的**内置**画法 |
 | `etaf-md-define-node` | 注册一个节点类型 |
 | `etaf-md-undefine-node` | 删掉一个类型定义 |
@@ -1709,7 +1729,7 @@ contract: 1
   :view (lambda (env)
           (etaf-view
            (text :weight (etaf-md-style env :font-weight)
-                 :color (etaf-md-token env 'heading)
+                 :color (etaf-md-theme env 'heading)
              (expr (concat (or (etaf-md-style env :prefix) "")
                            (etaf-md-format-number (etaf-md-number env) 'decimal)
                            " "
@@ -1923,7 +1943,7 @@ contract: 1
 | `etaf-md-children` | 每个父类型，含取子节点内容的 `(etaf-md-children env current)` |
 | `etaf-md-render` | 每个把子节点画成视图的地方 |
 | `etaf-md-default-view` | 读者配置第 2、3 段 |
-| `etaf-md-token` | 标题拿 `heading` 色 |
+| `etaf-md-theme` | 标题拿 `heading` 色 |
 | `etaf-md-surface` | 提示的底、读者包的那层 |
 | `etaf-md-accent` | 提示的字色 |
 | `etaf-md-style` | 标题的字重与前缀、读者的 `background` |

@@ -1163,25 +1163,45 @@ A heading has no `:name`, so `:::heading` does not exist; its level is a derived
 
 A document cannot write `level`; how many `#` characters there are decides it. The style table can still select on it, see 4.3. That is the whole definition of "level": no keyword of its own and no branch in the renderer.
 
-**`view` takes one argument, `env`.** The current node is inside it: attributes are validated and defaulted, derived ones included. This is everything a definition can reach.
+**`view` takes one argument, `env`.** It is what you hold while painting one block: the current node, plus the capabilities the renderer lends you. One is built per block and dropped when the block is done; two cards painted at once each get their own.
+
+Attributes are validated and defaulted, derived ones included. Nothing beyond these exists, which is why a definition cannot read a file, reach the network or change a global.
+
+**Reading the node.**
 
 | Capability | Usage | Available to |
 | --- | --- | --- |
 | Read an attribute | `(etaf-md-attr env :title)`; for a child, pass the node last: `(etaf-md-attr env :title tab)` | Every type |
 | Read the type | `(etaf-md-type env)`, for a paint shared by several names | Every type |
-| Text content | `(etaf-md-text env)` joins the text of the child nodes into one string | Text-only types such as headings |
 | Children | `(etaf-md-children env)` gives the child nodes in order | Every type |
-| Paint nodes | `(etaf-md-render env nodes)` | When only some children are painted |
-| The shipped paint | `(etaf-md-default-view env)` paints this node with the shipped view | When wrapping it |
-| A token | `(etaf-md-token env 'muted)` | Every type |
-| Line height | `(etaf-md-token env 'lh)` | Every type |
+| Text content | `(etaf-md-text env)` joins the child nodes' text into one string. It is a convenience, not a requirement: only a place that takes a single string, such as `text`, needs it | Text-only types such as headings |
+
+**Looking up appearance.**
+
+| Capability | Usage | Available to |
+| --- | --- | --- |
+| A style value | `(etaf-md-style env :background)` reads this node's style value | Custom paints |
+| A theme value | `(etaf-md-theme env 'muted)`, and the line height as `(etaf-md-theme env 'lh)` | Every type |
 | A surface | `(etaf-md-surface env 'raised)` turns a surface into a fill; `none` gives `nil` | Every type |
 | An accent | `(etaf-md-accent env 'warning)` turns an accent into a colour | Callouts, cards |
-| A style value | `(etaf-md-style env :background)` reads this node's style value | Custom paints |
-| Numbering | `(etaf-md-number env)`, `(etaf-md-format-number N 'lower-roman)` | Headings, tables |
+
+**Painting.**
+
+| Capability | Usage | Available to |
+| --- | --- | --- |
+| Paint nodes | `(etaf-md-render env nodes)` | When only some children are painted |
+| The shipped paint | `(etaf-md-default-view env)` paints this node with the shipped view | When wrapping it |
+
+**Renderer services.**
+
+| Capability | Usage | Available to |
+| --- | --- | --- |
+| Numbering | `(etaf-md-number env)` reads the ordinal the derive step computed | Headings, tables |
 | Open a target | `(etaf-md-follow-link env href)` | A card's `href` |
 | This block's state | Read `(etaf-md-block-state env :current)`, with a default `(etaf-md-block-state env :current v)`; write `(etaf-md-block-state env :current VALUE)` | `tabs`, `accordion` |
 | Available width | `(etaf-md-available-width env)` | A column's degrade check |
+
+`etaf-md-format-number` is not in the four groups, because it takes no `env`: it formats an ordinal with a `list-style-type` word, as in `(etaf-md-format-number (etaf-md-number env) 'lower-roman)`, and it is a pure function.
 
 **A view uses the `etaf-view` DSL by default.** It is shorter than building nodes by hand and shows the structure: properties first, children last, property values are ordinary Elisp, and a computed child is wrapped in `(expr …)`.
 
@@ -1630,7 +1650,7 @@ The key names are CSS property names. Four have no CSS counterpart; they are lis
 | `etaf-md-attr` | Read one of this node's validated attributes |
 | `etaf-md-type` | Read this node's type |
 | `etaf-md-text` | Join the text of the child nodes into one string |
-| `etaf-md-token` | Look up a token's colour or line height |
+| `etaf-md-theme` | Look up a theme value by name, colours and line height alike |
 | `etaf-md-surface` | Turn a surface into its fill; `none` yields `nil` |
 | `etaf-md-accent` | Turn an accent value into its colour |
 | `etaf-md-children` | Read the child nodes in order |
@@ -1640,7 +1660,7 @@ The key names are CSS property names. Four have no CSS counterpart; they are lis
 | `etaf-md-available-width` | This block's usable width, for degradation |
 | `etaf-md-style` | Read this block's style value |
 | `etaf-md-number` | Read the number the derive step computed |
-| `etaf-md-format-number` | Format a number by a `list-style-type` word |
+| `etaf-md-format-number` | Format an ordinal by a `list-style-type` word. It takes no `env`; it is a pure function |
 | `etaf-md-default-view` | The **shipped** view for a type |
 | `etaf-md-define-node` | Register a node type |
 | `etaf-md-undefine-node` | Remove a type definition |
@@ -1709,7 +1729,7 @@ Sample the stack; do not guess.
   :view (lambda (env)
           (etaf-view
            (text :weight (etaf-md-style env :font-weight)
-                 :color (etaf-md-token env 'heading)
+                 :color (etaf-md-theme env 'heading)
              (expr (concat (or (etaf-md-style env :prefix) "")
                            (etaf-md-format-number (etaf-md-number env) 'decimal)
                            " "
@@ -1923,7 +1943,7 @@ Sample the stack; do not guess.
 | `etaf-md-children` | Every parent, including a child's content: `(etaf-md-children env current)` |
 | `etaf-md-render` | Everywhere child nodes become views |
 | `etaf-md-default-view` | The reader's second and third entries |
-| `etaf-md-token` | The heading's colour |
+| `etaf-md-theme` | The heading's colour |
 | `etaf-md-surface` | A callout's fill, the reader's wrapper |
 | `etaf-md-accent` | A callout's ink |
 | `etaf-md-style` | The heading's weight and prefix, the reader's `background` |
