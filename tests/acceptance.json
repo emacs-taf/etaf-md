@@ -389,6 +389,11 @@
       "name": "etaf-md-tests-a-command-card-follows-its-attribute",
       "file": "tests/etaf-md-tests.el",
       "purpose": "A command card shows the package managers its attribute names and the rewritten command, without the attribute source leaking into the page."
+    },
+    {
+      "name": "etaf-md-tests-a-card-grid-lays-cards-side-by-side",
+      "file": "tests/etaf-md-tests.el",
+      "purpose": "A two-column grid places both card titles on one painted row, which is the grid layout Plume writes as card-grid."
     }
   ]
 }

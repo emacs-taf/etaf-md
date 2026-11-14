@@ -114,6 +114,15 @@ Vertical space is a whole number of lines, so a width unit draws none."
                                     (lambda () (etaf-md-follow-link env href)))
                (expr (etaf-md-content env)))))))
 
+(defun etaf-md--justify (word)
+  "Return WORD as the justification Ebox names.
+A document writes `between' and `around'; the engine spells them
+`space-between' and `space-around'.  The others are the same word."
+  (pcase word
+    ('between 'space-between)
+    ('around 'space-around)
+    (_ word)))
+
 (defun etaf-md--column-tracks (env count)
   "Return the width spec of each column of ENV's row.
 A number of columns shares the width equally; a track string gives each column
@@ -151,9 +160,10 @@ its own `fr' share or fixed size."
            (min-width     :type length :default "24ch" :doc "每栏最小宽度")
            (align-items   :type enum :one-of (start center end stretch)
                           :default stretch :doc "子块在交叉轴的对齐")
-           (justify-content :type enum :one-of (start center end between)
+           (justify-content :type enum :one-of (start center end between around)
                             :default start :doc "子块在主轴的对齐")
            (wrap          :type boolean :default nil :doc "放不下时换行")
+           (divider       :type boolean :default t   :doc "栏与栏之间画一条竖线")
            (align-self    :type enum :one-of (start center end)
                           :default start :doc "自身在父级里的水平位置"))
   :accepts '((col :attrs ((grow :type number :default 1 :doc "宽度份数"))))
@@ -174,6 +184,7 @@ its own `fr' share or fixed size."
                           count
                         (max 1 (min count min-columns))))
                  (tracks (etaf-md--column-tracks env per))
+                 (divider (etaf-md-attr env :divider))
                  (rows (seq-partition (etaf-md-children env) per)))
             ;; The number of rows is only known while painting, so the rows are
             ;; built as nodes instead of being written out in the DSL.
@@ -191,7 +202,8 @@ its own `fr' share or fixed size."
                  (list :width 'stretch
                        :gap (list '(lh 0) gap)
                        :align-items (etaf-md-attr env :align-items)
-                       :justify-content (etaf-md-attr env :justify-content))
+                       :justify-content (etaf-md--justify
+                                         (etaf-md-attr env :justify-content)))
                  (cl-loop
                   for col in row
                   for first = t then nil
@@ -203,7 +215,8 @@ its own `fr' share or fixed size."
                   ;; never decides where it sits.
                   append
                   (append
-                   (unless first (list (etaf-md--column-divider env)))
+                   (when (and divider (not first))
+                     (list (etaf-md--column-divider env)))
                    (list (etaf-node
                           'column
                           (append

@@ -1632,6 +1632,26 @@ the code below keeps the command it rewrote."
         (should (string-match-p "npm run build" text))
         (should-not (string-match-p "\\tabs" text))))))
 
+(ert-deftest etaf-md-tests-a-card-grid-lays-cards-side-by-side ()
+  "Two equal columns put two card titles on the same row.
+The grid is `columns` with card children, so a row of the painted page
+carries both titles and each card keeps its own body."
+  (let ((session (etaf-md-create
+                  :text (concat ":::columns {columns=2}\n"
+                                ":::col\n:::card {title=\"卡片甲\"}\n左栏正文。\n:::\n:::\n"
+                                ":::col\n:::card {title=\"卡片乙\"}\n右栏正文。\n:::\n:::\n"
+                                ":::\n")
+                  :theme 'dark)))
+    (etaf-md-tests--with-mount session
+      (switch-to-buffer (current-buffer))
+      (etaf-runtime-flush (etaf-runtime-for-buffer (current-buffer)))
+      (let ((text (buffer-string)))
+        (should (string-match-p "卡片甲" text))
+        (should (string-match-p "卡片乙" text))
+        (should (string-match-p "卡片甲.*卡片乙" text))
+        (should (string-match-p "左栏正文" text))
+        (should (string-match-p "右栏正文" text))))))
+
 (ert-deftest etaf-md-tests-tab-keys-open-the-next-page ()
   "TAB enters the strip, Right moves focus, RET opens the page."
   (let ((session (etaf-md-create

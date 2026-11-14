@@ -63,6 +63,44 @@
 :::
 :::
 
+## 弹性布局
+
+Plume 的 `flex` 和 `card-grid` 在这套语法里都是 `columns`：数字是等宽几栏，一串轨道是按比例或固定宽分栏，`wrap`、`gap`、`justify-content` 与它同名同义。
+
+:::columns {columns=3 gap="2ch" divider=false}
+:::col
+:::card {title="等宽一" description="三栏等宽。"}
+:::
+:::
+:::col
+:::card {title="等宽二" description="三栏等宽。"}
+:::
+:::
+:::col
+:::card {title="等宽三" description="三栏等宽。"}
+:::
+:::
+:::
+
+:::columns {columns="22ch 22ch 22ch" gap="3ch" wrap=true divider=false}
+:::col
+:::card {title="固定宽一"}
+:::
+:::
+:::col
+:::card {title="固定宽二"}
+:::
+:::
+:::col
+:::card {title="固定宽三"}
+:::
+:::
+:::col
+:::card {title="换行的第四张"}
+:::
+:::
+:::
+
 ## 链接卡片
 
 :::link-card {href="https://etaf.top/" title="ETAF 主页" description="整张卡片都可以点，箭头下面是目标地址。"}

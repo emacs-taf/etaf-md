@@ -555,17 +555,19 @@ line 44: 第 9 层嵌套超过上限 8 层
 
 ### 5.1 一个结构容器
 
-多栏只有一种写法，`columns`。原来分开的 `layout`、`flex`、`card-grid` 合并成它一个，因为它们的差别只是默认值。`columns` 一个属性收两种形态：给一个数字就是等宽几栏，给一串轨道就是按比例分。
+多栏只有一种写法，`columns`。原来分开的 `layout`、`flex`、`card-grid` 合并成它一个，因为它们的差别只是默认值；Plume 文档里的 `::: flex` 与 `::: card-grid` 对应这里的等宽/轨道写法，`card-grid` 就是 `columns` 里放卡片。`columns` 一个属性收两种形态：给一个数字就是等宽几栏，给一串轨道就是按比例分。
 
 | 属性 | 类型 | 默认 | 说明 |
 | --- | --- | --- | --- |
 | `columns` | number 或 string | 无 | 数字表示等宽几栏；字符串是一串轨道，空格分隔，单位 `fr`、`ch`、`%` |
+| `justify-content` | enum | `start` | `start`、`center`、`end`、`between`、`around`：多栏整体在主轴上的位置 |
 | `gap` | length | `"2ch"` | 栏间距 |
 | `padding` | length | 无 | 左右内边距，上下由画法固定 |
 | `min-width` | length | `"24ch"` | 每栏最小宽度，放不下就叠成一栏 |
 | `align-items` | enum | `stretch` | 子块在交叉轴的对齐：`start`、`center`、`end`、`stretch` |
-| `justify-content` | enum | `start` | 主轴：`start`、`center`、`end`、`between` |
+| `justify-content` | enum | `start` | 主轴：`start`、`center`、`end`、`between`、`around` |
 | `wrap` | boolean | `false` | 放不下时换行，不叠栏 |
+| `divider` | boolean | `true` | 栏与栏之间画一条一像素竖线；卡片网格关掉 |
 | `align-self` | enum | `start` | 容器自身在父级里的水平位置：`start`、`center`、`end` |
 
 子块是 `col`，收一个属性。
@@ -587,18 +589,24 @@ line 44: 第 9 层嵌套超过上限 8 层
 :::
 ````
 
-三张卡片并排，就是 `columns` 里放三个 `card`。
+三张卡片并排，就是 `columns` 的三个 `col` 各放一张 `card`；`col` 是 `columns` 声明的子块，卡片是它的内容。
 
 ````markdown
 :::columns {columns=3}
+:::col
 :::card {title="解析"}
 文本到语义树。
 :::
+:::
+:::col
 :::card {title="排版"}
 语义树到视图。
 :::
+:::
+:::col
 :::card {title="发布"}
 视图到 buffer。
+:::
 :::
 :::
 ````
@@ -1523,8 +1531,9 @@ heading            内置语法，文档写不出名字
 | `gap` | length | 同上 | 2ch | 项间距 | columns |
 | `columns` | number 或 string | 数字 1–6，或轨道串 | 见 6.x | 栏数或轨道 | columns、stats |
 | `min-width` | length | | 24ch | 最小栏宽 | columns |
+| `divider` | boolean | | true | 栏间竖线 | columns |
 | `align-items` | enum | start center end stretch | stretch | 项的交叉轴对齐 | columns |
-| `justify-content` | enum | start center end between | start | 项的主轴对齐 | columns |
+| `justify-content` | enum | start center end between around | start | 项的主轴对齐 | columns |
 | `align-self` | enum | start center end | start | 自身在父级里的位置 | columns |
 | `wrap` | boolean | | false | 放不下时换行 | columns |
 | `list-style` | enum | decimal bullet none | 见 6.x | 列表记号 | steps、timeline |
