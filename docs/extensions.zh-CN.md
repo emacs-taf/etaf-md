@@ -283,16 +283,31 @@
 - **布尔只认 `true` 和 `false`。** 不认 `yes`、`1`、`on`。三种写法意味着三条解析分支。
 - **联合类型只允许一个。** `columns` 写 `number 或 string`，因为「几栏」和「一套轨道」是同一个概念的两个形态，拆成两个名字会逼作者记两个词。别处不许出现联合类型。
 
+校验时值会换成渲染器要的形态，定义不用自己解析单位。
+
+| 类型 | 写作 | 校验后拿到的值 |
+| --- | --- | --- |
+| `string` | `title="缓存命中"` | 字符串 `"缓存命中"` |
+| `number` | `start=2` | 数字 `2` |
+| `boolean` | `selected=true` | `t` 或 `nil` |
+| `length` | `padding="1lh"` | ETAF 的长度 `(lh 1)`，可直接放进属性 |
+| `surface` | `surface=raised` | 符号 `raised` |
+| `accent` | `accent=warning` | 符号 `warning` |
+| `align` | `text-align=center` | 符号 `center` |
+| `enum` | `list-style=decimal` | 符号 `decimal` |
+
 同一个属性写两次是错误，不取后者。理由：重复通常意味着作者改了一半，静默取一个会把问题藏起来。
 
 属性有两个权限，都由数据表达，不靠人的记忆。
 
 | 权限 | 谁说了算 | 怎么写 |
 | --- | --- | --- |
-| 作者能不能写 | 文档 | 默认能写；写不了的在定义里标 `:read-only t` |
+| 文档能不能写 | 文档 | 默认能写；写不了的在定义里标 `:derived t` |
 | 读者能不能盖 | 样式表 | 由类型决定：`surface`、`accent`、`align` 能盖，其余不能 |
 
-第一条最典型的例子是标题的 `level`：文档写不出它，它由 `###` 决定，所以它是只读属性；样式表却能按它选（`(:level 1 :prefix "◆ ")`）。
+第一条最典型的例子是标题的 `level`：文档写不出它，它由 `###` 决定，所以它是派生属性；样式表却能按它选（`(:level 1 :prefix "◆ ")`）。
+
+两类各一个词：**文档属性**是花括号里写的，**派生属性**是解析或派生阶段给出来的。
 
 共享属性表在附录 A，类型只引用它。定义里怎么声明这些类型，见 10.2。
 
@@ -495,7 +510,7 @@ line 44: 第 9 层嵌套超过上限 8 层
 
 **读者能盖哪些属性，由属性的类型决定。** `surface`、`accent`、`align` 三种类型天生可盖；其余五种只认文档，读者写了也不生效。所以「哪些是外观」不需要标记，也不可能标记错。
 
-只读属性（`:read-only t`）是另一件事：文档与读者都不能写它，它由解机或派生阶段给，例如标题的 `level`。它仍能被样式表当选择器用。
+派生属性（`:derived t`）是另一件事：文档写不出来，它由解析或派生阶段给，例如标题的 `level`。它仍能被样式表当选择器用。
 
 ### 4.5 字号与度量
 
@@ -649,7 +664,7 @@ line 44: 第 9 层嵌套超过上限 8 层
 | `accent` | accent | `neutral` | 见 4.1 |
 | `href` | string | 无 | 整张卡片可点，跳到这个地址 |
 | `text-align` | align | `start` | 内容水平位置 |
-| `width` | length | `stretch` | 自身宽度 |
+| `width` | length | 省略即占满 | 自身宽度，省略时撑满父级 |
 
 解决的场景：一组并列材料需要一个共同边界。用标题分节会把材料抬到节标题同级，用列表会把图压成一项。
 
@@ -663,7 +678,7 @@ line 44: 第 9 层嵌套超过上限 8 层
 | `accent` | accent | `neutral` | 见 4.1 |
 | `padding` | length | 无 | 内边距 |
 | `text-align` | align | `start` | 内容水平位置 |
-| `width` | length | `stretch` | 自身宽度 |
+| `width` | length | 省略即占满 | 自身宽度，省略时撑满父级 |
 
 盒子是卡片的无标题形式。居中一张图就是它。
 
@@ -908,7 +923,7 @@ print("hi")
 | 属性 | 类型 | 默认 | 说明 |
 | --- | --- | --- | --- |
 | `title` | string | 无 | 标题栏文字 |
-| `height` | length | 自动 | 内容区高度 |
+| `height` | length | 省略即由内容决定 | 内容区高度 |
 
 ```markdown
 :::window {title="etaf-md-preview"}
@@ -1031,7 +1046,7 @@ print("hi")
 
 1. **先找组件。** `etaf-ui` 里有语义对得上的组件，定义只写翻译那三行。这一步最常见，也最薄。
 2. **没有组件，而这份形状会被第二处用到，就先写组件，再封语法。** 组件放 `etaf-ui`，带参数、测试和文档；定义缩回翻译。
-3. **只用这一次，就在 `:body` 里用原语搭。** 原语是 `etaf-node` 这类 ETAF 公开接口。用够两次，按 9.6 搬进 `etaf-ui`。
+3. **只用这一次，就在 `:view` 里用 `etaf-view` 搭。** DSL 是默认写法，只有它表达不了的地方（运行时才算出来的标签或列表）才降到 `etaf-node`。用够两次，按 9.6 搬进 `etaf-ui`。
 
 第 3 步不是例外，是第一次实现。风险是它永远留在定义里，所以 9.6 那条搬家的规矩跟着它。
 
@@ -1051,9 +1066,10 @@ print("hi")
 (etaf-md-define-node 'card
   :name "card"
   :attrs '((title :type string :doc "卡片标题"))
-  :view (lambda (node env)
-          (etaf-card :title (etaf-md-attr env :title)
-                     (etaf-md-children env))))
+  :view (lambda (env)
+          (etaf-view
+           (etaf-card :title (etaf-md-attr env :title)
+             (expr (etaf-md-render env (etaf-md-children env)))))))
 ```
 
 这是形状，不是完整例子。带多个属性、可盖属性与组件映射的完整写法在 10.1。
@@ -1115,13 +1131,14 @@ print("hi")
   :summary "一张带标题的卡片"
   :attrs '((title  :type string :doc "卡片标题")
            (accent :type accent :default neutral :doc "强调"))
-  :view (lambda (node env)
-          (etaf-card :title (etaf-md-attr env :title)
-                     :variant (pcase (etaf-md-attr env :accent)
-                                ('warning 'warning)
-                                ('success 'success)
-                                (level level))
-                     (etaf-md-children env))))
+  :view (lambda (env)
+          (etaf-view
+           (etaf-card :title (etaf-md-attr env :title)
+                      :variant (pcase (etaf-md-attr env :accent)
+                                 ('warning 'warning)
+                                 ('success 'success)
+                                 (_ 'default))
+             (expr (etaf-md-render env (etaf-md-children env)))))))
 ```
 
 | 关键字 | 取值 | 含义 |
@@ -1131,32 +1148,31 @@ print("hi")
 | `:summary` | 字符串 | 一行说明，进帮助和报错 |
 | `:attrs` | 属性表 | 属性名、类型、默认值、权限 |
 | `:accepts` | 子块表 | 收哪些子块。有它就是父类型，没有就是任意块 |
-| `:view` | 函数 | `(lambda (node env) VIEW)`，这个类型的默认画法 |
+| `:view` | 函数 | `(lambda (env) VIEW)`，这个类型的默认画法 |
 | `:contract` | 整数，当前 `1` | 文档侧属性表的版本，见 10.5 |
 | `:extends t` | 标记 | 保留内置，你的追加，见 10.5 |
 | `:replace t` | 标记 | 丢掉内置，由你重写，见 10.5 |
 
-标题没有 `:name`，所以 `:::heading` 不存在；它的层级是一条只读属性：
+标题没有 `:name`，所以 `:::heading` 不存在；它的层级是一条派生属性：
 
 ```elisp
 (etaf-md-define-node 'heading
-  :attrs '((level :type number :read-only t :default 1))
+  :attrs '((level :type number :derived t :default 1))
   :view #'etaf-md-heading-view)
 ```
 
 `level` 文档写不出来，`###` 写几级它就是几。样式表却能拿它当选择器，见 4.3。这就是「层级」的全部定义，没有专属关键字，也没有渲染器里的分支。
 
-**`view` 收到两样东西。**
-
-- `node`：`(:type :attrs :children)`。属性已经校验、补过默认值；只读属性也在里面。
-- `env`：渲染环境，可选能力都从这里取，见下表。
+**`view` 只收一个 `env`。** 当前节点就在里面，属性已经校验、补过默认值，派生属性也在里面。下面就是定义能拿到的全部。
 
 | 能力 | 用法 | 给谁用 |
 | --- | --- | --- |
-| 读属性 | `(etaf-md-attr env :title)` | 所有类型 |
+| 读属性 | `(etaf-md-attr env :title)`；读某个子节点时把节点放最后：`(etaf-md-attr env :title tab)` | 所有类型 |
+| 读类型 | `(etaf-md-type env)`，一个类型的画法被几个名字共用时用它分支 | 所有类型 |
+| 文字内容 | `(etaf-md-text env)` 把子节点的文字拼成一个字符串 | 标题、段落这类纯文本 |
 | 子节点 | `(etaf-md-children env)` 按顺序给一串节点 | 所有类型 |
 | 画节点 | `(etaf-md-render env nodes)` | 只画一部分子节点时 |
-| 内置画法 | `(etaf-md-default-view 'heading node env)` | 包一层时 |
+| 内置画法 | `(etaf-md-default-view env)` 这个节点用内置画法再画一遍 | 包一层时 |
 | 令牌 | `(etaf-md-token env 'muted)` | 所有类型 |
 | 行高 | `(etaf-md-token env 'lh)` | 所有类型 |
 | 面 | `(etaf-md-surface env 'raised)` 把面换成底色，`none` 返回 `nil` | 所有类型 |
@@ -1164,8 +1180,19 @@ print("hi")
 | 样式值 | `(etaf-md-style env :background)` 读本节点的样式值 | 自定义画法 |
 | 编号 | `(etaf-md-number env)`，`(etaf-md-format-number N 'lower-roman)` | 标题、表格 |
 | 打开链接 | `(etaf-md-follow-link env href)` | `card` 的 `href` |
-| 本块状态 | `(etaf-md-block-state env :selected)` | `tabs`、`accordion` |
+| 本块状态 | 读 `(etaf-md-block-state env :current)`，带默认值 `(etaf-md-block-state env :current v)`；写 `(etaf-md-block-state env :current VALUE)` | `tabs`、`accordion` |
 | 可用宽度 | `(etaf-md-available-width env)` | `columns` 的降级判断 |
+
+**画法默认用 `etaf-view` 的 DSL。** 它比手工搭节点短，也看得出结构：属性写在前面，子节点写在后面，属性值是普通 Elisp，动态子节点用 `(expr …)` 包一层。
+
+```elisp
+(etaf-view
+ (box :padding '((lh 1) (ch 2))
+   (text "标题")
+   (expr (etaf-md-render env (etaf-md-children env)))))
+```
+
+只有一个地方降到 `etaf-node`：标签或属性要在运行时才算出来，比如用 `mapcar` 生成一串行。那种时候 DSL 写不出来，不是风格选择。
 
 状态那一行是关键。`etaf-tabs` 是受控组件，`selected` 和 `on-change` 都由调用方给；定义本身没有地方存状态，所以每个块要有一个自己的状态格子，由渲染器创建，按块隔离。
 
@@ -1186,11 +1213,11 @@ print("hi")
 - `:type` 必写，取值是 `string`、`number`、`boolean`、`length`、`surface`、`accent`、`align`、`enum`。`string` 可以再加 `:pattern`；`enum` 必须写 `:one-of (...)`。
 - `:default` 不写就是 `nil`，所以 `nil` 默认值一个字都不用写。
 - 必填写 `:required t`，例如 `(title :type string :required t :doc "标题文字")`。此时不许写 `:default`，两个都写是加载错误。必填只用于文档侧属性，读者侧的键一律可选。
-- 只读属性写 `:read-only t`，例如标题的 `level`。文档写不出它，读者也改不了，但它能被样式表当选择器。
+- 派生属性写 `:derived t`，例如标题的 `level`。文档写不出它，它由解析或派生阶段给，但能被样式表当选择器。
 - `surface`、`accent`、`align` 三种类型天生可被读者盖，不需要标记；其余五种只认文档。所以没有 `:appearance` 这个字段，也就没有标错的可能。
 - `:doc` 可选，但建议写。它出现在帮助和报错里。
 - **子块的标签是渲染器给的，不是定义声明的。** 每个 `:accepts` 项都多一个 `title`，类型 `string`。定义只能在 `:view` 里给它补默认值，不能改它的名字或类型。
-- 定义不能自己读文件、发网络请求、起定时器。它只能拿到 `node` 和 `env`。
+- 定义不能自己读文件、发网络请求、起定时器。它只能拿到 `env`。
 - **`:view` 里用 `etaf-` 开头的公开接口，不用 `ebox-` 的引擎函数**，见 9.2。引擎是 `etaf-ui` 的内部，越过它的人会在下一次升级时撞车。
 - 渲染器的分发代码里不出现类型名字。它只按注册表找定义，不按名字写分支。
 
@@ -1226,12 +1253,10 @@ print("hi")
 
 ```elisp
 (etaf-md-set-view 'heading
-  (lambda (node env)
-    (etaf-node 'box
-               (list :width 'stretch
-                     :background-color (etaf-md-surface env
-                                                        (etaf-md-style env :background)))
-               (list (etaf-md-default-view 'heading node env))))
+  (lambda (env)
+    (etaf-view
+     (box :background-color (etaf-md-surface env (etaf-md-style env :background))
+       (expr (etaf-md-default-view env)))))
   :extends t
   :style-keys '((background :type surface :doc "标题底色")))
 ```
@@ -1239,7 +1264,7 @@ print("hi")
 | 部分 | 含义 |
 | --- | --- |
 | 第一个参数 | 类型名，`heading` 或 `card` 都行，没有特例 |
-| 第二个参数 | `(lambda (node env) VIEW)`，和定义里的 `:view` 同一个签名 |
+| 第二个参数 | `(lambda (env) VIEW)`，和定义里的 `:view` 同一个签名 |
 | `:extends t` | 保留内置的画法与键，你的追加 |
 | `:replace t` | 丢掉内置的画法与键 |
 | `:style-keys` | 新的读者键，写法同 10.2。只能在函数里声明 |
@@ -1254,12 +1279,13 @@ print("hi")
 
 ```elisp
 (etaf-md-set-view 'heading
-  (lambda (node env)
-    (etaf-node 'text
-               (list :prefix (concat (etaf-md-style env :prefix)
-                                     (etaf-md-format-number (etaf-md-number env) 'decimal)
-                                     " "))
-               (etaf-md-children env)))
+  (lambda (env)
+    (etaf-view
+     (text :weight (etaf-md-style env :font-weight)
+       (expr (concat (etaf-md-style env :prefix)
+                     (etaf-md-format-number (etaf-md-number env) 'decimal)
+                     " "
+                     (etaf-md-text env))))))
   :extends t)
 ```
 
@@ -1372,7 +1398,7 @@ print("hi")
 
 ## 附录 A：属性参考
 
-共享属性。类型只从这里挑，不发明同义词。下表是文档可写的属性；只读属性（作者的写不出、读者的改不了）在最后单独列出。
+共享属性。类型只从这里挑，不发明同义词。下表是**文档属性**，也就是花括号里写得出来的；**派生属性**由解析或派生阶段给，在最后单独列出。
 
 | 属性 | 类型 | 含义 | 用在 |
 | --- | --- | --- | --- |
@@ -1384,8 +1410,8 @@ print("hi")
 | `align-self` | enum | 自身在父级里的位置 | columns |
 | `align-items` | enum | 子块的交叉轴对齐 | columns |
 | `justify-content` | enum | 子块的主轴对齐 | columns |
-| `width` | length | 自身宽度 | box、card |
-| `height` | length | 内容区高度 | window |
+| `width` | length | 自身宽度；省略即占满 | box、card |
+| `height` | length | 内容区高度；省略即由内容决定 | window |
 | `padding` | length | 内边距 | box、columns |
 | `gap` | length | 块间距 | columns |
 | `columns` | number 或 string | 栏数或轨道 | columns、stats |
@@ -1409,7 +1435,7 @@ print("hi")
 | `highlight` | accent | 高亮的强调值 | table |
 | `id` | string | 稳定锚点 | 所有块 |
 
-**只读属性。** 文档写不出，读者也改不了，由解析器或派生阶段给。它们能被样式表当选择器用，见 4.3。
+**派生属性。** 文档写不出来，由解析器或派生阶段给。它们能被样式表当选择器用，见 4.3。
 
 | 属性 | 类型 | 含义 | 用在 |
 | --- | --- | --- | --- |
@@ -1516,6 +1542,7 @@ print("hi")
 | `open` | HTML `<details open>` | 默认展开 | `expanded`、`visible` |
 | `collapsible` | Bootstrap、Primer | 允许收起 | `foldable`、`toggle` |
 | `selected` | HTML `<option selected>` | 这一项默认选中 | `active`、`current` |
+| `derived` | 本文的解析与派生阶段 | 派生属性，文档写不出 | `read-only`、`computed` |
 | `href` | HTML | 跳转地址 | `url`、`link`、`to` |
 | `start` | HTML `<ol start>` | 起始编号 | `begin`、`from` |
 | `separator` | 通用 | 名称与值的分隔 | `divider` |
@@ -1601,6 +1628,8 @@ print("hi")
 | 名字 | 含义 |
 | --- | --- |
 | `etaf-md-attr` | 读本节点校验过的属性 |
+| `etaf-md-type` | 读本节点的类型 |
+| `etaf-md-text` | 把子节点的文字拼成一个字符串 |
 | `etaf-md-token` | 按令牌名取颜色或行高 |
 | `etaf-md-surface` | 把面换成底色，`none` 返回 `nil` |
 | `etaf-md-accent` | 把强调值换成颜色 |
@@ -1620,3 +1649,288 @@ print("hi")
 | `etaf-md-describe-nodes` | 列出注册表 |
 
 四个 `etaf-md-` 之外的名字：`etaf-card`、`etaf-tabs`、`etaf-accordion`、`etaf-steps`、`etaf-timeline`、`etaf-statistic` 属于 `etaf-ui` 的组件目录，本包只调用，不改名。
+
+## 附录 F：一个完整的例子
+
+下面三段是同一件事的三侧：文档、定义、读者配置。三段合起来，把正文里讲过的每条规则都用到一次。
+
+### F.1 文档
+
+````markdown
+---
+contract: 1
+---
+
+# 安装
+
+> [!WARNING]
+> 这段只在 Emacs 30 及以上可用。
+
+:::card {title="缓存命中" accent=primary}
+图片和矢量按页面尺寸缩放，不重新画。
+
+:::columns {columns=2}
+:::col
+命中时从磁盘读一张图。
+:::
+:::col
+没有命中时画一次。
+:::
+:::
+
+:::tabs
+:::tab {title="Emacs 29"}
+用 `image-size` 的旧签名。
+:::
+:::tab {title="Emacs 30+" selected=true}
+直接传 buffer。
+:::
+:::
+:::
+
+:::steps {start=2 list-style=decimal}
+:::step {title="定位"}
+用 `sample` 抓栈，别先猜。
+:::
+:::
+
+:::box {text-align=center padding="1lh"}
+![一次命中](figures/hit.png)
+:::
+````
+
+### F.2 定义文件
+
+```elisp
+;;; 1. 标题：派生属性、样式值、编号、文字拼接
+(etaf-md-define-node 'heading
+  :summary "标题，级别由 # 的个数决定"
+  :attrs '((level :type number :derived t :default 1))
+  :view (lambda (env)
+          (etaf-view
+           (text :weight (etaf-md-style env :font-weight)
+                 :color (etaf-md-token env 'heading)
+             (expr (concat (or (etaf-md-style env :prefix) "")
+                           (etaf-md-format-number (etaf-md-number env) 'decimal)
+                           " "
+                           (etaf-md-text env)))))))
+
+;;; 2. 提示：五个名字共用一份画法，靠类型分辨
+(defun my-callout-view (env)
+  (etaf-view
+   (box :padding '((lh 1) (ch 2))
+        :background-color (etaf-md-surface env 'raised)
+        :color (etaf-md-accent env
+                               (pcase (etaf-md-type env)
+                                 ('note 'primary)
+                                 ('tip 'success)
+                                 ('warning 'warning)
+                                 ('caution 'danger)
+                                 (_ 'important)))
+     (expr (etaf-md-render env (etaf-md-children env))))))
+
+(dolist (type '(note tip important warning caution))
+  (etaf-md-define-node type
+    :name (symbol-name type)
+    :summary "提示块"
+    :attrs '((title :type string :doc "换掉固定标题"))
+    :view #'my-callout-view))
+
+;;; 3. 卡片：文档属性，翻成组件参数
+(etaf-md-define-node 'card
+  :name "card"
+  :contract 1
+  :summary "一张带标题的卡片"
+  :attrs '((title  :type string :required t      :doc "卡片标题")
+           (accent :type accent :default neutral :doc "强调"))
+  :view (lambda (env)
+          (etaf-view
+           (etaf-card :title (etaf-md-attr env :title)
+                      :variant (pcase (etaf-md-attr env :accent)
+                                 ('warning 'warning)
+                                 ('success 'success)
+                                 (_ 'default))
+             (expr (etaf-md-render env (etaf-md-children env)))))))
+
+;;; 4. 盒子：长度与对齐
+(etaf-md-define-node 'box
+  :name "box"
+  :summary "一块没有标题的底"
+  :attrs '((text-align :type align  :default start :doc "内容水平位置")
+           (padding    :type length                :doc "内边距")
+           (width      :type length                :doc "自身宽度，省略即占满"))
+  :view (lambda (env)
+          (etaf-view
+           (column :width (or (etaf-md-attr env :width) 'stretch)
+                   :text-align (etaf-md-attr env :text-align)
+                   :padding (if (etaf-md-attr env :padding)
+                                (list (etaf-md-attr env :padding))
+                              '((lh 0) (ch 0)))
+             (expr (etaf-md-render env (etaf-md-children env)))))))
+
+;;; 5. 栏：数量属性、可用宽度、子块
+(etaf-md-define-node 'columns
+  :name "columns"
+  :summary "并排的栏"
+  :attrs '((columns :type number :default 2 :doc "栏数"))
+  :accepts '((col))
+  :view (lambda (env)
+          (let* ((cols (etaf-md-children env))
+                 (n (max 1 (etaf-md-attr env :columns)))
+                 (wide (> (etaf-md-available-width env) 60))
+                 (rows (seq-partition cols (if wide n 1))))
+                 ;; 行和栏的数量在运行时才知道，DSL 写不出来，用 etaf-node
+            (etaf-node 'column
+                       (list :item-gap '((lh 1)))
+                       (mapcar (lambda (row)
+                                 (etaf-node 'row
+                                            (list :item-gap '((ch 2)))
+                                            (mapcar (lambda (col)
+                                                      (etaf-node 'column
+                                                                 (list :width 'stretch)
+                                                                 (etaf-md-render env
+                                                                                 (etaf-md-children env col))))
+                                                    row)))
+                               rows)))))
+
+;;; 6. 标签页：父类型、子块属性、本块状态
+;; 真正接线时把 :on-change 交给组件，里面写
+;; (etaf-md-block-state env :current 新值)
+(etaf-md-define-node 'tabs
+  :name "tabs"
+  :summary "标签页"
+  :accepts '((tab :attrs ((title    :type string  :required t :doc "标签文字")
+                          (selected :type boolean :default false :doc "默认选中"))))
+  :view (lambda (env)
+          (let* ((tabs (etaf-md-children env))
+                 (picked (or (seq-find (lambda (tab) (etaf-md-attr env :selected tab)) tabs)
+                             (car tabs)))
+                 (current (etaf-md-block-state env :current picked)))
+            (etaf-view
+             (column :item-gap '((lh 1))
+               (text (expr (mapconcat (lambda (tab)
+                                    (etaf-md-attr env :title tab))
+                                  tabs " │ ")))
+               (expr (etaf-md-render env (etaf-md-children env current))))))))
+
+;;; 7. 步骤：数字与 enum
+(etaf-md-define-node 'steps
+  :name "steps"
+  :summary "带编号的步骤"
+  :attrs '((start      :type number :default 1       :doc "起始编号")
+           (list-style :type enum   :default decimal :one-of (decimal bullet)
+                       :doc "记号"))
+  :accepts '((step :attrs ((title :type string :required t :doc "这一步的名字"))))
+  :view (lambda (env)
+          (let ((n (1- (etaf-md-attr env :start)))
+                (mark (pcase (etaf-md-attr env :list-style)
+                        ('decimal "%d. ")
+                        (_ "· "))))
+                 ;; 每一项的编号要按顺序算，DSL 写不出来，用 etaf-node
+            (etaf-node 'column
+                       (list :item-gap '((lh 1)))
+                       (mapcar (lambda (step)
+                                 (setq n (1+ n))
+                                 (etaf-node 'column
+                                            nil
+                                            (list (etaf-node 'text
+                                                             nil
+                                                             (list (concat
+                                                                    (format mark n)
+                                                                    (etaf-md-attr env :title step))))
+                                                  (etaf-node 'fragment
+                                                             nil
+                                                             (etaf-md-render env
+                                                                             (etaf-md-children env step))))))
+                               (etaf-md-children env))))))
+```
+
+### F.3 读者配置
+
+```elisp
+;; 1. 改值：选择器写属性名，键来自附录 C 加本类型的可盖属性
+(etaf-md-set-style 'heading
+  '((:font-weight bold)
+    (:level 1 :prefix "◆ ")
+    (:level 2 :prefix "◇ " :margin-top "1lh")))
+(etaf-md-set-style 'card '((:accent warning)))
+
+;; 2. 换画法：保留内置，外面包一层，顺手加一个读者键
+(etaf-md-set-view 'heading
+  (lambda (env)
+    (etaf-node 'box
+               (list :padding '((lh 1) (ch 2))
+                     :background-color (etaf-md-surface env
+                                                       (etaf-md-style env :background)))
+               (list (etaf-md-default-view env))))
+  :extends t
+  :style-keys '((background :type surface :doc "标题底色")))
+
+;; 3. 整体替换
+(etaf-md-set-view 'box (lambda (env) (etaf-md-default-view env)) :replace t)
+
+;; 4. 卸载：回到内置
+(etaf-md-set-style 'heading nil)
+(etaf-md-set-view 'heading nil)
+(etaf-md-define-node 'card :replace t
+  :name "card"
+  :attrs '((title :type string))
+  :view (lambda (env)
+          (etaf-view (text (expr (etaf-md-attr env :title))))))
+```
+
+### F.4 页面结果
+
+```
+◆ 1 安装
+
+  ⚠ 这段只在 Emacs 30 及以上可用。
+
+┌ 缓存命中 ─────────────────────────────┐
+│ 图片和矢量按页面尺寸缩放，不重新画。  │
+│ ┌ 命中时读一张图 ┐┌ 没命中时画一次 ┐ │
+│ └────────────────┘└────────────────┘ │
+│ Emacs 29 │ Emacs 30+                  │
+│ 直接传 buffer。                       │
+│ 2. 定位                               │
+│    用 sample 抓栈，别先猜。           │
+└───────────────────────────────────────┘
+
+              一次命中
+           [figures/hit.png]
+```
+
+### F.5 覆盖表
+
+| 知识 | 出现在哪 |
+| --- | --- |
+| `:name` | 卡片、提示五个名字、栏、标签页、步骤有；标题没有 |
+| `:summary` | 每个定义各一行 |
+| `:contract` | 卡片的定义，文档 front matter |
+| `:attrs` 的 `:default` | 标题的 `level`、卡片的 `accent`、盒子的 `text-align` |
+| `:attrs` 的 `:required` | 卡片的 `title`，标签页与步骤的 `title` |
+| `:attrs` 的 `:derived` | 标题的 `level` |
+| `:attrs` 的 `:pattern` | 附录 A 与 10.2 的例子 |
+| `:attrs` 的 `:one-of` | 步骤的 `list-style` |
+| `:attrs` 的 `:doc` | 每个属性都有 |
+| `:accepts` | 栏收 `col`（无属性），标签页收 `tab`，步骤收 `step` |
+| `:view` | 七个定义各一个，签名 `(lambda (env))` |
+| DSL 与 `etaf-node` 的分工 | 五个定义用 `etaf-view`；`columns` 与 `steps` 用 `etaf-node`，因为行数、编号要运行时才算 |
+| 八种类型 | string（`title`）、number（`columns`、`start`、`level`）、boolean（`selected`）、length（`padding`、`width`）、surface（提示的底）、accent（卡片的强调）、align（`text-align`）、enum（`list-style`） |
+| `etaf-md-attr` | 每一处读属性，含读子节点的 `(etaf-md-attr env :title tab)` |
+| `etaf-md-type` | 提示的共用画法 |
+| `etaf-md-text` | 标题拼「前缀 + 编号 + 正文」 |
+| `etaf-md-children` | 每个父类型，含取子节点内容的 `(etaf-md-children env current)` |
+| `etaf-md-render` | 每个把子节点画成视图的地方 |
+| `etaf-md-default-view` | 读者配置第 2、3 段 |
+| `etaf-md-token` | 标题拿 `heading` 色 |
+| `etaf-md-surface` | 提示的底、读者包的那层 |
+| `etaf-md-accent` | 提示的字色 |
+| `etaf-md-style` | 标题的字重与前缀、读者的 `background` |
+| `etaf-md-number` + `format-number` | 标题的编号 |
+| `etaf-md-block-state` | 标签页读默认值 |
+| `etaf-md-available-width` | 栏判断宽窗还是窄窗 |
+| 样式选择器 | `(:level 1 …)` |
+| `:extends` / `:replace` / 卸载 | 读者配置第 2、3、4 段 |
+
+**这个例子没覆盖 `etaf-md-follow-link`。** 它要把一段可点区域接到 ETAF 的交互接口上，那套属性写在第 7 章，附录不重复一遍。

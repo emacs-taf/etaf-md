@@ -283,16 +283,31 @@ Five conventions.
 - **Booleans accept neither `yes` nor `1` nor `on`.** Only `true` and `false`. Three spellings mean three parse branches.
 - **Exactly one union type is allowed.** `columns` writes `number or string`, because "how many columns" and "a track list" are two forms of one concept, and splitting them into two names would make the author remember two words. No other union type.
 
+Validation converts each value into the shape the renderer wants, so a definition never parses a unit.
+
+| Type | Written as | The value a definition receives |
+| --- | --- | --- |
+| `string` | `title="Cache hit"` | The string `"Cache hit"` |
+| `number` | `start=2` | The number `2` |
+| `boolean` | `selected=true` | `t` or `nil` |
+| `length` | `padding="1lh"` | ETAF's length `(lh 1)`, ready to pass as a property |
+| `surface` | `surface=raised` | The symbol `raised` |
+| `accent` | `accent=warning` | The symbol `warning` |
+| `align` | `text-align=center` | The symbol `center` |
+| `enum` | `list-style=decimal` | The symbol `decimal` |
+
 Writing the same attribute twice is an error, not a last-one-wins. The reason: a duplicate usually means the author changed half of it, and silently picking one hides the problem.
 
 Two permissions, both expressed as data rather than memory.
 
 | Permission | Who holds it | How it is written |
 | --- | --- | --- |
-| May the author write it | The document | Yes by default; the ones it cannot write carry `:read-only t` in the definition |
+| May the document write it | The document | Yes by default; the ones it cannot write carry `:derived t` in the definition |
 | May the reader override it | The style table | Decided by the type: `surface`, `accent` and `align` can be overridden, the other five cannot |
 
-The clearest example of the first row is a heading's `level`: a document cannot write it, `###` decides it, so it is read-only. The style table can still select on it (`(:level 1 :prefix "◆ ")`).
+The clearest example of the first row is a heading's `level`: a document cannot write it, `###` decides it, so it is a derived attribute. The style table can still select on it (`(:level 1 :prefix "◆ ")`).
+
+Two words cover both classes: a **document attribute** is written inside the braces; a **derived attribute** comes from the parse or derive stage.
 
 The shared attribute table is Appendix A; types only reference it. How a definition declares these types is 10.2.
 
@@ -495,7 +510,7 @@ A literal has a cost: it stops following the theme. A blue chosen on a dark page
 
 **Which attributes a reader may override is decided by the attribute's type.** `surface`, `accent` and `align` are overridable by nature; the other five listen to the document alone. So "which attributes are appearance" needs no flag and cannot be flagged wrong.
 
-A read-only attribute (`:read-only t`) is a different matter: neither the document nor the reader may write it, because the parser or the derive step supplies it, such as a heading's `level`. The style table may still use it as a selector.
+A derived attribute (`:derived t`) is a different matter: a document cannot write it, because the parse or the derive step supplies it, such as a heading's `level`. The style table may still use it as a selector.
 
 ### 4.5 Type size and measures
 
@@ -1031,7 +1046,7 @@ A new container follows a fixed order of three steps, and the test is the one in
 
 1. **Look for a component first.** When `etaf-ui` has one whose semantics fit, the definition writes those three lines of translation and nothing else. This is the common case and the thinnest one.
 2. **With no component, and a shape a second place will use, write the component first and wrap it after.** The component goes into `etaf-ui` with its parameters, tests and documentation; the definition shrinks back to translation.
-3. **Used exactly once, build it from primitives inside `:body`.** Primitives are ETAF's public interface, `etaf-node` and its siblings. Once a second place needs it, it moves up under 9.6.
+3. **Used exactly once, build it with `etaf-view` inside `:view`.** The DSL is the default; only what it cannot say (a tag or a list known at run time) drops to `etaf-node`. Once a second place needs it, it moves up under 9.6.
 
 Step 3 is not an exception, it is the first implementation. Its risk is staying inside the definition forever, which is why the promotion rule in 9.6 follows it.
 
@@ -1051,9 +1066,10 @@ A type definition writes three things, and no more.
 (etaf-md-define-node 'card
   :name "card"
   :attrs '((title :type string :doc "Card title"))
-  :view (lambda (node env)
-          (etaf-card :title (etaf-md-attr env :title)
-                     (etaf-md-children env))))
+  :view (lambda (env)
+          (etaf-view
+           (etaf-card :title (etaf-md-attr env :title)
+             (expr (etaf-md-render env (etaf-md-children env)))))))
 ```
 
 That is the shape, not a complete example. Several attributes, an overridable attribute and a component mapping are shown together in 10.1.
@@ -1115,13 +1131,14 @@ A definition is data plus one function, not code inside a document.
   :summary "A card with a title"
   :attrs '((title  :type string :doc "Card title")
            (accent :type accent :default neutral :doc "Emphasis"))
-  :view (lambda (node env)
-          (etaf-card :title (etaf-md-attr env :title)
-                     :variant (pcase (etaf-md-attr env :accent)
-                                ('warning 'warning)
-                                ('success 'success)
-                                (level level))
-                     (etaf-md-children env))))
+  :view (lambda (env)
+          (etaf-view
+           (etaf-card :title (etaf-md-attr env :title)
+                      :variant (pcase (etaf-md-attr env :accent)
+                                 ('warning 'warning)
+                                 ('success 'success)
+                                 (_ 'default))
+             (expr (etaf-md-render env (etaf-md-children env)))))))
 ```
 
 | Keyword | Value | Meaning |
@@ -1131,32 +1148,31 @@ A definition is data plus one function, not code inside a document.
 | `:summary` | A string | One line, used in help and errors |
 | `:attrs` | An attribute table | Names, types, defaults and permissions |
 | `:accepts` | A child table | Which children it takes. With it the type is a parent; without it the content is any block |
-| `:view` | A function | `(lambda (node env) VIEW)`, the type's default paint |
+| `:view` | A function | `(lambda (env) VIEW)`, the type's default paint |
 | `:contract` | An integer, `1` today | The version of the document-side attribute table, see 10.5 |
 | `:extends t` | A flag | Keep the shipped definition and add, see 10.5 |
 | `:replace t` | A flag | Drop the shipped definition and rewrite it, see 10.5 |
 
-A heading has no `:name`, so `:::heading` does not exist; its level is a read-only attribute:
+A heading has no `:name`, so `:::heading` does not exist; its level is a derived attribute:
 
 ```elisp
 (etaf-md-define-node 'heading
-  :attrs '((level :type number :read-only t :default 1))
+  :attrs '((level :type number :derived t :default 1))
   :view #'etaf-md-heading-view)
 ```
 
 A document cannot write `level`; how many `#` characters there are decides it. The style table can still select on it, see 4.3. That is the whole definition of "level": no keyword of its own and no branch in the renderer.
 
-**`view` receives two things.**
-
-- `node`: `(:type :attrs :children)`. The attributes are validated and defaulted; read-only ones are there too.
-- `env`: the render environment. Every optional capability comes from here; see the table.
+**`view` takes one argument, `env`.** The current node is inside it: attributes are validated and defaulted, derived ones included. This is everything a definition can reach.
 
 | Capability | Usage | Available to |
 | --- | --- | --- |
-| Read an attribute | `(etaf-md-attr env :title)` | Every type |
+| Read an attribute | `(etaf-md-attr env :title)`; for a child, pass the node last: `(etaf-md-attr env :title tab)` | Every type |
+| Read the type | `(etaf-md-type env)`, for a paint shared by several names | Every type |
+| Text content | `(etaf-md-text env)` joins the text of the child nodes into one string | Text-only types such as headings |
 | Children | `(etaf-md-children env)` gives the child nodes in order | Every type |
 | Paint nodes | `(etaf-md-render env nodes)` | When only some children are painted |
-| The shipped paint | `(etaf-md-default-view 'heading node env)` | When wrapping it |
+| The shipped paint | `(etaf-md-default-view env)` paints this node with the shipped view | When wrapping it |
 | A token | `(etaf-md-token env 'muted)` | Every type |
 | Line height | `(etaf-md-token env 'lh)` | Every type |
 | A surface | `(etaf-md-surface env 'raised)` turns a surface into a fill; `none` gives `nil` | Every type |
@@ -1164,8 +1180,19 @@ A document cannot write `level`; how many `#` characters there are decides it. T
 | A style value | `(etaf-md-style env :background)` reads this node's style value | Custom paints |
 | Numbering | `(etaf-md-number env)`, `(etaf-md-format-number N 'lower-roman)` | Headings, tables |
 | Open a target | `(etaf-md-follow-link env href)` | A card's `href` |
-| This block's state | `(etaf-md-block-state env :selected)` | `tabs`, `accordion` |
+| This block's state | Read `(etaf-md-block-state env :current)`, with a default `(etaf-md-block-state env :current v)`; write `(etaf-md-block-state env :current VALUE)` | `tabs`, `accordion` |
 | Available width | `(etaf-md-available-width env)` | A column's degrade check |
+
+**A view uses the `etaf-view` DSL by default.** It is shorter than building nodes by hand and shows the structure: properties first, children last, property values are ordinary Elisp, and a computed child is wrapped in `(expr …)`.
+
+```elisp
+(etaf-view
+ (box :padding '((lh 1) (ch 2))
+   (text "Title")
+   (expr (etaf-md-render env (etaf-md-children env)))))
+```
+
+Exactly one case drops to `etaf-node`: when the tag or a property is only known at run time, as when `mapcar` builds a list of rows. The DSL cannot express that, so it is a limit, not a style choice.
 
 The state row is the important one. `etaf-tabs` is a controlled component: `selected` and `on-change` come from the caller, and a definition has nowhere to keep state. So every block gets its own state cell, created by the renderer and isolated per block.
 
@@ -1186,7 +1213,7 @@ A child carries a `title` attribute of type `string` supplied by the renderer, s
 - `:type` is required and takes `string`, `number`, `boolean`, `length`, `surface`, `accent`, `align` or `enum`. A `string` may add `:pattern`; an `enum` must write `:one-of (...)`.
 - An omitted `:default` means `nil`, so a `nil` default takes no characters at all.
 - A required attribute writes `:required t`, as in `(title :type string :required t :doc "Title text")`, and then no `:default`; writing both is an error at load. Required exists only on the document side; reader-side keys are always optional.
-- A read-only attribute writes `:read-only t`, as in a heading's `level`. A document cannot write it, a reader cannot change it, and the style table can still select on it.
+- A derived attribute writes `:derived t`, as in a heading's `level`. A document cannot write it, the parse or derive stage supplies it, and the style table can still select on it.
 - `surface`, `accent` and `align` are overridable by a reader without any flag; the other five listen to the document alone. There is no `:appearance` field, so there is nothing to mark wrong.
 - `:doc` is optional but recommended; it appears in help and in errors.
 - **A child's label comes from the renderer, not from the definition.** Every `:accepts` entry gets one extra `title` of type `string`. A definition may fill a default inside `:view`; it never renames the attribute or changes its type.
@@ -1226,12 +1253,10 @@ When a style is not enough, give a function. A function may also add reader-side
 
 ```elisp
 (etaf-md-set-view 'heading
-  (lambda (node env)
-    (etaf-node 'box
-               (list :width 'stretch
-                     :background-color (etaf-md-surface env
-                                                        (etaf-md-style env :background)))
-               (list (etaf-md-default-view 'heading node env))))
+  (lambda (env)
+    (etaf-view
+     (box :background-color (etaf-md-surface env (etaf-md-style env :background))
+       (expr (etaf-md-default-view env)))))
   :extends t
   :style-keys '((background :type surface :doc "Heading fill")))
 ```
@@ -1239,7 +1264,7 @@ When a style is not enough, give a function. A function may also add reader-side
 | Part | Meaning |
 | --- | --- |
 | The first argument | A type name. `heading` and `card` both work; neither is special |
-| The second argument | `(lambda (node env) VIEW)`, the same signature as a definition's `:view` |
+| The second argument | `(lambda (env) VIEW)`, the same signature as a definition's `:view` |
 | `:extends t` | Keep the shipped paint and keys, and add |
 | `:replace t` | Drop the shipped paint and keys |
 | `:style-keys` | New reader-side keys, written as in 10.2. Only a function may add them |
@@ -1254,12 +1279,13 @@ Numbering goes through here too, with no keyword of its own: `etaf-md-number` re
 
 ```elisp
 (etaf-md-set-view 'heading
-  (lambda (node env)
-    (etaf-node 'text
-               (list :prefix (concat (etaf-md-style env :prefix)
-                                     (etaf-md-format-number (etaf-md-number env) 'decimal)
-                                     " "))
-               (etaf-md-children env)))
+  (lambda (env)
+    (etaf-view
+     (text :weight (etaf-md-style env :font-weight)
+       (expr (concat (etaf-md-style env :prefix)
+                     (etaf-md-format-number (etaf-md-number env) 'decimal)
+                     " "
+                     (etaf-md-text env))))))
   :extends t)
 ```
 
@@ -1372,7 +1398,7 @@ A phase is done only when all three hold.
 
 ## Appendix A: attribute reference
 
-The shared attributes. A type selects from here and never invents a synonym. The table lists what a document may write; the read-only attributes, which neither the author nor the reader may write, follow separately.
+The shared attributes. A type selects from here and never invents a synonym. The table lists **document attributes**, the ones written inside the braces; **derived attributes**, supplied by the parse or derive stage, follow separately.
 
 | Attribute | Type | Meaning | Used by |
 | --- | --- | --- | --- |
@@ -1409,7 +1435,7 @@ The shared attributes. A type selects from here and never invents a synonym. The
 | `highlight` | accent | Accent used for the highlight | table |
 | `id` | string | Stable anchor | Every block |
 
-**Read-only attributes.** Neither the author nor the reader may write these; the parser or the derive step supplies them. The style table may use them as selectors, see 4.3.
+**Derived attributes.** A document cannot write these; the parser or the derive step supplies them. The style table may use them as selectors, see 4.3.
 
 | Attribute | Type | Meaning | On |
 | --- | --- | --- | --- |
@@ -1516,6 +1542,7 @@ This table is the ground for naming. A new name is looked up here first; if it i
 | `open` | HTML `<details open>` | Starts expanded | `expanded`, `visible` |
 | `collapsible` | Bootstrap, Primer | May collapse | `foldable`, `toggle` |
 | `selected` | HTML `<option selected>` | This child is selected by default | `active`, `current` |
+| `derived` | This document's parse and derive stages | A derived attribute; a document cannot write it | `read-only`, `computed` |
 | `href` | HTML | Target | `url`, `link`, `to` |
 | `start` | HTML `<ol start>` | First number | `begin`, `from` |
 | `separator` | General | Name/value separator | `divider` |
@@ -1601,6 +1628,8 @@ The key names are CSS property names. Four have no CSS counterpart; they are lis
 | Name | Meaning |
 | --- | --- |
 | `etaf-md-attr` | Read one of this node's validated attributes |
+| `etaf-md-type` | Read this node's type |
+| `etaf-md-text` | Join the text of the child nodes into one string |
 | `etaf-md-token` | Look up a token's colour or line height |
 | `etaf-md-surface` | Turn a surface into its fill; `none` yields `nil` |
 | `etaf-md-accent` | Turn an accent value into its colour |
@@ -1620,3 +1649,288 @@ The key names are CSS property names. Four have no CSS counterpart; they are lis
 | `etaf-md-describe-nodes` | List the registry |
 
 Four names outside `etaf-md-`: `etaf-card`, `etaf-tabs`, `etaf-accordion`, `etaf-steps`, `etaf-timeline` and `etaf-statistic` belong to the `etaf-ui` component catalogue. This package calls them and does not rename them.
+
+## Appendix F: one complete example
+
+The three parts below are three sides of one thing: a document, its definitions, and a reader's configuration. Together they use every rule the chapters above state.
+
+### F.1 The document
+
+````markdown
+---
+contract: 1
+---
+
+# Install
+
+> [!WARNING]
+> This only works on Emacs 30 and later.
+
+:::card {title="Cache hit" accent=primary}
+Images and figures scale with the page instead of being redrawn.
+
+:::columns {columns=2}
+:::col
+A hit reads one image from disk.
+:::
+:::col
+A miss draws it once.
+:::
+:::
+
+:::tabs
+:::tab {title="Emacs 29"}
+Uses the old `image-size` signature.
+:::
+:::tab {title="Emacs 30+" selected=true}
+Passes the buffer directly.
+:::
+:::
+:::
+
+:::steps {start=2 list-style=decimal}
+:::step {title="Locate"}
+Sample the stack; do not guess.
+:::
+:::
+
+:::box {text-align=center padding="1lh"}
+![One hit](figures/hit.png)
+:::
+````
+
+### F.2 The definitions
+
+```elisp
+;;; 1. Heading: a derived attribute, style values, numbering, text assembly
+(etaf-md-define-node 'heading
+  :summary "A heading whose level comes from the number of #"
+  :attrs '((level :type number :derived t :default 1))
+  :view (lambda (env)
+          (etaf-view
+           (text :weight (etaf-md-style env :font-weight)
+                 :color (etaf-md-token env 'heading)
+             (expr (concat (or (etaf-md-style env :prefix) "")
+                           (etaf-md-format-number (etaf-md-number env) 'decimal)
+                           " "
+                           (etaf-md-text env)))))))
+
+;;; 2. Callouts: five names share one paint and read their own type
+(defun my-callout-view (env)
+  (etaf-view
+   (box :padding '((lh 1) (ch 2))
+        :background-color (etaf-md-surface env 'raised)
+        :color (etaf-md-accent env
+                               (pcase (etaf-md-type env)
+                                 ('note 'primary)
+                                 ('tip 'success)
+                                 ('warning 'warning)
+                                 ('caution 'danger)
+                                 (_ 'important)))
+     (expr (etaf-md-render env (etaf-md-children env))))))
+
+(dolist (type '(note tip important warning caution))
+  (etaf-md-define-node type
+    :name (symbol-name type)
+    :summary "A callout"
+    :attrs '((title :type string :doc "Replace the fixed title"))
+    :view #'my-callout-view))
+
+;;; 3. Card: document attributes turned into component parameters
+(etaf-md-define-node 'card
+  :name "card"
+  :contract 1
+  :summary "A card with a title"
+  :attrs '((title  :type string :required t      :doc "Card title")
+           (accent :type accent :default neutral :doc "Emphasis"))
+  :view (lambda (env)
+          (etaf-view
+           (etaf-card :title (etaf-md-attr env :title)
+                      :variant (pcase (etaf-md-attr env :accent)
+                                 ('warning 'warning)
+                                 ('success 'success)
+                                 (_ 'default))
+             (expr (etaf-md-render env (etaf-md-children env)))))))
+
+;;; 4. Box: a length and an alignment
+(etaf-md-define-node 'box
+  :name "box"
+  :summary "A surface without a title"
+  :attrs '((text-align :type align  :default start :doc "Horizontal position")
+           (padding    :type length                :doc "Inner padding")
+           (width      :type length                :doc "Own width; omitted means full"))
+  :view (lambda (env)
+          (etaf-view
+           (column :width (or (etaf-md-attr env :width) 'stretch)
+                   :text-align (etaf-md-attr env :text-align)
+                   :padding (if (etaf-md-attr env :padding)
+                                (list (etaf-md-attr env :padding))
+                              '((lh 0) (ch 0)))
+             (expr (etaf-md-render env (etaf-md-children env)))))))
+
+;;; 5. Columns: a count attribute, the usable width, declared children
+(etaf-md-define-node 'columns
+  :name "columns"
+  :summary "Side-by-side columns"
+  :attrs '((columns :type number :default 2 :doc "How many columns"))
+  :accepts '((col))
+  :view (lambda (env)
+          (let* ((cols (etaf-md-children env))
+                 (n (max 1 (etaf-md-attr env :columns)))
+                 (wide (> (etaf-md-available-width env) 60))
+                 (rows (seq-partition cols (if wide n 1))))
+                 ;; row and column counts are known only at run time; the DSL cannot say it, so etaf-node
+            (etaf-node 'column
+                       (list :item-gap '((lh 1)))
+                       (mapcar (lambda (row)
+                                 (etaf-node 'row
+                                            (list :item-gap '((ch 2)))
+                                            (mapcar (lambda (col)
+                                                      (etaf-node 'column
+                                                                 (list :width 'stretch)
+                                                                 (etaf-md-render env
+                                                                                 (etaf-md-children env col))))
+                                                    row)))
+                               rows)))))
+
+;;; 6. Tabs: a parent type, child attributes, this block's state
+;; When wiring the real thing, hand :on-change to the component and write
+;; (etaf-md-block-state env :current NEW-VALUE) inside it.
+(etaf-md-define-node 'tabs
+  :name "tabs"
+  :summary "Tabs"
+  :accepts '((tab :attrs ((title    :type string  :required t :doc "Tab label")
+                          (selected :type boolean :default false :doc "Starts selected"))))
+  :view (lambda (env)
+          (let* ((tabs (etaf-md-children env))
+                 (picked (or (seq-find (lambda (tab) (etaf-md-attr env :selected tab)) tabs)
+                             (car tabs)))
+                 (current (etaf-md-block-state env :current picked)))
+            (etaf-view
+             (column :item-gap '((lh 1))
+               (text (expr (mapconcat (lambda (tab)
+                                    (etaf-md-attr env :title tab))
+                                  tabs " │ ")))
+               (expr (etaf-md-render env (etaf-md-children env current))))))))
+
+;;; 7. Steps: a number and an enum
+(etaf-md-define-node 'steps
+  :name "steps"
+  :summary "Numbered steps"
+  :attrs '((start      :type number :default 1       :doc "First number")
+           (list-style :type enum   :default decimal :one-of (decimal bullet)
+                       :doc "Marker"))
+  :accepts '((step :attrs ((title :type string :required t :doc "The step's name"))))
+  :view (lambda (env)
+          (let ((n (1- (etaf-md-attr env :start)))
+                (mark (pcase (etaf-md-attr env :list-style)
+                        ('decimal "%d. ")
+                        (_ "· "))))
+                 ;; each item's number is computed in sequence; the DSL cannot say it, so etaf-node
+            (etaf-node 'column
+                       (list :item-gap '((lh 1)))
+                       (mapcar (lambda (step)
+                                 (setq n (1+ n))
+                                 (etaf-node 'column
+                                            nil
+                                            (list (etaf-node 'text
+                                                             nil
+                                                             (list (concat
+                                                                    (format mark n)
+                                                                    (etaf-md-attr env :title step))))
+                                                  (etaf-node 'fragment
+                                                             nil
+                                                             (etaf-md-render env
+                                                                             (etaf-md-children env step))))))
+                               (etaf-md-children env))))))
+```
+
+### F.3 The reader's configuration
+
+```elisp
+;; 1. Change values: selectors are attribute names, keys come from Appendix C and this type
+(etaf-md-set-style 'heading
+  '((:font-weight bold)
+    (:level 1 :prefix "◆ ")
+    (:level 2 :prefix "◇ " :margin-top "1lh")))
+(etaf-md-set-style 'card '((:accent warning)))
+
+;; 2. Give one type a new paint: keep the shipped one, wrap it, add a reader key
+(etaf-md-set-view 'heading
+  (lambda (env)
+    (etaf-node 'box
+               (list :padding '((lh 1) (ch 2))
+                     :background-color (etaf-md-surface env
+                                                       (etaf-md-style env :background)))
+               (list (etaf-md-default-view env))))
+  :extends t
+  :style-keys '((background :type surface :doc "Heading fill")))
+
+;; 3. Replace one type outright
+(etaf-md-set-view 'box (lambda (env) (etaf-md-default-view env)) :replace t)
+
+;; 4. Unload: back to the shipped behaviour
+(etaf-md-set-style 'heading nil)
+(etaf-md-set-view 'heading nil)
+(etaf-md-define-node 'card :replace t
+  :name "card"
+  :attrs '((title :type string))
+  :view (lambda (env)
+          (etaf-view (text (expr (etaf-md-attr env :title))))))
+```
+
+### F.4 The page
+
+```
+◆ 1 Install
+
+  ⚠ This only works on Emacs 30 and later.
+
+┌ Cache hit ────────────────────────────┐
+│ Images and figures scale with the page.│
+│ ┌ A hit reads one image ┐┌ A miss draws it ┐ │
+│ └───────────────────────┘└─────────────────┘ │
+│ Emacs 29 │ Emacs 30+                   │
+│ Passes the buffer directly.            │
+│ 2. Locate                              │
+│    Sample the stack; do not guess.     │
+└────────────────────────────────────────┘
+
+              One hit
+          [figures/hit.png]
+```
+
+### F.5 Coverage
+
+| Knowledge | Where it appears |
+| --- | --- |
+| `:name` | Card, the five callouts, columns, tabs and steps have one; heading does not |
+| `:summary` | One line in every definition |
+| `:contract` | The card's definition, and the document's front matter |
+| `:attrs` with `:default` | The heading's `level`, the card's `accent`, the box's `text-align` |
+| `:attrs` with `:required` | The card's `title`, the tab's and the step's `title` |
+| `:attrs` with `:derived` | The heading's `level` |
+| `:attrs` with `:pattern` | The examples in Appendix A and 10.2 |
+| `:attrs` with `:one-of` | The steps' `list-style` |
+| `:attrs` with `:doc` | Every attribute has one |
+| `:accepts` | Columns take `col` (no attributes), tabs take `tab`, steps take `step` |
+| `:view` | Seven definitions, each `(lambda (env))` |
+| DSL versus `etaf-node` | Five definitions use `etaf-view`; `columns` and `steps` use `etaf-node` because row counts and numbers are computed at run time |
+| The eight types | string (`title`), number (`columns`, `start`, `level`), boolean (`selected`), length (`padding`, `width`), surface (a callout's fill), accent (a card's emphasis), align (`text-align`), enum (`list-style`) |
+| `etaf-md-attr` | Every attribute read, including a child's: `(etaf-md-attr env :title tab)` |
+| `etaf-md-type` | The callouts' shared paint |
+| `etaf-md-text` | The heading, assembling prefix, number and text |
+| `etaf-md-children` | Every parent, including a child's content: `(etaf-md-children env current)` |
+| `etaf-md-render` | Everywhere child nodes become views |
+| `etaf-md-default-view` | The reader's second and third entries |
+| `etaf-md-token` | The heading's colour |
+| `etaf-md-surface` | A callout's fill, the reader's wrapper |
+| `etaf-md-accent` | A callout's ink |
+| `etaf-md-style` | The heading's weight and prefix, the reader's `background` |
+| `etaf-md-number` and `format-number` | The heading's number |
+| `etaf-md-block-state` | Tabs reading their default |
+| `etaf-md-available-width` | Columns deciding wide or narrow |
+| Style selectors | `(:level 1 …)` |
+| `:extends`, `:replace`, unload | The reader's second, third and fourth entries |
+
+**`etaf-md-follow-link` is the one thing this example does not cover.** It wires a clickable region to ETAF's interaction interface, which chapter 7 describes; the appendix does not repeat it.
