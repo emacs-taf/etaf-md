@@ -45,6 +45,10 @@
   and title, and set cell alignment and spacing.  `table-header` and
   `table-stripe` join the surface words a document may write.
 
+- The `window` container draws the catalog's Mac-style title bar, so the
+  traffic lights are the same control the desktop applications use instead of
+  three look-alike glyphs.
+
 ### Changed
 
 - A `tabs` or `code-tabs` container no longer accepts `:::tab` children; the

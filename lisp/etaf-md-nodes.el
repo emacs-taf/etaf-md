@@ -580,7 +580,6 @@ follow the children instead of a flat depth sequence."
               :on-toggle (lambda (open)
                            (etaf-md-set-block-state env :open open)))))))
 
-
 ;;; Documents
 
 (etaf-md--define-shipped 'table
@@ -686,18 +685,13 @@ follow the children instead of a flat depth sequence."
            (column :width 'stretch :item-gap '(lh 0)
                    :border (etaf-md--hairline env)
                    :overflow 'hidden
-             (row :width 'stretch
-                  :padding '((lh 0) (ch 1))
-                  :item-gap '(ch 1)
-                  :background-color (etaf-md-surface env 'raised)
-                  :border-bottom (etaf-md--hairline env)
-               (text :color "#E5484D" (expr "o"))
-               (text :color "#D97706" (expr "o"))
-               (text :color "#15803D" (expr "o"))
-               (box :width 'stretch :text-align 'center
-                 (text :font-weight 'bold
-                       :color (etaf-md-accent env 'neutral)
-                   (expr (or (etaf-md-attr env :title) "")))))
+             ;; The title bar is the catalog's own window chrome, so the
+             ;; traffic lights are the same Mac-style control the desktop
+             ;; applications use instead of three look-alike glyphs.
+             (etaf-window-chrome
+              :title (or (etaf-md-attr env :title) "")
+              :active t
+              :show-minimize t :show-maximize t :show-close t)
              (box :width 'stretch
                   :padding '((lh 1) (ch 2))
                   :height (etaf-md-attr env :height)

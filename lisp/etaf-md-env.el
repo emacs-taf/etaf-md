@@ -168,8 +168,8 @@ without one falls back to its position in the page."
 
 (defun etaf-md-block-state (env key &optional default)
   "Return KEY's state for ENV's block, or DEFAULT.
-The state lives in the session's reactive ref, so a write repaints the block
-that read it and nothing else."
+The state lives in the session's reactive ref, so a write repaints the
+preview."
   (let* ((session (etaf-md-env-session env))
          (ref (and session (plist-get session :block-state)))
          (table (and (etaf-ref-p ref) (etaf-value ref)))
@@ -179,7 +179,7 @@ that read it and nothing else."
     (if cell (cdr cell) default)))
 
 (defun etaf-md-set-block-state (env key value)
-  "Store VALUE under KEY for ENV's block and repaint that block."
+  "Store VALUE under KEY for ENV's block and repaint the preview."
   (let* ((session (etaf-md-env-session env))
          (identity (etaf-md--block-identity env))
          (ref (and session (plist-get session :block-state))))
