@@ -909,6 +909,40 @@ A style can change a block's height, so the flow uses each block's real height. 
 
 The budget is written down so acceptance has a number to compare with. The concrete numbers are calibrated against the benchmark during implementation, and this section changes with them.
 
+### 8.4 Editing the source buffer
+
+A rendered page carries no markup, so the whole cost of it falls on the writer. Everything here happens in the source buffer. It changes neither the syntax nor the rendered result.
+
+Four layers, in order of payoff. All four form one optional minor mode, off by default.
+
+| Layer | What it does | What it fixes |
+| --- | --- | --- |
+| One | Push the markup back: `:::`, the braces and the equals sign in `markdown-markup-face`; the container name in the language keyword face; attribute names and values in two different faces | The colons stop competing with the prose |
+| Two | Pair hint: while point is inside a container, its opening and closing lines are each lifted one step; both fall back on leaving | No counting which colon matches which |
+| Three | Insert and complete: one command writes the opening line, a blank line and the closing line; container names and the attributes each container takes complete in place | Names and attributes need not be memorised |
+| Four | Fold: keep the container's opening line only | Read structure first in a long document |
+
+Four hard constraints, each one a test of "hurts no existing Markdown habit".
+
+1. **Add, never replace.** The new font-lock rules match `^:::` and the attribute braces only; markdown-mode has no rule for either today, so nothing is overridden. Its keymap, indent function, `electric-pair` and `markdown-hide-markup` stay untouched.
+2. **Never change buffer text.** Dimming, lifting and folding are faces, overlays and the `invisible` property only; `buffer-string` is identical before and after. Otherwise saving writes a different file.
+3. **Off means gone.** Disabling removes the font-lock keywords, deletes the overlays, clears the hook and drops its `completion-at-point-functions` entry. A test asserts that `font-lock-keywords` after an enable-and-disable cycle is `equal` to what it was before.
+4. **Never take a key.** Only its own prefix; no existing command is remapped.
+
+Performance budget, measured the same way as 8.3.
+
+| Action | Budget | What guarantees it |
+| --- | --- | --- |
+| Open a 2000-line document | 50 milliseconds of extra work at most | font-lock runs per chunk, never over the whole file |
+| Move point to another line | 5 milliseconds at most | computed once per line change |
+| Typing inside one line | no pair computation at all | the previous row |
+| Idle | no timers | no polling, no background refresh |
+| Fold and unfold | one overlay added or removed | text is never touched |
+
+The pair hint has to find the container's opening line, so it has a line limit. One backward search in a document of a few thousand lines, skipping the hint beyond that limit; never an unbounded reverse scan.
+
+Three places it cannot help, recorded here so it is never mistaken for a promise: on GitHub, in someone else's editor, and in a fragment pasted elsewhere. The syntax therefore has to read well as bare text; this section is only a bonus, and it is never a reason to add syntax.
+
 ## 9. Definitions and components
 
 This chapter settles two things: how thin a definition should be, and where reusable parts live.
@@ -1187,6 +1221,7 @@ Name clashes resolve by load order: when two third-party packages change one typ
 | 4 | Interaction: `tabs`, `code-tabs`, `collapse`, `accordion` | Keys go through the command loop; state survives reflow and a theme change; flattened output loses nothing |
 | 5 | Documents: `table`, `window` | Row and column highlights land; the window draws only a title bar |
 | 6 | Registry and user definitions | A sample definition installs and uninstalls; a new key on a shipped type takes effect; `:default` still reaches the shipped view after an override; a contract mismatch is reported; `doctor` reports counts and the override chain |
+| 7 | Editing the source buffer: dimming, pair hint, insert and complete, folding, as one optional minor mode | `font-lock-keywords` is `equal` before and after an enable-and-disable cycle; `buffer-string` is unchanged; a 2000-line document costs 50 milliseconds of extra work at most; typing inside one line triggers no pair computation |
 
 ### 11.2 The acceptance matrix per container
 
