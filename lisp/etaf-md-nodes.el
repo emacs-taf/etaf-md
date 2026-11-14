@@ -430,32 +430,117 @@ COMMAND runs when the line is activated."
     (etaf-node 'box (list :width 'stretch)
                (list (etaf-node 'text nil (list (cdr pair))))))))
 
-(etaf-md--define-shipped 'field
-  :name "field"
-  :summary "名称与值对齐的字段表"
-  :attrs '((label-width :type length :doc "名称列宽度，省略按最长的名称算")
-           (separator   :type enum :one-of (colon none)
-                        :default colon :doc "名称与值的分隔"))
-  :accepts '((list :attrs nil))
-  :view (lambda (env)
-          (let* ((list-node (car (etaf-md-children env)))
-                 (rows (and list-node (etaf-md-children env list-node)))
-                 (pairs (mapcar (lambda (row) (etaf-md--field-pair env row))
-                                rows))
-                 (separator (if (eq (etaf-md-attr env :separator) 'none)
-                                "  " "："))
-                 (width (or (etaf-md-attr env :label-width)
-                            (list 'ch
-                                  (+ (string-width separator)
-                                     (max 2 (apply #'max
-                                                   (mapcar (lambda (pair)
-                                                             (string-width (car pair)))
-                                                           pairs))))))))
-            (etaf-node
-             'column (list :width 'stretch :item-gap '(lh 0))
-             (mapcar (lambda (pair)
-                       (etaf-md--field-row env pair width separator))
-                     pairs)))))
+(defun etaf-md--field-chip (env text variant)
+  "Return TEXT as a small filled chip in VARIANT's palette pair.
+A field's state words are badges, not prose: a fill keeps them apart from the
+description without adding a border or a second row."
+  (let* ((palette (etaf-md-env-palette env))
+         (fill (etaf-md--palette-value
+                palette
+                (pcase variant
+                  ('warning :warn-soft)
+                  ('danger :danger-soft)
+                  ('info :accent-soft)
+                  (_ :panel2)))))
+    (etaf-node 'text
+               (list :background-color fill
+                     :color (or (etaf-md--palette-value palette :ink)
+                                (etaf-md--muted env))
+                     :font-weight 'bold)
+               (list (format " %s " text)))))
+
+(defun etaf-md--field-state-chips (env)
+  "Return the chips a field's required, deprecated and experimental flags ask for."
+  (let ((required (etaf-md-attr env :required))
+        (deprecated (etaf-md-attr env :deprecated))
+        (experimental (etaf-md-attr env :experimental))
+        (chips nil))
+    (when required
+      (push (etaf-md--field-chip env "必填" 'warning) chips))
+    (when deprecated
+      (push (etaf-md--field-chip env
+                                 (if (string-empty-p deprecated)
+                                     "已弃用"
+                                   (format "已弃用 %s" deprecated))
+                                 'danger)
+            chips))
+    (when experimental
+      (push (etaf-md--field-chip env
+                                 (if (string-empty-p experimental)
+                                     "实验性"
+                                   (format "实验性 %s" experimental))
+                                 'info)
+            chips))
+    (nreverse chips)))
+
+(defun etaf-md--field-card (env)
+  "Paint ENV as one parameter card: name, state, type, default, description.
+The attribute form describes a single named value, which is what an API page
+repeats; the list form below still describes a whole set of facts."
+  (let* ((name (etaf-md-attr env :name))
+         (type (etaf-md-attr env :type))
+         (type-link (etaf-md-attr env :type-link))
+         (default (etaf-md-attr env :default))
+         (since (etaf-md-attr env :since))
+         (enum (etaf-md-attr env :enum))
+         (unit (etaf-md-attr env :unit))
+         (format-value (etaf-md-attr env :format))
+         (constraint (etaf-md-attr env :constraint))
+         (muted (etaf-md--muted env))
+         (name-row
+          (etaf-node 'row (list :width 'stretch :item-gap '(ch 1))
+                     (cons (etaf-node 'text (list :font-weight 'bold)
+                                      (list name))
+                           (etaf-md--field-state-chips env))))
+         (type-node
+          (when type
+            (etaf-node 'text
+                       (list :color (etaf-md-accent env 'primary)
+                             :role (and type-link 'link)
+                             :tab-index (and type-link 0)
+                             :on-press (when type-link
+                                         (lambda ()
+                                           (etaf-md-follow-link env type-link))))
+                       (list type))))
+         (default-node
+          (when default
+            (etaf-node 'text (list :color muted)
+                       (list (format "默认 %s" default)))))
+         (since-node
+          (when since
+            (etaf-node 'text (list :color muted)
+                       (list (format "自 %s" since)))))
+         (meta-row
+          (when (or type-node default-node since-node)
+            (etaf-node 'row (list :width 'stretch :item-gap '(ch 2))
+                       (delq nil (list type-node default-node since-node)))))
+         (extras
+          (delq nil
+                (list (when enum
+                        (format "可选值 %s"
+                                (string-join
+                                 (split-string enum "[|,]" t "[ \\t]+") " / ")))
+                      (when unit (format "单位 %s" unit))
+                      (when format-value (format "格式 %s" format-value))
+                      (when constraint (format "约束 %s" constraint)))))
+         (extra-row
+          (when extras
+            (etaf-node 'text (list :color muted)
+                       (list (string-join extras "    ")))))
+         (body (when (etaf-md-children env)
+                 (etaf-md-content env)))
+         (blank (etaf-node 'text nil (list " "))))
+    (etaf-node
+     'column
+     (list :width 'stretch :item-gap '(lh 0)
+           :padding-inline '(ch 1)
+           :border-left (etaf-md--hairline env))
+     ;; One blank row separates the metadata from the description and the
+     ;; description from the notes, the way a heading breathes above its body.
+     (delq nil (list name-row meta-row
+                     (when body blank) body
+                     (when (and body extra-row) blank)
+                     extra-row)))))
 
 (defun etaf-md--field-pair (env row)
   "Return ROW's name and value as one cons."
@@ -464,6 +549,51 @@ COMMAND runs when the line is activated."
         (cons (string-trim (substring text 0 (match-beginning 0)))
               (string-trim (substring text (match-end 0))))
       (cons (string-trim text) ""))))
+
+(defun etaf-md--field-list (env)
+  "Paint ENV's list body as name and value rows."
+  (let* ((list-node (car (etaf-md-children env)))
+         (rows (and list-node (etaf-md-children env list-node)))
+         (pairs (mapcar (lambda (row) (etaf-md--field-pair env row))
+                        rows))
+         (separator (if (eq (etaf-md-attr env :separator) 'none)
+                        "  " "："))
+         (width (or (etaf-md-attr env :label-width)
+                    (list 'ch
+                          (+ (string-width separator)
+                             (max 2 (apply #'max
+                                           (mapcar (lambda (pair)
+                                                     (string-width (car pair)))
+                                                   pairs))))))))
+    (etaf-node
+     'column (list :width 'stretch :item-gap '(lh 0))
+     (mapcar (lambda (pair)
+               (etaf-md--field-row env pair width separator))
+             pairs))))
+
+(etaf-md--define-shipped 'field
+  :name "field"
+  :summary "一个参数的说明卡，或一张名称与值的字段表"
+  :attrs '((name         :type string  :doc "参数名；写了就画成参数卡")
+           (type         :type string  :doc "类型注解")
+           (type-link    :type string  :doc "类型的链接地址")
+           (default      :type string  :doc "默认值")
+           (required     :type boolean :default nil :doc "必填")
+           (deprecated   :type string  :doc "弃用说明，写了显示弃用徽标")
+           (experimental :type string  :doc "实验性说明，写了显示实验徽标")
+           (enum         :type string  :doc "可选值，用 | 或逗号分隔")
+           (unit         :type string  :doc "单位")
+           (format       :type string  :doc "格式")
+           (constraint   :type string  :doc "约束")
+           (since        :type string  :doc "引入版本")
+           (label-width  :type length  :doc "名称列宽度，省略按最长的名称算")
+           (separator    :type enum :one-of (colon none)
+                         :default colon :doc "名称与值的分隔"))
+  :accepts '((list :attrs nil))
+  :view (lambda (env)
+          (if (etaf-md-attr env :name)
+              (etaf-md--field-card env)
+            (etaf-md--field-list env))))
 
 (defun etaf-md--tree-entries (env nodes)
   "Return list item NODES as nested `etaf-tree' items.

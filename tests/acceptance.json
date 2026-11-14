@@ -404,6 +404,11 @@
       "name": "etaf-md-tests-a-child-boolean-set-to-false-is-off",
       "file": "tests/etaf-md-tests.el",
       "purpose": "A child block's boolean attribute is read with its container's declaration: open=false stays closed while open=true shows its body."
+    },
+    {
+      "name": "etaf-md-tests-an-attribute-field-paints-its-metadata",
+      "file": "tests/etaf-md-tests.el",
+      "purpose": "An attribute field paints its name, state chips, type, default, since, enum/unit/format/constraint notes and body, while the list form still paints name and value rows."
     }
   ]
 }

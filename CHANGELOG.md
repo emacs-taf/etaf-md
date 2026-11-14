@@ -349,6 +349,11 @@ pixels below itself.  A picture now takes the size of the page it sits on.
 - A table caption stands on its own line: one blank row separates it from the
   header, so a caption no longer reads as part of the first row.
 
+- `:::` field` describes one parameter: `name`, `type`, `type-link`, `default`,
+  `required`, `deprecated`, `experimental`, `enum`, `unit`, `format`,
+  `constraint` and `since` become a card with its state chips, a metadata row
+  and a notes row.  A field without `name` keeps the list form.
+
 - The callout family reads `info` and `danger` as well, and `:::details`
   folds one block at a time.  A `collapse` child takes an `index` for its
   order, and the group takes `expand` and `accordion` so it can open every

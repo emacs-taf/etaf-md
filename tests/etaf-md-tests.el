@@ -1700,6 +1700,38 @@ there; a raw string would open the section instead."
         (should (string-match-p "可见正文" text))
         (should-not (string-match-p "隐藏正文" text))))))
 
+(ert-deftest etaf-md-tests-an-attribute-field-paints-its-metadata ()
+  "A field written with its attributes paints every part of the card.
+The name, the three state chips, the type, the default and since values, the
+extra notes and the body all reach the page, and the list form still paints
+its name and value rows."
+  (let ((session (etaf-md-create
+                  :text (concat
+                         ":::field {name=\"text\" type=\"string\" default=\"空字符串\" required=true"
+                         " since=\"0.1\" enum=\"a | b\" unit=\"列\" format=\"整数\""
+                         " constraint=\"x > 0\" deprecated=\"0.2\" experimental=\"1.0\"}\n"
+                         "字段正文。\n:::\n\n"
+                         ":::field\n- 版本：12.3.0\n- 缓存：cache\n:::\n")
+                  :theme 'dark)))
+    (etaf-md-tests--with-mount session
+      (switch-to-buffer (current-buffer))
+      (etaf-runtime-flush (etaf-runtime-for-buffer (current-buffer)))
+      (let ((text (buffer-string)))
+        (should (string-match-p "text" text))
+        (should (string-match-p "必填" text))
+        (should (string-match-p "已弃用 0.2" text))
+        (should (string-match-p "实验性 1.0" text))
+        (should (string-match-p "string" text))
+        (should (string-match-p "默认" text))
+        (should (string-match-p "自 0.1" text))
+        (should (string-match-p "可选值 a / b" text))
+        (should (string-match-p "单位 列" text))
+        (should (string-match-p "格式 整数" text))
+        (should (string-match-p "约束 x > 0" text))
+        (should (string-match-p "字段正文" text))
+        (should (string-match-p "版本" text))
+        (should (string-match-p "12.3.0" text))))))
+
 (ert-deftest etaf-md-tests-tab-keys-open-the-next-page ()
   "TAB enters the strip, Right moves focus, RET opens the page."
   (let ((session (etaf-md-create

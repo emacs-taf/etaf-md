@@ -766,14 +766,40 @@ line 44: 第 9 层嵌套超过上限 8 层
 
 组件：`etaf-timeline`。
 
-### 6.7 字段表
+### 6.7 字段
+
+同一个容器有两种写法：一个参数一张卡，或者一张名称与值的字段表。
+
+**参数卡**（Plume `::: field` 的写法）：用属性描述这个参数，正文是说明。
 
 | 属性 | 类型 | 默认 | 说明 |
 | --- | --- | --- | --- |
-| `label-width` | length | 自动 | 名称列宽度，省略时按最长的名称算 |
-| `separator` | enum | `colon` | `colon` 用冒号，`none` 只留间距 |
+| `name` | string | 无 | 参数名；写了就用参数卡的样子 |
+| `type` | string | 无 | 类型注解 |
+| `type-link` | string | 无 | 类型的链接地址，写了类型可以点 |
+| `default` | string | 无 | 默认值 |
+| `required` | boolean | `false` | 必填，名字后面画一个「必填」徽标 |
+| `deprecated` | string | 无 | 弃用说明，画「已弃用 <说明>」 |
+| `experimental` | string | 无 | 实验性说明，画「实验性 <说明>」 |
+| `enum` | string | 无 | 可选值，用 `\|` 或逗号分隔 |
+| `unit` | string | 无 | 单位 |
+| `format` | string | 无 | 格式 |
+| `constraint` | string | 无 | 约束 |
+| `since` | string | 无 | 引入版本 |
 
-内容是列表，每项第一个冒号前是名称。对应 HTML 的描述列表 `<dl>`。
+名字一行，状态徽标跟在后面；类型、默认值、引入版本排成第二行；可选值、单位、格式、约束合并成末尾一行；正文照常写块。
+
+```markdown
+:::field {name="width" type="number" default="46" unit="列"
+          required=true since="0.1"
+          enum="8 | 16 | 46" constraint="8 ≤ width ≤ 120"}
+图片卡的最大列数，超出页面宽度时自动收窄。
+:::
+```
+
+Plume 把 `@type`、`@default` 这些 JSDoc 标签写在正文里；这里改成容器属性，值里不要带引号（默认值是空字符串就写 `default="空字符串"`）。
+
+**字段表**：不写 `name`，正文是一个列表，每项第一个冒号前是名称。属性是 `label-width` 与 `separator`。
 
 ```markdown
 :::field

@@ -757,14 +757,40 @@ The case it solves: release notes and incident timelines. A list loses the "time
 
 Component: `etaf-timeline`.
 
-### 6.7 Field list
+### 6.7 Field
+
+One container, two forms: a card for one parameter, or a table of names and values.
+
+**Parameter card** (Plume's `::: field`): the attributes describe the value and the body is its description.
 
 | Attribute | Type | Default | Meaning |
 | --- | --- | --- | --- |
-| `label-width` | length | computed | Name column width; from the longest name by default |
-| `separator` | enum | `colon` | `colon` puts a colon after the name, `none` leaves the gap |
+| `name` | string | none | Parameter name; the card form is used when it is present |
+| `type` | string | none | Type annotation |
+| `type-link` | string | none | Link for the type, so the type can be opened |
+| `default` | string | none | Default value |
+| `required` | boolean | `false` | Draws a required chip after the name |
+| `deprecated` | string | none | Draws a deprecated chip with this note |
+| `experimental` | string | none | Draws an experimental chip with this note |
+| `enum` | string | none | Candidate values, separated by `\|` or commas |
+| `unit` | string | none | Unit |
+| `format` | string | none | Format |
+| `constraint` | string | none | Constraint |
+| `since` | string | none | Version that introduced it |
 
-The body is a list; the text before the first colon is the name. It corresponds to HTML's description list, `<dl>`.
+The name owns the first row with its state chips; the type, default and since values share the second; the candidate values, unit, format and constraint merge into the last row; the body keeps its blocks.
+
+```markdown
+:::field {name="width" type="number" default="46" unit="columns"
+          required=true since="0.1"
+          enum="8 | 16 | 46" constraint="8 ≤ width ≤ 120"}
+Largest column count of an image card; it narrows to the page.
+:::
+```
+
+Plume writes `@type`, `@default` and the other JSDoc tags in the body; here they are container attributes, and a value carries no quotes of its own (write `default="empty string"`).
+
+**Field table**: without `name`, the body is a list whose text before the first colon is the name; its attributes are `label-width` and `separator`.
 
 ```markdown
 :::field

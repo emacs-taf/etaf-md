@@ -28,6 +28,32 @@
 底色同样可以换。
 :::
 
+## 字段
+
+一个参数的说明卡：名字一行，状态徽标跟在后面，类型、默认值和引入版本一行，正文就是说明。
+
+:::field {name="text" type="string" default="空字符串" required=true since="0.1"}
+要画成链接的文字，必填。
+:::
+
+:::field {name="width" type="number" default="46" unit="列" constraint="8 ≤ width ≤ 120" enum="8 | 16 | 46 | 120" format="整数"}
+图片卡的最大列数，超出页面宽度时自动收窄。
+:::
+
+:::field {name="tabs" type="string" enum="npm | pnpm | yarn | bun | deno" deprecated="0.2" experimental="1.0"}
+要显示的包管理器，逗号分隔；第二个参数已弃用，第四个还在试验。
+:::
+
+:::field {name="type-link" type="string" type-link="https://etaf.top/" since="0.3"}
+类型名可以是一个链接，点它打开目标页。
+:::
+
+:::field
+- 版本：12.3.0
+- 渲染器：Chromium，常驻
+- 缓存：`~/.cache/etaf-md/typeset`
+:::
+
 ## 图片卡片
 
 :::image-card {src="etaf-md-preview-wide.png" title="完整的预览" description="图片在上，标题和说明在下；整张卡片都能点。" href="https://etaf.top/"}
