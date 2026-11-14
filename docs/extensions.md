@@ -324,7 +324,7 @@ line 42: card's accent is "urgent"; it takes neutral, primary, success, warning,
 line 44: nesting level 9 exceeds the limit of 8
 ```
 
-Failures come in seventeen kinds. Each has a determined page result; none is "it depends".
+Failures come in twenty-one kinds. Each has a determined page result; none is "it depends".
 
 | Case | Page result | Scope |
 | --- | --- | --- |
@@ -345,6 +345,10 @@ Failures come in seventeen kinds. Each has a determined page result; none is "it
 | Contract version mismatch | Source, and the line names the version it needs | This block |
 | A style rule selects on an undeclared attribute | The whole rule is ignored, with one line | The page |
 | A style rule's key is a derived attribute | That key is ignored, with a line saying it can only be a selector | The page |
+| `target` names no block | The selector stays pressable, with one line | That selector |
+| Two selectors point at one region | The later one wins, with one line | That region |
+| Duplicate child keys | The first is taken, with one line | That group |
+| The selected key has no content | The region shows `empty`, or nothing when absent, with one line | That region |
 
 Four rules that hold everywhere.
 
@@ -896,7 +900,7 @@ The long text.
 
 The case it solves: long derivations, long logs, a complete error report. They stay on the page for reference without blocking the way.
 
-Component: `etaf-accordion`, controlled, with `open` and `multiple` supplied by the block.
+Component: `etaf-accordion`, controlled, with `open` and `multiple` supplied by the block; `multiple` defaults to `false`, so one section is open at a time.
 
 ### 6.14 Table
 
@@ -970,11 +974,101 @@ A transformation of plume's `window`, which draws rounded corners and a shadow; 
 
 ### 7.1 Interaction comes from the component
 
-A document cannot give anything behaviour, and neither can a definition. **Something is interactive because a component stands behind it, not because a definition says so.** The definition supplies two things: a per-block state cell, and the callback for when the state changes. Keys, focus and arrow keys all live in the component.
+A document cannot give anything behaviour, and neither can a definition. **Something is interactive because a component stands behind it, not because a definition says so.** The definition supplies a state cell and a callback; keys, focus and arrow keys all live in the component.
+
+A connection between two blocks is a different job: what one block selects and what another block should show are invisible to both components. **The renderer draws that line, see 7.5.**
 
 This is the same statement as "components are thick" in chapter 9: `etaf-tabs` already works from the keyboard; `:::tabs` only connects it to a document. So there is no keyword for declaring interactivity, and none is needed.
 
-### 7.2 Focus and keys
+### 7.2 Selector and region
+
+Every interactive block reduces to one model: **one selector, one region, and the selected key decides what the region shows.**
+
+| Role | What it does | What it does not know |
+| --- | --- | --- |
+| Selector | Collects the selection, reports changes, paints its own appearance | What the region holds |
+| Region | Shows the content that matches the selected key | Where the selection came from |
+
+There are only three wirings.
+
+| Wiring | Where the state lives | Examples |
+| --- | --- | --- |
+| Inside a block | The parent's block state | Tabs, collapse, steps |
+| Across blocks | On the selector, copied to the region's block | File tree with a side pane, table with a detail pane, contents with a body |
+| The host | The application | A row that fetches its data from a backend |
+
+One model covers these cases:
+
+| Case | Selector | Region |
+| --- | --- | --- |
+| Tabs | The tab row | The selected page |
+| Collapse | The header rows | The expanded blocks |
+| File tree | The tree | The file content in the side pane |
+| Table row selection | A row | A detail pane |
+| Steps | The current step | That step's body |
+| Site contents | A side list | The body |
+| Conversation list | A conversation | The message pane |
+| Card group | One card | The detail |
+| Pagination | A page number | The list content |
+| Tag filter | A set of tags | The filtered list |
+
+### 7.3 Selection values
+
+- A selection is a set of keys. Single selection is a set with at most one member.
+- A child without a key takes its position: the first is `0`, the second `1`.
+- A tree holds two sets: `:selected` and `:expanded`.
+- The set lives in block state and never on disk. A reflow, a theme change or a width change keeps it; reloading the document returns to defaults.
+
+### 7.4 Attributes
+
+| Attribute | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `selected` | boolean or string | none | The initial selection: `true` on a child, one key on a selector |
+| `target` | string | none | The region `id` a selector points at |
+| `key` | string or number | its position | A child's selection value |
+| `multiple` | boolean | `false` | Allow more than one selection |
+| `empty` | string | none | What the region shows when nothing is selected |
+
+```markdown
+:::columns {columns="20ch 1fr"}
+:::col
+:::tree {target="preview"}
+- lisp/
+  - etaf-md.el
+  - views.el
+:::
+:::
+:::col
+:::box {id="preview" empty="Pick a file"}
+Pick a file on the left.
+:::
+:::
+:::
+```
+
+### 7.5 Wiring across blocks
+
+1. The selector writes its selection into its own block state.
+2. When a block with `target` changes, the renderer copies the same value into the target block's `:selected`.
+3. It repaints the target block only.
+4. If the target is not on the page, nothing moves and one line is reported.
+
+Conflicts follow 3.4: a `target` that names no block reports a line; two selectors pointing at one region let the later one win and report a line; a duplicate child key takes the first and reports a line; a selected key with no content shows `empty`, or nothing when `empty` is absent, and reports a line.
+
+### 7.6 Host push
+
+When the data lives in the application, the region keeps a placeholder and the host replaces it:
+
+```elisp
+(etaf-md-update-block SESSION ID VIEW)
+```
+
+- `ID` is the region block's `id`; `VIEW` is a view, either primitives or another rendered document.
+- Only that block repaints; when its height changes, the blocks below it move.
+- Reloading the document returns to the placeholder written in the document.
+- An unknown `ID` moves nothing and reports a line.
+
+### 7.7 Focus and keys
 
 - A focusable target is an element the container draws, not the text itself. `TAB` and `S-TAB` move between them.
 - `RET` activates the current target.
@@ -982,26 +1076,29 @@ This is the same statement as "components are thick" in chapter 9: `etaf-tabs` a
 - When focus enters a container, the container shows a visible focus mark; it returns to its resting paint when focus leaves.
 - Focus order follows document order, not visual position. It is the same after a narrow window degrades.
 
-### 7.3 State and repaint
+### 7.8 State and repaint
 
 - State lives on the container, not on the document, and never on disk.
 - A reflow, a theme change or a width change keeps it. Reloading the document returns to defaults.
 - A state change repaints that block only, never the page.
-- The default state comes from attributes; `selected` and `open` are enough.
+- The default state comes from attributes; `selected`, `open` and `key` are enough.
+- Attributes settle the first value, then state owns it: rules and the document value decide the initial value, and a later rule change seeds it again.
+- A block with an `id` keeps its identity by that `id`, one without by position; inserting a block above resets the ones below.
 
-### 7.4 Search, copy, export
+### 7.9 Search, copy, export
 
-- **isearch**: hidden content still takes part. A match opens the block and puts focus on the match. Something unsearchable does not exist as far as a reader is concerned, and they cannot know it was folded away.
+- **isearch**: hidden content still takes part. A match opens the block and puts focus on the match. That opening is a temporary override; it writes no state, so the block returns to its earlier fold afterwards.
 - **Copy**: the visible text is copied, including container labels, excluding hidden content.
-- **Export**: an org or HTML export flattens interactive containers the way 7.5 describes, so the reader's text is complete.
+- **Export**: an org or HTML export flattens interactive containers the way 7.10 describes, so the reader's text is complete.
 
-### 7.5 Flattening without interaction
+### 7.10 Flattening without interaction
 
 Where there is no keyboard and no focus, such as batch rendering, export or a terminal capture, an interactive container must flatten.
 
 | Container | Flattened |
 | --- | --- |
 | Tabs | One section per tab, titled by its label, all expanded |
+| Code tabs | The same as tabs |
 | Collapse | All expanded, titles kept |
 
 Flattening is not degradation; it is the same content in another arrangement. That is why the tests can run in batch without simulating keys.
@@ -1344,10 +1441,10 @@ heading            built in; a document cannot write its name
 | Phase | Content | Done when |
 | --- | --- | --- |
 | 0 | GitHub alerts | Implemented, covered by 51 tests |
-| 1 | Render path: parsing, derive, style rules, the failure catalogue, with `heading`, `box`, `columns` and `card` written as definitions | One assertion for each of the 17 failure kinds; three-level nesting and the limit; captures at three widths; a user definition replaces the shipped `card`; one reader attribute changes each built-in type; editing rules never re-parses |
+| 1 | Render path: parsing, derive, style rules, the failure catalogue, with `heading`, `box`, `columns` and `card` written as definitions | One assertion for each of the 21 failure kinds; three-level nesting and the limit; captures at three widths; a user definition replaces the shipped `card`; one reader attribute changes each built-in type; editing rules never re-parses |
 | 2 | Callout containers: five definitions share one view and land on the GitHub spelling's result | Both spellings produce the same buffer text; each of the five accents maps to its own type |
 | 3 | Collections: `steps`, `timeline`, `stats`, `field`, `file-tree`, `chat` | Each container has a positive case, a counter-example and captures in three palettes |
-| 4 | Interaction: `tabs`, `code-tabs`, `accordion` and its child `collapse` | Keys go through the command loop; state survives reflow and a theme change; flattened output loses nothing |
+| 4 | Interaction: `tabs`, `code-tabs`, `accordion` and its child `collapse`, plus cross-block wiring and host push | Keys go through the command loop; state survives reflow and a theme change; flattened output loses nothing; a selection change repaints the target block only |
 | 5 | Documents: `table`, `window` | Row and column highlights land; the window draws only a title bar |
 | 6 | Registry and user definitions | A sample definition installs, uninstalls, and the page returns to the shipped view; a new reader attribute on a shipped type takes effect; `:default` still reaches the shipped view after an override; a contract mismatch is reported; `doctor` reports counts and the override chain |
 | 7 | Editing the source buffer: dimming, pair hint, insert and complete, folding, as `etaf-md-edit-mode` | `font-lock-keywords` is `equal` before and after an enable-and-disable cycle; `buffer-string` is unchanged; a 2000-line document costs 50 milliseconds of extra work at most; typing inside one line triggers no pair computation |
@@ -1421,7 +1518,11 @@ Two tables. An ordinary attribute is written by the document and overridden by t
 | `start` | number | `:integer t` | 1 | First number | steps |
 | `open` | boolean | | see 6.x | Starts expanded | Callouts, the collapse child |
 | `collapsible` | boolean | | false | May be folded | Callouts |
-| `selected` | boolean | | false | This child starts selected | The tab child |
+| `selected` | boolean or string | | none | The initial selection | Every selector, the tab child |
+| `target` | string | | none | The region `id` a selector points at | Selectors |
+| `key` | string or number | | its position | A child's selection value | Children |
+| `multiple` | boolean | | false | Allow more than one selection | Selectors, the collapse child |
+| `empty` | string | | none | What the region shows when nothing is selected | Regions |
 | `grow` | number | | 1 | Share of the width | `col` children |
 | `time` | string | | none | Time text | `event` and `message` children |
 | `value` | string | | none | Numeric text | `stat` children |
@@ -1591,6 +1692,10 @@ This table is the ground for naming. A new name is looked up here first; if it i
 | `separator` | General | Name/value separator | `divider` |
 | `label-width` | CSS-style compound | Name column width | `label-w`, `width` |
 | `self` | Chat interfaces | The reader's own side | `me`, `own` |
+| `target` | This document's wiring | The region a selector points at | `for`, `pane` |
+| `key` | SVG, React | A child's selection value | `value`, `index` |
+| `multiple` | HTML `<select multiple>` | Allow more than one selection | `multi`, `many` |
+| `empty` | General | The placeholder when nothing is selected | `placeholder`, `empty-text` |
 | `from` | Mail, chat | Sender | `sender`, `author` |
 | `time` | HTML `<time>` | Timestamp | `date`, `at` |
 | `value` | HTML `<input value>` | The number as text | `number`, `figure` |
