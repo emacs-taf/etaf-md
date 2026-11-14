@@ -333,6 +333,8 @@ Four rules.
 - **Every key has one type.** An unknown key is an error at load; that node type falls back to the shipped style and the page still renders.
 - **The shipped styles live in this table too.** No literal colour values in the code, so what you change and what you see are the same thing.
 
+`etaf-md-define-style` writes into this same table, not a second one. When a key is written in both places, the later one wins.
+
 Editing the table repaints the page and re-derives it, but never re-parses it; see 8.2. The keys here are the shipped vocabulary; giving a type a new key takes a render function, see 9.4.
 
 ### 4.4 Two colour rights
