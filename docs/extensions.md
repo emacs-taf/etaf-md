@@ -790,11 +790,27 @@ A definition is data, not code inside a document.
 | `:children` | Parent only: the child names and their attributes |
 | `:body` | A function taking three arguments and returning an ETAF view |
 
-What `body` receives.
+What `body` receives is four things.
 
 - `attrs`: a validated plist. Omitted attributes hold their defaults and types are converted.
-- `body`: the parsed content as views. A definition decides placement and never touches parsing.
-- `env`: the rendering environment. Read a colour with `(etaf-md-token env 'info)` and the line height with `(etaf-md-token env 'lh)`.
+- `children`: parents only, in source order, each child as `(:name :attrs :view)`. Without it a parent cannot collect its children's titles into the tab row or the accordion it draws.
+- `content`: the parsed block tree, not views. `field` splits a line at its first colon, `code-tabs` reads a fence language, `table` needs its rows, and all three need this.
+- `env`: the rendering environment, with the capabilities below.
+
+What `env` offers is all a definition can reach.
+
+| Capability | Call | Used by |
+| --- | --- | --- |
+| Token | `(etaf-md-token env 'info)` | Every container |
+| Line height | `(etaf-md-token env 'lh)` | Every container |
+| Render blocks | `(etaf-md-render env blocks &rest options)` | `field`, `chat`, `table` |
+| Open a target | `(etaf-md-open env href)` | `card`'s `href` |
+| This block's state | `(etaf-md-state env :active)` | `tabs`, `collapse` |
+| Measure | `(etaf-md-measure env)` | `columns` degradation |
+
+The state row is the key one. `etaf-tabs` in the catalogue is a controlled component: `active` and `on-change` come from the caller, and a definition has nowhere to keep state. So every block gets its own state cell, created by the renderer and isolated per block.
+
+The `&rest options` on `etaf-md-render` are for wrapping containers. `table` turns row highlights on for the table it wraps; it does not need to change how a table draws, only to pass the option down.
 
 A parent adds one field.
 
@@ -802,12 +818,16 @@ A parent adds one field.
 :children '((col :attrs ((grow :number 1 "Width share"))))
 ```
 
+The three built-in structure containers take this road too. `box`, `card` and `columns` are not special cases; they are three definitions in the same registry. The reason is simple: as long as one container has a private branch in the renderer, the API has never been exercised, and a user will eventually hit a capability only that branch has.
+
 ### 9.2 Rules for attributes and children
 
 - A definition references names from the shared attribute table, or declares its own. A private attribute says in `:summary` that it only works with that container.
 - Every attribute and child has a default. No default means required, and a missing required attribute follows the failure rule in 3.4.
 - A `child` definition declares no `:children`.
-- A definition may not read files, make network requests or start timers. It receives `attrs`, `body` and `env`, nothing else.
+- A definition may not read files, make network requests or start timers. It receives `attrs`, `children`, `content` and `env`, nothing else.
+- The renderer's dispatch contains no container names. It looks a definition up by role and attributes, and never branches on a name.
+- Shipped definitions and user definitions load from the same table. A test must replace the shipped `card` with a user definition and render the result.
 
 ### 9.3 Where definitions live and when they are read
 
@@ -843,7 +863,7 @@ A parent adds one field.
 | Phase | Content | Done when |
 | --- | --- | --- |
 | 0 | GitHub alerts | Implemented, covered by 51 tests |
-| 1 | Block model: parsing, the failure catalogue, `box`, `columns`, `card` | One assertion per failure kind; three-level nesting and the limit; captures at three widths |
+| 1 | Block model: parsing, the failure catalogue, `box`, `columns`, `card`, with the three structure containers written as definitions | One assertion per failure kind; three-level nesting and the limit; captures at three widths; a user definition replaces the shipped `card` |
 | 2 | Callout containers: five names sharing one definition with the GitHub spelling | Both spellings produce the same buffer text; the tone mapping holds |
 | 3 | Collections: `steps`, `timeline`, `stats`, `field`, `file-tree`, `chat` | Each container has a positive case, a counter-example and captures in three palettes |
 | 4 | Interaction: `tabs`, `code-tabs`, `collapse`, `collapse-group` | Keys go through the command loop; state survives reflow and a theme change; flattened output loses nothing |
