@@ -5,10 +5,8 @@ EMACS ?= emacs
 # override PROVIDER_ROOT to pin another checkout.
 PROVIDER_ROOT ?= ..
 LOAD_PATH = -L . -L lisp -L tests -L $(PROVIDER_ROOT)/etaf -L $(PROVIDER_ROOT)/etaf-ui -L $(PROVIDER_ROOT)/ebox -L $(PROVIDER_ROOT)/ecss
-SOURCES = lisp/etaf-md-theme.el
-SOURCES += lisp/etaf-md-model.el lisp/etaf-md-views.el
-SOURCES += lisp/etaf-md-app.el lisp/etaf-md-live.el
-SOURCES += lisp/etaf-md-typeset.el etaf-md.el
+SOURCES = $(wildcard lisp/*.el)
+SOURCES += etaf-md.el
 SOURCES += $(wildcard examples/*.el)
 SOURCES += scripts/etaf-md-gui-probe.el
 SOURCES += benchmarks/performance-scenarios.el
