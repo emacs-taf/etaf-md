@@ -72,7 +72,7 @@
 | 0.3.0 | 0.18 s | 74 MB |
 :::
 
-:::table {title="按内容收窄" max-content=true}
+:::table {title="只有两列的表"}
 | 名称 | 值 |
 | --- | --- |
 | 缓存 | 命中 |

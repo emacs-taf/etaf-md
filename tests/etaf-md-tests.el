@@ -1732,6 +1732,45 @@ its name and value rows."
         (should (string-match-p "版本" text))
         (should (string-match-p "12.3.0" text))))))
 
+(ert-deftest etaf-md-tests-a-steps-list-becomes-numbered-steps ()
+  "A steps container written as an ordered list keeps every item's text."
+  (let ((session (etaf-md-create
+                  :text (concat ":::steps
+"
+                                "1. 先抓栈，别先猜
+"
+                                "2. 改产生现象的那一层
+"
+                                ":::
+")
+                  :theme 'dark)))
+    (etaf-md-tests--with-mount session
+      (etaf-runtime-flush (etaf-runtime-for-buffer (current-buffer)))
+      (let ((text (buffer-string)))
+        (should (string-match-p "先抓栈，别先猜" text))
+        (should (string-match-p "改产生现象的那一层" text))))))
+
+(ert-deftest etaf-md-tests-a-timeline-event-shows-its-status ()
+  "A timeline event with `status' paints that state as a badge."
+  (let ((session (etaf-md-create
+                  :text (concat ":::timeline
+"
+                                ":::event {title=\"定位\" status=\"success\" time=\"今天\"}
+"
+                                "改好了。
+"
+                                ":::
+"
+                                ":::
+")
+                  :theme 'dark)))
+    (etaf-md-tests--with-mount session
+      (etaf-runtime-flush (etaf-runtime-for-buffer (current-buffer)))
+      (let ((text (buffer-string)))
+        (should (string-match-p "定位" text))
+        (should (string-match-p "成功" text))
+        (should (string-match-p "今天" text))))))
+
 (ert-deftest etaf-md-tests-a-table-copies-itself-when-asked ()
   "A table written `copy=true' offers a line that copies it as TSV.
 The table keeps its cells and the copy line puts the header and the rows on

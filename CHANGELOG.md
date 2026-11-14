@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+### Added
+
+- A `steps` container also accepts an ordered list: each item is one step and
+  its text is the title, which is how Plume documents write steps.  A
+  `timeline` event takes `status` (`success`, `warning`, `danger` or `info`),
+  colouring its dot and painting a badge, and the container takes `start`.
+
+- A table is a real grid: every cell draws its own rules, so the header row and
+  each body row are separated the way a printed table is.  Its frame hugs the
+  grid, and the caption and the copy line stay above it instead of sitting
+  inside a page-wide box.
+
 ### Changed
 
 - The package is `etaf-md` and the library is `etaf-md.el`.  It renders
@@ -350,9 +362,9 @@ pixels below itself.  A picture now takes the size of the page it sits on.
   header, so a caption no longer reads as part of the first row.
 
 - A table marks single cells with `highlight-cells="2:3"`, aligns its whole
-  body with `align`, shrinks to its content with `max-content`, and offers a
-  copy line with `copy` that puts the table on the kill ring as tab separated
-  text.
+  body with `align`, and offers a copy line with `copy` that puts the table on
+  the kill ring as tab separated text.  Its frame hugs the grid, with the
+  caption and the copy line above it.
 
 - `:::` field` describes one parameter: `name`, `type`, `type-link`, `default`,
   `required`, `deprecated`, `experimental`, `enum`, `unit`, `format`,

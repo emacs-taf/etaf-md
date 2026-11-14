@@ -411,6 +411,16 @@
       "purpose": "An attribute field paints its name, state chips, type, default, since, enum/unit/format/constraint notes and body, while the list form still paints name and value rows."
     },
     {
+      "name": "etaf-md-tests-a-steps-list-becomes-numbered-steps",
+      "file": "tests/etaf-md-tests.el",
+      "purpose": "A steps container written as an ordered list paints every item's text as a numbered step."
+    },
+    {
+      "name": "etaf-md-tests-a-timeline-event-shows-its-status",
+      "file": "tests/etaf-md-tests.el",
+      "purpose": "A timeline event with a status paints its title, time and that state's badge text."
+    },
+    {
       "name": "etaf-md-tests-a-table-copies-itself-when-asked",
       "file": "tests/etaf-md-tests.el",
       "purpose": "A table with copy=true paints a copy line; activating it puts the header and rows on the kill ring as tab separated text."

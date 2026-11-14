@@ -717,7 +717,8 @@ A box is a card without a title. Centring a figure is what it is for.
 | `start` | number | `1` | First number |
 | `list-style` | enum | `decimal` | `decimal` for digits, `bullet` for a dot |
 
-The child is `step`, with a required `title`.
+The child is `step`, with a required `title`.  An ordered list works too:
+each item is one step and its text is the title.
 
 ````markdown
 :::steps
@@ -730,6 +731,16 @@ Change the layer that produces the symptom, not its result.
 :::
 ````
 
+````markdown
+:::steps
+1. Locate: take a stack with `sample`
+2. Fix the cause: change the layer that produces the symptom
+3. Recheck: run the same input again
+:::
+````
+
+The list form carries only the title; write `step` children when a step needs a body.
+
 The case it solves: in a procedure a reader wants to see how many steps there are and which one they are on. An ordered list can do it, but the number and the title share a line, and a wrapped title leaves the number alone on its row.
 
 Component: `etaf-steps`.
@@ -739,15 +750,16 @@ Component: `etaf-steps`.
 | Attribute | Type | Default | Meaning |
 | --- | --- | --- | --- |
 | `list-style` | enum | `bullet` | `bullet`, `decimal`, `none` |
+| `start` | number | `1` | Number of the first entry |
 
-The child is `event`, with a required `title` and an optional `time`.
+The child is `event`, with a required `title`; `time` writes the date, and `status` takes `success`, `warning`, `danger` or `info` to colour the dot and paint a badge.
 
 ````markdown
 :::timeline
 :::event {time="2026-11-12" title="Found the cost in drawing"}
 `image-size` actually drew the picture.
 :::
-:::event {time="2026-11-13" title="Read the header instead"}
+:::event {time="2026-11-13" title="Read the header instead" status="success"}
 Opening dropped from 5.4 s to 0.33 s.
 :::
 :::
@@ -944,7 +956,7 @@ Component: `etaf-accordion`, controlled, with `open` and `multiple` supplied by 
 
 ### 6.14 Table
 
-A plain pipe table already works. This container owns the table's **presentation**, never the table itself: it sets one title line, marks the rows, columns and single cells to look at, can shrink to its content, align the whole table, and copy it as tab separated text. Without it the table renders as usual, just without a title or emphasis.
+A plain pipe table already works. This container owns the table's **presentation**, never the table itself: it sets one title line, marks the rows, columns and single cells to look at, aligns the whole table, and copies it as tab separated text.  The frame hugs the grid, and the caption and copy line stay outside it. Without it the table renders as usual, just without a title or emphasis.
 
 With a title as its only job, the name would belong to captions. It also carries highlighting, and a table's alignment and footnotes would land here too, so its duty is wider than a caption and the name stays `table`.
 
@@ -955,7 +967,6 @@ With a title as its only job, the name would belong to captions. It also carries
 | `highlight-columns` | string | none | Highlighted column numbers, space separated, e.g. `1` |
 | `highlight-cells` | string | none | Highlighted cells written `row:column`, space separated, e.g. `2:3 3:1` |
 | `align` | enum | inherits `text-align` | Table-wide alignment: `left`, `center`, `right`; wins over a cell's own |
-| `max-content` | boolean | `false` | Shrink to the content instead of filling the page |
 | `copy` | boolean | `false` | Draw a copy line under the title that puts the table on the kill ring as tab separated text |
 | `highlight` | accent | `warning` | Which accent the highlight uses |
 | `background` | surface | `page` | Table fill |

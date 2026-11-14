@@ -346,13 +346,33 @@ COMMAND runs when the line is activated."
 
 ;;; Sequences
 
+(defun etaf-md--steps-items (env)
+  "Return ENV's steps as `etaf-steps' items.
+Plume writes the steps as an ordered list; a document may also write
+`:step' blocks, each with its own body.  Both forms reach the same component."
+  (let ((children (etaf-md-children env)))
+    (if (and (= 1 (length children))
+             (eq (etaf-md-node-type (car children)) 'list))
+        (seq-map-indexed
+         (lambda (item index)
+           (list :key index
+                 :label (or (etaf-md-attr env :text item) "")))
+         (etaf-md-children env (car children)))
+      (seq-map-indexed
+       (lambda (step index)
+         (list :key index
+               :label (or (etaf-md-attr env :title step) "")
+               :content (lambda () (etaf-md--child-view env step))))
+       children))))
+
 (etaf-md--define-shipped 'steps
   :name "steps"
   :summary "有序步骤，每步带正文"
   :attrs '((start      :type number :default 1 :integer t :min 0 :doc "起始编号")
            (list-style :type enum   :one-of (decimal bullet none)
                        :default decimal :doc "记号"))
-  :accepts '((step :attrs ((title :type string :required t :doc "步骤标题"))))
+  :accepts '((step :attrs ((title :type string :required t :doc "步骤标题")))
+             (list :attrs nil))
   :view (lambda (env)
           (etaf-view
            (etaf-steps
@@ -360,29 +380,35 @@ COMMAND runs when the line is activated."
             :start (etaf-md-attr env :start)
             :list-style (etaf-md-attr env :list-style)
             :current 0
-            :items (seq-map-indexed
-                    (lambda (step index)
-                      (list :key index
-                            :label (or (etaf-md-attr env :title step) "")
-                            :content (lambda () (etaf-md--child-view env step))))
-                    (etaf-md-children env))))))
+            :items (etaf-md--steps-items env)))))
 
 (etaf-md--define-shipped 'timeline
   :name "timeline"
   :summary "按时间排的事件，每条带正文"
   :attrs '((list-style :type enum :one-of (decimal bullet none)
-                       :default bullet :doc "记号的样式"))
-  :accepts '((event :attrs ((title :type string :required t :doc "标题")
-                            (time  :type string :doc "时间文字"))))
+                       :default bullet :doc "记号的样式")
+           (start      :type number :default 1 :integer t :min 0 :doc "第一项的序号"))
+  :accepts '((event :attrs ((title  :type string :required t :doc "标题")
+                            (time   :type string :doc "时间文字")
+                            (status :type enum :one-of (success warning danger info)
+                                    :doc "状态，决定圆点颜色并画成一个徽标"))))
   :view (lambda (env)
           (etaf-view
            (etaf-timeline
             :list-style (etaf-md-attr env :list-style)
+            :start (etaf-md-attr env :start)
             :items (seq-map-indexed
                     (lambda (event index)
                       (list :key index
                             :title (or (etaf-md-attr env :title event) "")
                             :time (etaf-md-attr env :time event)
+                            :status (when-let* ((status (etaf-md-attr env :status event)))
+                                      (list :text (pcase status
+                                                    ('success "成功")
+                                                    ('warning "警告")
+                                                    ('danger "错误")
+                                                    (_ "说明"))
+                                            :variant status))
                             :content (lambda () (etaf-md--child-view env event))))
                     (etaf-md-children env))))))
 
@@ -825,7 +851,6 @@ frame and its colours; only the language row is left out."
            (highlight-cells   :type string :doc "高亮的单元格，写成 行:列，空格分隔")
            (align             :type enum :one-of (left center right)
                               :doc "整张表的对齐，盖过 text-align")
-           (max-content       :type boolean :default nil :doc "按内容收窄，不铺满页面")
            (copy              :type boolean :default nil :doc "在标题下画一个复制整表的一行")
            (highlight         :type accent :default warning :doc "高亮用哪个强调值")
            (background        :type surface :default page :doc "表格底色")
@@ -872,7 +897,6 @@ frame and its colours; only the language row is left out."
          (hit-cells (etaf-md--table-cells (etaf-md-attr env :highlight-cells)))
          (hit (etaf-md-accent env (etaf-md-attr env :highlight)))
          (table-align (etaf-md-attr env :align))
-         (table-width (if (etaf-md-attr env :max-content) 'max-content 'stretch))
          (header-fill (etaf-md-surface env (etaf-md-attr env :header-background)))
          (stripe-fill (etaf-md-surface env (etaf-md-attr env :stripe-background)))
          (tracks (cl-loop for column below columns
@@ -886,6 +910,10 @@ frame and its colours; only the language row is left out."
                                                     (nth column
                                                          (etaf-md-children env row)))
                                                    "")))))))
+         ;; The frame hugs the grid: a page-wide frame around a short grid
+         ;; reads as an empty box, and the cells already carry the rules.
+         (table-width (list 'ch (cl-loop for track in tracks
+                                         sum (cadr track))))
          (row-views nil)
          (row-number 0))
     (dolist (row rows)
@@ -910,12 +938,14 @@ frame and its colours; only the language row is left out."
                          (cond ((= row-number 1) header-fill)
                                ((and stripe-fill (cl-oddp row-number))
                                 stripe-fill))
-                         :border-bottom
-                         (unless (= row-number (length rows))
-                           (etaf-md--hairline env))
-                         :border-right
-                         (unless (= column columns)
-                           (etaf-md--hairline env))
+                         ;; Every cell draws its own right and bottom rule,
+                         ;; and the first row and column close the grid on
+                         ;; the other two sides; that is one pixel between
+                         ;; neighbours instead of two.
+                         :border-bottom (etaf-md--hairline env)
+                         :border-right (etaf-md--hairline env)
+                         :border-left (and (= column 1) (etaf-md--hairline env))
+                         :border-top (and (= row-number 1) (etaf-md--hairline env))
                          :color (and highlighted hit)
                          :font-weight (and (or (= row-number 1) highlighted)
                                            'bold))
@@ -928,16 +958,15 @@ frame and its colours; only the language row is left out."
               row-views)))
     (etaf-node
      'column
-     (list :width table-width
-           :background-color (etaf-md-surface env (etaf-md-attr env :background))
+     (list :width 'stretch
            :margin-top (etaf-md--vertical-length (etaf-md-attr env :margin-top))
            :margin-bottom (etaf-md--vertical-length (etaf-md-attr env :margin-bottom))
            :item-gap '(lh 0))
      (append
+      ;; The caption and the copy line sit above the frame, the way a table
+      ;; caption sits outside its grid.
       (when-let* ((title (etaf-md-attr env :title)))
         (list (etaf-node 'text (list :font-weight 'bold) (list title))
-              ;; A title that sits on the header row reads as part of it;
-              ;; one blank row separates the caption from the table.
               (etaf-node 'text nil (list " "))))
       (when (etaf-md-attr env :copy)
         (let ((content (etaf-md--table-text env rows)))
@@ -949,7 +978,15 @@ frame and its colours; only the language row is left out."
                                  :on-press (lambda () (kill-new content)))
                            (list "复制表格"))
                 (etaf-node 'text nil (list " ")))))
-      (nreverse row-views)))))
+      (list
+       (etaf-node
+        'column
+        (list :width table-width
+              ;; The cells own the whole grid, so the container adds no frame:
+              ;; a second edge next to theirs would read as a double line.
+              :background-color (etaf-md-surface env (etaf-md-attr env :background))
+              :item-gap '(lh 0))
+        (nreverse row-views)))))))
 
 (etaf-md--define-shipped 'window
   :name "window"
