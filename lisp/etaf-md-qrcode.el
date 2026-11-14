@@ -20,12 +20,14 @@
 (require 'etaf-md-env)
 
 (declare-function etaf-md--typeset-changed "etaf-md-typeset" (session))
+(declare-function etaf-md--media-picture "etaf-md-views" (url env max-columns max-rows))
+(declare-function etaf-md--component-view-env "etaf-md-components" (env))
 
 (defconst etaf-md-qrcode--cache-directory
   (expand-file-name "etaf-md/qrcode/"
                     (or (getenv "XDG_CACHE_HOME")
                         (expand-file-name "~/.cache")))
-  "Directory holding one text drawing per QR block.")
+  "Directory holding one picture per QR block.")
 
 (defvar etaf-md-qrcode--running (make-hash-table :test #'equal)
   "Cache files whose program is running, so a publish does not start it twice.")
@@ -45,7 +47,7 @@
 
 (defun etaf-md-qrcode--file (text)
   "Return the cache file holding TEXT's drawing."
-  (expand-file-name (concat (secure-hash 'sha1 text) ".txt")
+  (expand-file-name (concat (secure-hash 'sha1 text) ".png")
                     etaf-md-qrcode--cache-directory))
 
 (defun etaf-md-qrcode-attach (block)
@@ -64,36 +66,22 @@
     (file-exists-p path)))
 
 (defun etaf-md-qrcode-view (env)
-  "Return ENV's QR code as the painted code string, or an empty string."
+  "Return ENV's QR code as a picture, or nil while it is not drawn yet.
+The code is a PNG drawn by `qrencode' with its own quiet zone, so it keeps
+the square shape the scanner expects at any font metric."
   (let* ((node (etaf-md-env-node env))
          (path (plist-get (etaf-md-node-block node) :qr)))
-    (if (and path (file-exists-p path))
-        (etaf-ui-qr-paint (etaf-md-qrcode--rows path) 4)
-      "")))
-
-(defun etaf-md-qrcode--rows (path)
-  "Return PATH's module rows as strings of \"0\" and \"1\"."
-  (with-temp-buffer
-    (insert-file-contents path)
-    (let ((lines (split-string (buffer-substring-no-properties
-                                (point-min) (point-max))
-                               "\n" t)))
-      (mapcar
-       (lambda (line)
-         (let (modules)
-           (dotimes (index (length line))
-             (when (zerop (% index 2))
-               (push (if (eq (aref line index) ?#) ?1 ?0) modules)))
-           (apply #'string (nreverse modules))))
-       lines))))
+    (when (and path (file-exists-p path))
+      (etaf-md--media-picture path (etaf-md--component-view-env env) 24 24))))
 
 (defun etaf-md-qrcode--write (text file)
-  "Draw TEXT's modules into FILE; return non-nil when it was written."
+  "Draw TEXT's code into PNG FILE; return non-nil when it was written."
   (make-directory (file-name-directory file) t)
-  (let ((temporary (make-temp-file "etaf-md-qr-" nil ".txt")))
+  (let ((temporary (make-temp-file "etaf-md-qr-" nil ".png")))
     (unwind-protect
         (when (zerop (call-process "qrencode" nil nil nil
-                                   "-t" "ASCII" "-m" "0" "-o" temporary text))
+                                   "-t" "PNG" "-s" "8" "-m" "2"
+                                   "-o" temporary text))
           (rename-file temporary file t)
           t)
       (when (file-exists-p temporary) (delete-file temporary)))))

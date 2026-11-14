@@ -147,17 +147,23 @@ in both palettes."
            (title       :type string :doc "图片下的标题")
            (description :type string :doc "标题下的说明")
            (href        :type string :doc "整张卡片可点，跳到这个地址")
-           (width       :type number :doc "卡片宽度（列），默认 46"))
+           (width       :type number :doc "卡片宽度上限（列），默认 46"))
   :view
   (lambda (env)
     (let* ((src (etaf-md-attr env :src))
            (title (etaf-md-attr env :title))
            (description (etaf-md-attr env :description))
            (href (etaf-md-attr env :href))
-           (width (min (or (etaf-md-attr env :width) 46)
-                       (max 20 (- (etaf-md-env-width env) 2))))
-           (inner (max 8 (- width 4)))
-           (view-env (etaf-md--component-view-env env)))
+           (max-width (min (or (etaf-md-attr env :width) 46)
+                           (max 20 (- (etaf-md-env-width env) 2))))
+           (view-env (etaf-md--component-view-env env))
+           (grid (etaf-md--media-picture-size src view-env
+                                              (- max-width 4) 14))
+           ;; The card wraps its picture exactly: the picture's columns plus
+           ;; the two-cell padding on each side.  A fixed outer width left the
+           ;; picture short of the right border and the card looked crooked.
+           (columns (if grid (car grid) (- max-width 4)))
+           (width (+ columns 4)))
       (etaf-view
         (column :width (list 'ch width)
                 :background-color (etaf-md-surface env 'raised)
@@ -166,7 +172,7 @@ in both palettes."
                 :item-gap '(lh 0)
                 :on-press (when href
                             (lambda () (etaf-md-follow-link env href)))
-          (expr (list (etaf-md--media-picture src view-env inner 14)))
+          (expr (list (etaf-md--media-picture src view-env columns 14)))
           (expr
            (when (or title description)
              (append
@@ -247,30 +253,27 @@ in both palettes."
 
 (defun etaf-md--plot-line (env label value max accent)
   "Return one bar row of LABEL at VALUE out of MAX in ACCENT.
-The bar is a run of spaces carrying the fill, drawn inside the row's text:
-a text line keeps its own height, and the label, the bar and the value stay
-on the same baseline at every width."
+The bar is a run of block glyphs in the accent ink: a filled cell needs a
+glyph, and keeping the row a single text line keeps every row's label, bar
+and value on one baseline."
   (let* ((percent (if (<= max 0) 0 (max 0 (min 100 (* 100.0 (/ value max))))))
          (filled (if (> value 0)
                      (max 1 (round (* etaf-md--plot-bar-width percent 0.01)))
                    0))
          (empty (max 0 (- etaf-md--plot-bar-width filled)))
          (label-text (truncate-string-to-width (or label "") 10 nil nil "…"))
-         (label-pad (concat label-text
-                            (make-string (max 0 (- 10 (string-width label-text))) ?\s)
-                            " "))
+         (label-pad (concat (make-string (max 0 (- 10 (string-width label-text))) ?\s)
+                            label-text " "))
          (fill (etaf-md-accent env accent))
-         ;; The track is the page itself: a dark panel behind a whole bar row
-         ;; reads as a block, and the length of the bar already tells the value.
-         (track (etaf-md-surface env 'page))
          (bar (concat (when (> filled 0)
-                        (propertize (make-string filled ?\s)
-                                    'face (list :background fill)))
-                      (propertize (make-string empty ?\s)
-                                  'face (list :background track)))))
+                        (propertize (make-string filled ?█)
+                                    'face (list :foreground fill)))
+                      (make-string empty ?\s))))
     (etaf-view
-      (text (expr (concat label-pad bar " "
-                          (format "%6s" (format "%.4g" value))))))))
+      (column :width 'stretch :item-gap '(lh 0.35)
+        (expr (list (etaf-node 'text nil
+                               (list (concat label-pad bar " "
+                                             (format "%6s" (format "%.4g" value)))))))))))
 
 (etaf-md--define-shipped 'plot
   :name "plot"
@@ -311,27 +314,22 @@ on the same baseline at every width."
            (title :type string :doc "二维码上方的说明"))
   :view
   (lambda (env)
-    (let ((title (etaf-md-attr env :title)))
+    (let ((title (etaf-md-attr env :title))
+          (drawn (etaf-md-qrcode-cached-p env)))
       (etaf-view
         (column :width 'stretch :cross-align 'center :item-gap '(lh 0)
           (expr (when title
                   (list (etaf-node 'text
-                                   (list :color (etaf-md--component-ink env :muted)
-                                         :font-weight 'bold)
+                                   (list :color (etaf-md--component-ink env :muted))
                                    (list title)))))
-          (box :width 'max-content :background-color "#FFFFFF"
-               :padding '((lh 0) (ch 1))
-            (text (expr (etaf-md-qrcode-view env))))
-          (expr (unless (etaf-md-qrcode-cached-p env)
+          (expr (when drawn
+                  (list (etaf-md-qrcode-view env))))
+          (expr (unless drawn
                   (list (etaf-node 'text
                                    (list :color (etaf-md--component-ink env :faint))
                                    (list (if (etaf-md-qrcode-available-p)
                                              "（二维码生成中）"
                                            "（需要 qrencode 才能画出二维码）")))))))))))
-
-;;; ---------------------------------------------------------------------------
-;;; The slide deck
-;;; ---------------------------------------------------------------------------
 
 (etaf-md--define-shipped 'swiper
   :name "swiper"
@@ -393,53 +391,111 @@ it without a second frame or caption inside itself."
             (when (= 1 (length images))
               (plist-get (car images) :url))))))))
 
+(defun etaf-md--code-tree-files (env)
+  "Return (PATH . NODE) for each file ENV's tree lists."
+  (seq-map (lambda (file)
+             (cons (or (etaf-md-attr env :title file) "")
+                   (car (etaf-md-children env file))))
+           (etaf-md-children env)))
+
+(defun etaf-md--code-tree-rows (files)
+  "Return display rows for FILES.
+A directory is `(dir . NAME)' and appears when it changes; a file is
+`(file . (INDEX . NAME))' under it."
+  (let ((rows nil) (last 'none))
+    (seq-map-indexed
+     (lambda (file index)
+       (let* ((path (car file))
+              (dir (file-name-directory path))
+              (name (file-name-nondirectory path)))
+         (when (and dir (not (equal dir last)))
+           (push (cons 'dir dir) rows)
+           (setq last dir))
+         (push (cons 'file (cons index name)) rows)))
+     files)
+    (nreverse rows)))
+
+(defun etaf-md--code-tree-code (env node)
+  "Return NODE's code drawn for ENV's tree."
+  (when node
+    (etaf-ui-markdown-view-block
+     (etaf-md-node-block node)
+     (etaf-md--component-view-env env))))
+
 (defun etaf-md--code-tree-view (env)
-  "Paint a file list beside the selected file's code."
-  (let* ((files (etaf-md-children env))
+  "Paint a file list beside the selected file's code.
+The list is its own panel and the code keeps its own frame, so the two
+halves read as separate things rather than one surface with a rule."
+  (let* ((files (etaf-md--code-tree-files env))
          (count (length files))
-         (active (min (or (etaf-md-block-state env :active 0) 0) (max 0 (1- count))))
+         (active (min (or (etaf-md-block-state env :active 0) 0)
+                      (max 0 (1- count))))
          (selected (nth active files))
-         (width (max 12 (min 30
-                             (+ 3 (seq-max (mapcar (lambda (file)
-                                                     (length (or (etaf-md-attr env :title file) "")))
-                                                   files))))))
+         (rows (etaf-md--code-tree-rows files))
+         (height (max 4 (or (etaf-md-attr env :height) 18)))
+         (width (min 34
+                     (max 14
+                          (+ 3 (seq-max
+                                (mapcar (lambda (row)
+                                          (if (eq (car row) 'dir)
+                                              (length (cdr row))
+                                            (+ 2 (length (cdr (cdr row))))))
+                                        rows))))))
          (accent (etaf-md-accent env 'primary))
-         (accent-soft (or (etaf-md--palette-value (etaf-md-env-palette env) :accent-soft)
-                          (etaf-md-surface env 'raised)))
-         (muted (etaf-md--component-ink env :muted)))
+         (accent-soft (or (etaf-md--palette-value (etaf-md-env-palette env)
+                                                   :accent-soft)
+                          (etaf-md-surface env 'sunken)))
+         (muted (etaf-md--component-ink env :muted))
+         (faint (etaf-md--component-ink env :faint)))
     (etaf-view
-      (column :width 'stretch :item-gap '(lh 0)
-        (expr (when-let* ((title (etaf-md-attr env :title)))
-                (list (etaf-node 'text
-                                 (list :font-weight 'bold :color muted)
-                                 (list title)))))
-        (expr (when (etaf-md-attr env :title)
-                (list (etaf-node 'text nil (list " ")))))
-        (row :width 'stretch :item-gap '(ch 0)
-          (column :width (list 'ch width) :item-gap '(lh 0)
+      (row :width 'stretch :item-gap '(ch 1)
+        (box :width (list 'ch width)
+             ;; Both halves take the same rows: the list's panel must end
+             ;; where the code's frame ends, not where its own files do.
+             :height (list 'lh height)
+             :border (etaf-md--hairline env)
+             :background-color (etaf-md-surface env 'raised)
+             :padding '((lh 1) (ch 1))
+          (column :width 'stretch
+                  :cross-align 'stretch
+                  :item-gap '(lh 0)
             (expr
-             (seq-map-indexed
-              (lambda (file index)
-                (let ((name (or (etaf-md-attr env :title file) "")))
-                  (etaf-node 'box
-                             (list :width 'stretch
-                                   :padding-inline '(ch 1)
-                                   :background-color (when (= index active) accent-soft)
-                                   :role 'button :tab-index 0
-                                   :on-press (lambda ()
-                                               (etaf-md-set-block-state env :active index)))
-                             (list (etaf-node 'text
-                                              (list :color (if (= index active) accent muted)
-                                                    :font-weight (if (= index active) 'bold nil))
-                                              (list name))))))
-              files)))
-          (box :width 'stretch
-            (expr (when selected (etaf-md--code-tab-page env selected)))))))))
+             (mapcar
+              (lambda (row)
+                (if (eq (car row) 'dir)
+                    (etaf-node 'box
+                               (list :width 'stretch
+                                     :padding-inline '(ch 1))
+                               (list (etaf-node 'text
+                                                (list :color faint)
+                                                (list (cdr row)))))
+                  (let* ((index (car (cdr row)))
+                         (name (cdr (cdr row)))
+                         (chosen (= index active)))
+                    (etaf-node 'box
+                               (list :width 'stretch
+                                     :padding-inline '(ch 1)
+                                     :background-color (when chosen accent-soft)
+                                     :role 'button :tab-index 0
+                                     :on-press (lambda ()
+                                                 (etaf-md-set-block-state
+                                                  env :active index)))
+                               (list (etaf-node 'text
+                                                (list :color (if chosen accent muted)
+                                                      :font-weight (when chosen 'bold))
+                                                (list (concat "  " name))))))))
+              rows))))
+        (box :width 'stretch
+             :height (list 'lh height)
+             :overflow 'scroll
+             :tab-index 0
+             :aria-label "代码，滚动查看"
+          (expr (list (etaf-md--code-tree-code env (cdr selected)))))))))
 
 (etaf-md--define-shipped 'code-tree
   :name "code-tree"
   :summary "左边文件列表，右边选中文件的代码"
-  :attrs '((title :type string :doc "文件列表上方的标题"))
+  :attrs '((height :type number :doc "代码区行数，超出可滚动，默认 18"))
   :accepts '((file :attrs ((title :type string :required t :doc "文件路径"))))
   :child-syntax 'markers
   :view #'etaf-md--code-tree-view)
@@ -545,13 +601,16 @@ shown under a strip that names every manager the `tabs' attribute lists."
          (manager (nth active managers))
          (synthetic (list :type 'code-block
                           :lang (or (plist-get block :lang) "sh")
-                          ;; The strip already names the tool; the fence's own
-                          ;; language row would name it a second time.
+                          ;; The strip already names the tool, and the card
+                          ;; already draws the frame: the fence adds neither a
+                          ;; language row nor a second border.
                           :header nil
+                          :frame nil
                           :text (etaf-md--npm-to-script source manager))))
     (etaf-view
       (column :width 'stretch :item-gap '(lh 0)
               :border (etaf-md--hairline env)
+              :background-color (etaf-md-surface env 'raised)
         (etaf-tabs
          :items (seq-map-indexed
                  (lambda (name index)

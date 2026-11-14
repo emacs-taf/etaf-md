@@ -1941,7 +1941,7 @@ Sections 6.2–6.15 are the containers inside a document's prose; this one is th
 | `plot` | `:::plot {values labels max accent}` | A horizontal bar per value | none |
 | `qrcode` | `:::qrcode {text title}` | A scannable code; the text stays when `qrencode` is missing | none |
 | `swiper` | `:::swiper` + `@slide {title}` | One page at a time, with a strip naming the pages | `slide` |
-| `code-tree` | `:::code-tree {title}` + `@file path` | A file list beside the selected file's code | `file` |
+| `code-tree` | `:::code-tree {height}` + `@file path` | A file list beside the selected file's code; `height` is the code area's lines, scrollable beyond | `file` |
 | `npm-to` | `:::npm-to {tabs}` + one `sh` fence | One npm command rewritten per package manager, shown as code tabs | one code block |
 
 The shared markdown renderer also paints four inline forms: `==highlighted==` (with an optional `{.warning}` colour), `::icon-name::`, `:kbd[Ctrl+B]` and `:badge[text]{.tip}`. Emoji shortcodes such as `:tada:` were already part of the `etaf` dialect.

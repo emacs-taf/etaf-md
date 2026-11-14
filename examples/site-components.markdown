@@ -124,16 +124,45 @@
 
 ## 源码树
 
-:::code-tree {title="三个文件"}
+:::code-tree {height=14}
 @file lisp/etaf-md-env.el
 ```elisp
-(defun etaf-md-attr (env key &optional node)
-  "Return KEY's final value for ENV's block."
-  ...)
+(defun etaf-md--paint (node env)
+  "Return the view ENV's definition gives NODE, or a failure line."
+  (let* ((type (etaf-md-node-type node))
+         (definition (etaf-md-node-definition type))
+         (problems (and definition (plist-get definition :view)
+                        (etaf-md--all-problems node))))
+    (cond
+     (problems
+      (etaf-md--failure-view
+       env (or (etaf-md-node-source node) "") (cadr (car problems))))
+     ((and definition (plist-get definition :view))
+      (let ((inner (etaf-md-env-create
+                    :session (etaf-md-env-session env)
+                    :node node
+                    :width (etaf-md-env-width env)
+                    :state (etaf-md-env-state env)
+                    :palette (etaf-md-env-palette env)
+                    :theme (etaf-md-env-theme env)
+                    :block (etaf-md-node-block node))))
+        (funcall (plist-get definition :view) inner)))
+     ;; A Markdown block the new model does not define yet keeps the painter
+     ;; it has today; only a container with no definition is a failure,
+     ;; because a container cannot be painted without one.
+     ((and (etaf-md-node-block node)
+           (not (eq (plist-get (etaf-md-node-block node) :type) 'container)))
+      (etaf-ui-markdown-view-block
+       (etaf-md-node-block node)
+       ;; A block painted below a container keeps the page services: media,
+       ;; links and the page directory are part of the environment the block
+       ;; was written for, and a minimal plist would show a placeholder.
+       (plist-put (copy-sequence (etaf-md--env (etaf-md-env-session env)))
 ```
 @file lisp/etaf-md-views.el
 ```elisp
 (defun etaf-md--block-view (session key block ref widths)
+  "Return the keyed Component call that renders BLOCK."
   ...)
 ```
 @file scripts/etaf-md-gui-probe.el
@@ -142,7 +171,7 @@
 ```
 :::
 
-:::code-tree
+:::code-tree {height=6}
 @file index.ts
 ```ts
 export const site = 'etaf';

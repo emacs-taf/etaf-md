@@ -1940,7 +1940,7 @@ heading            内置语法，文档写不出名字
 | `plot` | `:::plot {values labels max accent}` | 横向条形图，每行一个数值 | 无 |
 | `qrcode` | `:::qrcode {text title}` | 可扫描的二维码；`qrencode` 缺失时保留文本 | 无 |
 | `swiper` | `:::swiper` + `@slide {title}` | 一次显示一页，切换条给标题或页码 | `slide` |
-| `code-tree` | `:::code-tree {title}` + `@file path` | 左边文件列表，右边选中文件的代码 | `file` |
+| `code-tree` | `:::code-tree {height}` + `@file path` | 左边文件列表，右边选中文件的代码；`height` 是代码区行数，超出可滚动 | `file` |
 | `npm-to` | `:::npm-to {tabs}` + 一个 `sh` 围栏 | 把一条 npm 命令换成各包管理器的写法并排成代码标签页 | 一个代码块 |
 
 行内还有四个记号，由共享的 markdown 渲染器提供：`==高亮==`（可带 `{.warning}` 等配色）、`::图标名::`、`:kbd[Ctrl+B]` 与 `:badge[文字]{.tip}`。表情短代码 `:tada:` 本来就在 `etaf` 方言里。

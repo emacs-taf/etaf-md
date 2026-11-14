@@ -322,9 +322,22 @@ wide banner cannot grow past its card."
              (scale (min (/ (* max-columns cell-width) width)
                          (/ (* max-rows cell-height) height)
                          1.0))
-             (columns (max 1 (min max-columns (round (/ (* width scale) cell-width)))))
-             (rows (max 1 (min max-rows (round (/ (* height scale) cell-height))))))
+             ;; Whole cells only, and never more than the picture needs: a
+             ;; rounded-up column would leave a strip of the box empty at the
+             ;; side the picture is not drawn in.
+             (columns (max 1 (min max-columns (floor (/ (* width scale) cell-width)))))
+             (rows (max 1 (min max-rows (floor (/ (* height scale) cell-height))))))
         (cons columns rows)))))
+
+(defun etaf-md--media-picture-size (url env max-columns max-rows)
+  "Return the grid URL would need as a plain picture, or nil.
+Only a local image has a size; a remote source and a missing file answer
+nil, so a caller can size its card around the picture it will draw."
+  (let* ((remote (etaf-md--remote-url-p url))
+         (path (unless remote (etaf-md--absolute-media url env))))
+    (when (and path (file-exists-p path)
+               (eq (etaf-md--media-kind path) 'image))
+      (etaf-md--media-grid-fit path max-columns max-rows))))
 
 (defun etaf-md--media-picture (url env max-columns max-rows)
   "Return URL drawn as a plain picture for ENV inside MAX bounds.
