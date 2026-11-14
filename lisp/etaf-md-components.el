@@ -6,7 +6,7 @@
 ;;
 ;; The second half of the container catalog: the blocks a documentation site
 ;; writes around its prose rather than inside it.  A hero, an image card, a
-;; link card, a package badge, a bar plot, a QR code, a slide deck, a source
+;; link card, a package badge, a QR code, a slide deck, a source
 ;; tree and a package-manager command group share the same machinery as the
 ;; prose containers in `etaf-md-nodes': one definition per type, a thin view
 ;; that translates document attributes into existing `etaf-ui' components.
@@ -236,72 +236,6 @@ in both palettes."
                   (list (etaf-view
                           (etaf-badge :text (format "↓ %s" downloads)
                                       :variant 'neutral))))))))))
-
-;;; ---------------------------------------------------------------------------
-;;; A bar plot
-;;; ---------------------------------------------------------------------------
-
-(defun etaf-md--plot-values (env)
-  "Return ENV's values as a list of numbers, in document order."
-  (let ((values (etaf-md-attr env :values)))
-    (mapcar #'string-to-number
-            (seq-filter (lambda (value) (not (string-empty-p value)))
-                        (split-string (or values "") "[, \t\n]+")))))
-
-(defconst etaf-md--plot-bar-width 24
-  "Columns the bar of one plot row occupies.")
-
-(defun etaf-md--plot-line (env label value max accent)
-  "Return one bar row of LABEL at VALUE out of MAX in ACCENT.
-The bar is a run of block glyphs in the accent ink: a filled cell needs a
-glyph, and keeping the row a single text line keeps every row's label, bar
-and value on one baseline."
-  (let* ((percent (if (<= max 0) 0 (max 0 (min 100 (* 100.0 (/ value max))))))
-         (filled (if (> value 0)
-                     (max 1 (round (* etaf-md--plot-bar-width percent 0.01)))
-                   0))
-         (empty (max 0 (- etaf-md--plot-bar-width filled)))
-         (label-text (truncate-string-to-width (or label "") 10 nil nil "…"))
-         (label-pad (concat (make-string (max 0 (- 10 (string-width label-text))) ?\s)
-                            label-text " "))
-         (fill (etaf-md-accent env accent))
-         (bar (concat (when (> filled 0)
-                        (propertize (make-string filled ?█)
-                                    'face (list :foreground fill)))
-                      (make-string empty ?\s))))
-    (etaf-view
-      (column :width 'stretch :item-gap '(lh 0.35)
-        (expr (list (etaf-node 'text nil
-                               (list (concat label-pad bar " "
-                                             (format "%6s" (format "%.4g" value)))))))))))
-
-(etaf-md--define-shipped 'plot
-  :name "plot"
-  :summary "横向条形图，每行一条数值"
-  :attrs '((values :type string :required t :doc "逗号或空格分隔的数值")
-           (labels :type string :doc "逗号分隔的标签，省略用序号")
-           (max    :type number :doc "横轴最大值，省略取数值里的最大者")
-           (accent :type accent :default primary :doc "条形的强调色"))
-  :view
-  (lambda (env)
-    (let* ((values (etaf-md--plot-values env))
-           (labels (mapcar #'string-trim
-                           (seq-filter (lambda (label) (not (string-empty-p label)))
-                                       (split-string (or (etaf-md-attr env :labels) "")
-                                                     ","))))
-           (max (or (etaf-md-attr env :max)
-                    (seq-max (or values (list 1)))))
-           (max (if (> max 0) max 1))
-           (accent (etaf-md-attr env :accent)))
-      (etaf-view
-        (column :width 'stretch :item-gap '(lh 0)
-          (expr
-           (seq-map-indexed
-            (lambda (value index)
-              (etaf-md--plot-line env
-                                  (or (nth index labels) (format "%d" (1+ index)))
-                                  value max accent))
-            values)))))))
 
 ;;; ---------------------------------------------------------------------------
 ;;; The QR code

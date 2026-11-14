@@ -386,9 +386,9 @@
       "purpose": "A page using the whole site catalog mounts and paints every component's own text, plus the inline marks' text, without a failure line."
     },
     {
-      "name": "etaf-md-tests-a-site-component-follows-the-input-format",
+      "name": "etaf-md-tests-a-command-card-follows-its-attribute",
       "file": "tests/etaf-md-tests.el",
-      "purpose": "The plot's labels and the command group's manager list come from their attributes, so the page shows the values and the named managers rather than the attribute source."
+      "purpose": "A command card shows the package managers its attribute names and the rewritten command, without the attribute source leaking into the page."
     }
   ]
 }

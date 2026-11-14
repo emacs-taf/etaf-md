@@ -1662,12 +1662,14 @@ Giving a type a new attribute happens only inside `etaf-md-set-view`'s `:style-k
 | `timeline` | Absorbed as `timeline` + `event` | Optional marks |
 | `table` | Partly absorbed | Title and row/column highlights |
 | `file-tree` | Absorbed as `file-tree` | Marks use only the allowed characters |
-| `code-tree` | Declined | Overlaps `code-tabs` plus `file-tree` |
+| `code-tree` | Absorbed as `code-tree` | A file list beside a code panel, sharing the tabs' `@file` markers |
 | `chat` | Absorbed as `chat` + `message` | Alternating sides and indentation, no bubbles |
 | `window` | Absorbed with a change, as `window` | Title bar only |
 | `encrypt` | Declined | A document that must stay secret does not belong in a preview |
-| `npm-to`, `lang-repl` | Declined | Needs a package manager and an interpreter |
-| `plot`, `qrcode`, `pdf` | Declined | Needs plotting and image generation |
+| `npm-to` | Absorbed as `npm-to` | Rewrites from a fixed command table; never runs a command |
+| `lang-repl` | Declined | Needs an interpreter |
+| `qrcode` | Absorbed as `qrcode` | Drawn by `qrencode` as a PNG; keeps its text when the program is missing |
+| `plot`, `pdf` | Declined | Plume's `plot` is its spoiler component, not a chart; a PDF needs an embedded document |
 | `annotation`, `abbreviation` | Declined | Needs marks over an image and a hover popup |
 | `code-pen`, `code-sandbox`, `repl`, `caniuse` | Declined | Needs a browser and a network |
 
@@ -1938,7 +1940,6 @@ Sections 6.2–6.15 are the containers inside a document's prose; this one is th
 | `image-card` | `:::image-card {src title description href}` | An image above its title and description | none |
 | `link-card` | `:::link-card {href title description}` | A link card whose whole surface follows the target | none |
 | `npm-badge` | `:::npm-badge {name version downloads}` | One static npm badge row | none |
-| `plot` | `:::plot {values labels max accent}` | A horizontal bar per value | none |
 | `qrcode` | `:::qrcode {text title}` | A scannable code; the text stays when `qrencode` is missing | none |
 | `swiper` | `:::swiper` + `@slide {title}` | One page at a time, with a strip naming the pages | `slide` |
 | `code-tree` | `:::code-tree {height}` + `@file path` | A file list beside the selected file's code; `height` is the code area's lines, scrollable beyond | `file` |

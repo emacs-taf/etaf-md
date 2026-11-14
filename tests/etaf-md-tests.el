@@ -1602,7 +1602,6 @@ through the same mount as a plain document."
                          ":::link-card {href=\"https://etaf.top/\" title=\"链接标题\""
                          " description=\"链接说明\"}\n:::\n\n"
                          ":::npm-badge {name=\"etaf-md\" version=\"0.1.0\"}\n:::\n\n"
-                         ":::plot {values=\"5.4,0.33\" labels=\"打开,缩放\" max=\"6\"}\n:::\n\n"
                          ":::swiper\n@slide {title=\"第一张\"}\n第一页正文。\n:::\n\n"
                          ":::code-tree {title=\"源码\"}\n@file demo.el\n```elisp\n(require 'etaf-md)\n```\n:::\n\n"
                          ":::npm-to {tabs=\"npm,pnpm\"}\n```sh\nnpm install foo\n```\n:::\n")
@@ -1615,28 +1614,23 @@ through the same mount as a plain document."
         (should (string-match-p "首屏标题" text))
         (should (string-match-p "链接说明" text))
         (should (string-match-p "etaf-md" text))
-        (should (string-match-p "5.4" text))
-        (should (string-match-p "打开" text))
         (should (string-match-p "第一页正文" text))
         (should (string-match-p "demo.el" text))
         (should (string-match-p "npm install foo" text))))))
 
-(ert-deftest etaf-md-tests-a-site-component-follows-the-input-format ()
-  "The plot takes its labels and the command group its managers.
-A README line, an object-style YAML, or either kind of quote is input
-syntax, not content: they must not leave their punctuation in the page."
+(ert-deftest etaf-md-tests-a-command-card-follows-its-attribute ()
+  "A command card names the managers its attribute lists.
+The list is input syntax, not content: only the named managers appear, and
+the code below keeps the command it rewrote."
   (let ((session (etaf-md-create
                   :text (concat
-                         ":::plot {values=\"1,2\" labels=\"甲,乙\"}\n:::\n\n"
                          ":::npm-to {tabs=\"npm, yarn\"}\n```sh\nnpm run build\n```\n:::\n")
                   :theme 'dark)))
     (etaf-md-tests--with-mount session
       (let ((text (buffer-string)))
-        (should (string-match-p "甲" text))
-        (should (string-match-p "乙" text))
         (should (string-match-p "yarn" text))
-        (should-not (string-match-p "\"values\"" text))
-        (should (string-match-p "npm run build" text))))))
+        (should (string-match-p "npm run build" text))
+        (should-not (string-match-p "\\tabs" text))))))
 
 (ert-deftest etaf-md-tests-tab-keys-open-the-next-page ()
   "TAB enters the strip, Right moves focus, RET opens the page."

@@ -82,17 +82,6 @@
 :::npm-badge {name="etaf" version="0.9.2"}
 :::
 
-## 条形图
-
-:::plot {values="5.4,0.33,0.18" labels="打开,缩放,内存" max="6"}
-:::
-
-:::plot {values="12,8,5,3,1"}
-:::
-
-:::plot {values="3,7,2,9" labels="甲,乙,丙,丁" accent="success"}
-:::
-
 ## 二维码
 
 :::qrcode {text="https://etaf.top/" title="扫码打开 etaf.top"}

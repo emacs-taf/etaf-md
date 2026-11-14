@@ -1662,12 +1662,14 @@ heading            内置语法，文档写不出名字
 | `timeline` | 吸收，`timeline` + `event` | 记号可选 |
 | `table` | 部分吸收 | 标题与行列高亮 |
 | `file-tree` | 吸收，`file-tree` | 记号只用允许的字符 |
-| `code-tree` | 不吸收 | 和 `code-tabs` 加 `file-tree` 重合 |
+| `code-tree` | 吸收，`code-tree` | 文件列表与代码面板并排，共用 tabs 的 `@file` 记号 |
 | `chat` | 吸收，`chat` + `message` | 左右对齐加缩进，不画气泡 |
 | `window` | 变形吸收，`window` | 只画标题栏 |
 | `encrypt` | 不吸收 | 保密文档不该进预览 |
-| `npm-to`、`lang-repl` | 不吸收 | 要包管理器和解释器 |
-| `plot`、`qrcode`、`pdf` | 不吸收 | 要绘图和图像生成 |
+| `npm-to` | 吸收，`npm-to` | 按固定命令表改写，不执行命令 |
+| `lang-repl` | 不吸收 | 要解释器 |
+| `qrcode` | 吸收，`qrcode` | 用 `qrencode` 画 PNG，缺程序时保留文本 |
+| `plot`、`pdf` | 不吸收 | Plume 的 `plot` 是「隐秘文本」组件，不是图表；PDF 要内嵌文档 |
 | `annotation`、`abbreviation` | 不吸收 | 要图上标注和悬停浮层 |
 | `code-pen`、`code-sandbox`、`repl`、`caniuse` | 不吸收 | 要浏览器和网络 |
 
@@ -1937,7 +1939,6 @@ heading            内置语法，文档写不出名字
 | `image-card` | `:::image-card {src title description href}` | 图片在上，标题与说明在下 | 无 |
 | `link-card` | `:::link-card {href title description}` | 整块可点的链接卡片 | 无 |
 | `npm-badge` | `:::npm-badge {name version downloads}` | 一行静态 npm 徽章 | 无 |
-| `plot` | `:::plot {values labels max accent}` | 横向条形图，每行一个数值 | 无 |
 | `qrcode` | `:::qrcode {text title}` | 可扫描的二维码；`qrencode` 缺失时保留文本 | 无 |
 | `swiper` | `:::swiper` + `@slide {title}` | 一次显示一页，切换条给标题或页码 | `slide` |
 | `code-tree` | `:::code-tree {height}` + `@file path` | 左边文件列表，右边选中文件的代码；`height` 是代码区行数，超出可滚动 | `file` |
