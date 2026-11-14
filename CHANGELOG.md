@@ -26,10 +26,11 @@
   again inside it.  The page title reads above an H1 again rather than at body
   size.
 
-- `examples/all-syntax.markdown` is one classified page that covers every
-  component and every value its attributes accept: basic syntax, containers,
-  site components and diagrams, one section per feature, instead of stitched
-  copies that repeated the diagram galleries.
+- `examples/all-syntax.markdown` is the union of the former galleries in one
+  classified page: the full basic-syntax section, every container section, the
+  whole site-component set and all twenty diagram kinds, followed by a
+  per-value pass over the containers and components.  Nothing the separate
+  example files showed is gone; only their duplicated diagram gallery is.
 
 - `:::accordion {expand=true}' opens every fold even when the group only
   allows one open section, which it used to reject as an invalid open list.
