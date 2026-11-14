@@ -6,6 +6,56 @@
 >
 > 中英两版一节对一节。改一处，另一处同时改。
 
+## 速查
+
+写一份文档只需要知道这些。
+
+**两条规则。** `:::名字 {属性}` 开一块，`:::` 单独一行结束，关掉最近打开的那个。文件里最后一块可以不写结束行。
+
+一个块容器：
+
+````markdown
+:::card {title="缓存命中"}
+图片和矢量按页面尺寸缩放，不重新画。
+:::
+````
+
+一个父容器。子块的名字由父容器解释，所以 `:::tab` 只在 `tabs` 里有意义：
+
+````markdown
+:::tabs
+:::tab {title="Emacs 29"}
+用 `image-size` 的旧签名。
+:::
+:::tab {title="Emacs 30+" selected=true}
+直接传 buffer。
+:::
+:::
+````
+
+**最常用的属性。**
+
+| 属性 | 类型 | 写在哪 | 例子 |
+| --- | --- | --- | --- |
+| `title` | string | 容器与子块 | `title="缓存命中"` |
+| `description` | string | card | `description="一句话摘要"` |
+| `surface` | surface | box、card | `surface=raised` |
+| `accent` | accent | box、card、提示块 | `accent=warning` |
+| `text-align` | enum | box、card | `text-align=center` |
+| `columns` | number 或 string | columns、stats | `columns="2fr 1fr"` |
+| `gap` | length | columns | `gap="2ch"` |
+| `padding` | length | box、columns | `padding="1lh"` |
+| `open` | boolean | collapse、提示块 | `open=true` |
+| `selected` | boolean | tab | `selected=true` |
+| `list-style` | enum | steps、timeline、file-tree | `list-style=decimal` |
+| `href` | string | card | `href="#安装"` |
+
+**五个面：** `none`、`page`、`raised`、`sunken`、`quote`。**六个强调：** `neutral`、`primary`、`success`、`warning`、`danger`、`important`。
+
+长度必须带单位，`2ch` 或 `1lh`，光写 `2` 是错的。颜色和字号文档里一个都不写，它们由读者的主题与样式表决定。
+
+属性名想不起来，就用 `etaf-md-describe-containers` 查，或者开 `etaf-md-edit-mode` 让补全替你想。
+
 ## 1. 定位
 
 ### 1.1 这个包做什么
@@ -57,17 +107,16 @@
 
 解析器只认三件事：开、关、嵌套。它不知道 `tab` 是什么意思，也不知道 `card` 有什么属性。名字的含义归注册表，属性的含义归定义，摆放归渲染。
 
-### 2.2 三种容器
+### 2.2 两种容器
 
-写文档的人只看见一种形状，但系统里有三种角色。定义必须声明自己是哪一种。
+写文档的人只看见一种形状，系统里只有两种角色。定义必须声明自己是哪一种。
 
 | 角色 | 内容是什么 | 例子 | 规则 |
 | --- | --- | --- | --- |
 | 独立块 | 任意块 | `note`、`card`、`box`、`table` | 可以出现在任何能出现段落的地方 |
-| 父容器 | 只收它声明的子块 | `columns`、`tabs`、`steps` | 子块的名字只在它内部有效 |
-| 子块 | 没有父容器就没有意义 | `col`、`tab`、`step`、`message` | 出现在父容器外是错误，不做猜测 |
+| 父容器 | 只收它声明的子块 | `columns`、`tabs`、`steps`、`accordion` | 子块的属性和必填写在它自己的 `:children` 里 |
 
-一条规则连接三者：**子块的名字由父容器解释，解析器不认它们。** 所以 `:::tab` 在 `tabs` 里是一个标签，在页面顶层只是一行没法解释的文字，按失败规则报出来。
+**子块不是第三种角色，它没有自己的定义。** 名字由父容器解释，解析器不认；同一个名字出现在两个父容器里，两处各写各的要求。所以 `:::tab` 在 `tabs` 里是一个标签，在页面顶层只是一行没法解释的文字，按失败规则报出来。
 
 父子关系不跨层。`tabs` 里的 `tab` 可以再装一个 `card`，但 `tab` 不能再装一个 `tab`。要嵌套就再包一层 `tabs`。
 
@@ -237,7 +286,7 @@
 
 | 类别 | 谁说了算 | 例子 |
 | --- | --- | --- |
-| 内容属性 | 文档。读者改不了 | `title`、`label`、`href` |
+| 内容属性 | 文档。读者改不了 | `title`、`href`、`selected` |
 | 外观属性 | 文档给默认，读者的样式表可以盖掉 | `surface`、`accent`、`text-align` |
 
 外观属性在定义里写 `:appearance t`，见 10.2。这样「哪些是外观」只有一处记录，不靠一张单独的名单。
@@ -260,7 +309,7 @@ line 42: card 的 surface 是 "#24262a"，它只认 none、page、raised、sunke
 line 44: 第 9 层嵌套超过上限 8 层
 ```
 
-失败分十二种。每一种都有确定的页面表现，不允许「看情况」。
+失败分十三种。每一种都有确定的页面表现，不允许「看情况」。
 
 | 情况 | 页面表现 | 影响范围 |
 | --- | --- | --- |
@@ -272,6 +321,7 @@ line 44: 第 9 层嵌套超过上限 8 层
 | 子块出现在父容器外 | 源码原样，说明它属于谁 | 这一块 |
 | 子块缺必填属性 | 源码原样，父容器继续解析其余子块 | 这个子块 |
 | 父容器没有子块 | 画空状态，不报错 | 这一块 |
+| 同一组两项都写 `selected` | 只认第一项，报一行 | 这一组 |
 | 嵌套超过 8 层 | 源码原样，说明层数 | 这一块 |
 | 文末还有没关的容器 | 内容照常渲染，页面末尾一行说明从第几行开始没关 | 文末 |
 | 定义自己报错 | 源码原样，说明是哪个定义、报了什么 | 这一块 |
@@ -297,6 +347,40 @@ line 44: 第 9 层嵌套超过上限 8 层
 ````
 
 这个选择偏向读者。把整块判成源码会让人以为预览坏了；吞掉半篇文档比多一行字糟得多，而且作者改起来也更难发现。
+
+### 3.6 源码 buffer 的编辑体验
+
+渲染出来的页面没有标记，所以标记的代价全落在写的人身上。这一节说的东西全部发生在源码 buffer，不改语法，也不改渲染结果。
+
+四层，按收益排。四层合成一个可选 minor mode，名字是 `etaf-md-edit-mode`，默认关。
+
+| 层 | 做什么 | 解决什么 |
+| --- | --- | --- |
+| 一 | 标记降权：`:::`、花括号、等号用 `markdown-markup-face`；容器名用语言关键字色；属性名与属性值各一色 | 竖线不再和正文抢眼 |
+| 二 | 配对提示：光标在容器里时，把它的开行与关行各提亮一档，离开即恢复 | 不用自己数哪个冒号配哪个 |
+| 三 | 插入与补全：一条命令补出开行、空行、关行；容器名与它收的属性就地补全 | 名字和属性不用背 |
+| 四 | 折叠：只留容器的开行 | 长文档里先看结构 |
+
+四条硬约束，每一条都是「不破坏原有 Markdown 体验」的判据。
+
+1. **只加不改。** 新增的 font-lock 规则只匹配 `^:::` 与属性花括号，这两处在 markdown-mode 今天没有任何规则，不存在覆盖。不动它的键位表、缩进函数、`electric-pair`、`markdown-hide-markup`。
+2. **不改 buffer 内容。** 降权、提亮、折叠全部是 face、overlay 与 `invisible` 属性，`buffer-string` 前后相同。否则保存就会改文件。
+3. **关掉即复原。** 关闭时移除 font-lock 关键字、删 overlay、清 hook、摘掉自己的 `completion-at-point-functions`。测试断言开启再关闭之后，`font-lock-keywords` 与开启前 `equal`。
+4. **不抢键。** 只用自己前缀的键，不 remap 任何既有命令。
+
+性能预算，和 8.3 一样可以量。
+
+| 动作 | 预算 | 靠什么保证 |
+| --- | --- | --- |
+| 打开一份 2000 行的文档 | 额外耗时 50 毫秒以内 | font-lock 按块惰性走，没有整篇扫描 |
+| 光标跨行 | 5 毫秒以内 | 只在行号变化时算一次 |
+| 同一行内打字 | 0 次配对计算 | 上一条的直接结果 |
+| 空闲 | 0 个定时器 | 没有轮询，没有后台刷新 |
+| 折叠与展开 | 一次 overlay 增删 | 不动文字 |
+
+配对提示要找到容器开头，所以它按行数给上限。一份几千行的文档里反查一次，超过上限就跳过这一屏的提示，不做无上限的反向扫描。
+
+它救不了的三处，写在这里免得以后当承诺：GitHub 上、别人的编辑器里、复制出去的一段文字里，都没有这些标记。所以语法必须能在裸文本里读得下去，这一节只是加成。加语法时不拿它当理由。
 
 ## 4. 外观与样式
 
@@ -517,7 +601,7 @@ line 44: 第 9 层嵌套超过上限 8 层
 | 结构 | `columns`、`card`、`box` | 只决定摆放和边界，不解释内容 |
 | 提示 | `note`、`tip`、`important`、`warning`、`caution` | 一种定义，五个固定的强调值 |
 | 集合 | `steps`、`timeline`、`stats`、`field`、`file-tree`、`chat` | 子块带标签，按顺序或按名字排 |
-| 交互 | `tabs`、`code-tabs`、`collapse`、`accordion` | 有状态，可按键切换 |
+| 交互 | `tabs`、`code-tabs`、`accordion`（子块 `collapse`） | 有状态，可按键切换 |
 | 文稿 | `table`、`window` | 包住别的东西，换一种呈现 |
 
 ### 6.2 提示块
@@ -711,22 +795,20 @@ line 44: 第 9 层嵌套超过上限 8 层
 
 ### 6.11 标签页
 
-| 属性 | 类型 | 默认 | 说明 |
-| --- | --- | --- | --- |
-| `selected` | string | 第一个 | 默认显示哪个标签，写标签文字 |
-
-子块是 `tab`，属性 `label` 必填。
+子块是 `tab`，属性 `title` 必填，`selected` 可选（布尔，一组里只能一项写）。
 
 ````markdown
 :::tabs
-:::tab {label="Emacs 29"}
+:::tab {title="Emacs 29"}
 用 `image-size` 的旧签名。
 :::
-:::tab {label="Emacs 30+"}
+:::tab {title="Emacs 30+" selected=true}
 直接传 buffer。
 :::
 :::
 ````
+
+两处都写 `selected` 时只认第一项，页面报一行，见 3.4。
 
 解决的场景：同一件事的几种写法并行，读者只需要一种。三个并列小节会让目录变长，标签页只占一块位置。
 
@@ -734,7 +816,7 @@ line 44: 第 9 层嵌套超过上限 8 层
 
 ### 6.12 代码标签页
 
-和 `tabs` 一样，只是子块里放围栏代码，`label` 省略时用围栏的语言名。
+和 `tabs` 一样，只是子块里放围栏代码，`title` 省略时用围栏的语言名。
 
 ````markdown
 :::code-tabs
@@ -751,18 +833,13 @@ print("hi")
 :::
 ````
 
-它是一条定义，不是新语义。渲染走的是和 `tabs` 同一条路径，区别只有标签的默认来源：省略 `label` 时取第一段围栏代码的语言名。
+它是一条定义，不是新语义。渲染走的是和 `tabs` 同一条路径，区别只有标签的默认来源：省略 `title` 时取第一段围栏代码的语言名。
 
 ### 6.13 折叠
 
-单个折叠。
+子块是 `collapse`，放在 `:::accordion` 里，同时只开一块。只有一项时就是普通的一折。
 
-| 属性 | 类型 | 默认 | 说明 |
-| --- | --- | --- | --- |
-| `title` | string | 必填 | 收起时显示的标题 |
-| `open` | boolean | `false` | 默认展开 |
-
-分组用 `:::accordion`，子块是 `collapse`，同时只开一块。
+子块的属性：`title` 必填（收起时的标题），`open` 可选（布尔，默认 `false`）。
 
 ````markdown
 :::accordion
@@ -772,6 +849,18 @@ print("hi")
 ```
 :::
 :::collapse {title="版本差异"}
+:::
+:::
+````
+
+只要一折时写一项：
+
+````markdown
+:::accordion
+:::collapse {title="完整的报错" open=true}
+```
+长文本。
+```
 :::
 :::
 ````
@@ -787,11 +876,12 @@ print("hi")
 | 属性 | 类型 | 默认 | 说明 |
 | --- | --- | --- | --- |
 | `title` | string | 无 | 表格上方一行标题 |
-| `highlight-rows` | string | 无 | 高亮的行，例如 `warning:2,3` |
-| `highlight-columns` | string | 无 | 高亮的列，例如 `primary:1` |
+| `highlight-rows` | string | 无 | 高亮的行号，空格分隔，例如 `2 3` |
+| `highlight-columns` | string | 无 | 高亮的列号，空格分隔，例如 `1` |
+| `highlight` | accent | `warning` | 高亮用哪个强调值 |
 
 ```markdown
-:::table {title="打开耗时" highlight-rows="warning:3"}
+:::table {title="打开耗时" highlight-rows="3" highlight=warning}
 | 版本 | 耗时 |
 | --- | --- |
 | 0.1.9 | 5.4 s |
@@ -833,7 +923,7 @@ print("hi")
 | `chat` + `message` | 集合 | 计划中 |
 | `tabs` + `tab` | 交互 | 计划中 |
 | `code-tabs` + `tab` | 交互 | 计划中 |
-| `collapse`、`accordion` | 交互 | 计划中 |
+| `accordion` + `collapse` | 交互 | 计划中 |
 | `table` | 文稿 | 计划中 |
 | `window` | 文稿 | 计划中 |
 
@@ -909,40 +999,6 @@ print("hi")
 
 预算写在这里是为了验收时有数可对。具体数字在实现时按基准测试校准，校准时改这一节。
 
-### 8.4 源码 buffer 的编辑体验
-
-渲染出来的页面没有标记，所以标记的代价全落在写的人身上。这一节说的东西全部发生在源码 buffer，不改语法，也不改渲染结果。
-
-四层，按收益排。四层合成一个可选 minor mode，名字是 `etaf-md-edit-mode`，默认关。
-
-| 层 | 做什么 | 解决什么 |
-| --- | --- | --- |
-| 一 | 标记降权：`:::`、花括号、等号用 `markdown-markup-face`；容器名用语言关键字色；属性名与属性值各一色 | 竖线不再和正文抢眼 |
-| 二 | 配对提示：光标在容器里时，把它的开行与关行各提亮一档，离开即恢复 | 不用自己数哪个冒号配哪个 |
-| 三 | 插入与补全：一条命令补出开行、空行、关行；容器名与它收的属性就地补全 | 名字和属性不用背 |
-| 四 | 折叠：只留容器的开行 | 长文档里先看结构 |
-
-四条硬约束，每一条都是「不破坏原有 Markdown 体验」的判据。
-
-1. **只加不改。** 新增的 font-lock 规则只匹配 `^:::` 与属性花括号，这两处在 markdown-mode 今天没有任何规则，不存在覆盖。不动它的键位表、缩进函数、`electric-pair`、`markdown-hide-markup`。
-2. **不改 buffer 内容。** 降权、提亮、折叠全部是 face、overlay 与 `invisible` 属性，`buffer-string` 前后相同。否则保存就会改文件。
-3. **关掉即复原。** 关闭时移除 font-lock 关键字、删 overlay、清 hook、摘掉自己的 `completion-at-point-functions`。测试断言开启再关闭之后，`font-lock-keywords` 与开启前 `equal`。
-4. **不抢键。** 只用自己前缀的键，不 remap 任何既有命令。
-
-性能预算，和 8.3 一样可以量。
-
-| 动作 | 预算 | 靠什么保证 |
-| --- | --- | --- |
-| 打开一份 2000 行的文档 | 额外耗时 50 毫秒以内 | font-lock 按块惰性走，没有整篇扫描 |
-| 光标跨行 | 5 毫秒以内 | 只在行号变化时算一次 |
-| 同一行内打字 | 0 次配对计算 | 上一条的直接结果 |
-| 空闲 | 0 个定时器 | 没有轮询，没有后台刷新 |
-| 折叠与展开 | 一次 overlay 增删 | 不动文字 |
-
-配对提示要找到容器开头，所以它按行数给上限。一份几千行的文档里反查一次，超过上限就跳过这一屏的提示，不做无上限的反向扫描。
-
-它救不了的三处，写在这里免得以后当承诺：GitHub 上、别人的编辑器里、复制出去的一段文字里，都没有这些标记。所以语法必须能在裸文本里读得下去，这一节只是加成。加语法时不拿它当理由。
-
 ## 9. 定义与组件
 
 这一章说清两件事：定义该有多薄，可复用的东西放在哪。
@@ -968,16 +1024,12 @@ print("hi")
 ```elisp
 (etaf-md-define-container 'card
   :kind 'block
-  :attrs '((title  :type string :doc "卡片标题")
-           (accent :type accent :default neutral :appearance t :doc "强调"))
+  :attrs '((title :type string :doc "卡片标题"))
   :body (lambda (attrs body env)
-          (etaf-card :title (plist-get attrs :title)
-                     :variant (pcase (plist-get attrs :accent)
-                                ('warning 'warning)
-                                ('success 'success)
-                                (level level))
-                     body)))
+          (etaf-card :title (plist-get attrs :title) body)))
 ```
+
+这是形状，不是完整例子。带多个属性、外观属性与组件映射的完整写法在 10.1。
 
 定义里没有一行画边框、写内边距。那些在 `etaf-card` 里。定义只把文档的词翻成组件的参数。`variant` 的取值由 `etaf-ui` 定，这里只是示意映射。
 
@@ -1049,11 +1101,11 @@ print("hi")
 | 字段 | 作用 |
 | --- | --- |
 | 名字 | 第一个参数，符号。文档写 `:::card` 就找它 |
-| `:kind` | `block`、`parent`、`child` |
+| `:kind` | `block` 或 `parent`。子块不是一种 kind，它没有自己的定义 |
 | `:summary` | 一行说明，出现在帮助和报错里 |
 | `:attrs` | 属性表，每项写法见 10.2 |
 | `:contract` | 契约版本，整数。当前是 `1`。属性改名、子块名字改动要加一，旧文档按 3.4 降级，见 10.5 |
-| `:children` | 只有父容器要写，声明子块名字和它们的属性 |
+| `:children` | 只有父容器要写，声明子块的名字、属性与必填。子块名字只在这个父容器里有效 |
 | `:body` | 函数，收三样东西，返回 ETAF 视图 |
 
 `body` 收到三样东西。位置参数只留给每类定义都有的，其余都从 `env` 具名取。
@@ -1074,7 +1126,7 @@ print("hi")
 | 块树 | `(etaf-md-content env)` 给解析好的块，不是视图 | `field`、`code-tabs`、`table` |
 | 画子块 | `(etaf-md-render env blocks &rest options)` | `field`、`chat`、`table` |
 | 打开链接 | `(etaf-md-follow-link env href)` | `card` 的 `href` |
-| 本块状态 | `(etaf-md-block-state env :selected)` | `tabs`、`collapse` |
+| 本块状态 | `(etaf-md-block-state env :selected)` | `tabs`、`accordion` |
 | 可用宽度 | `(etaf-md-available-width env)` | `columns` 的降级判断 |
 
 状态那一行是关键。目录里的 `etaf-tabs` 是受控组件，`selected` 和 `on-change` 都由调用方给；定义本身没有地方存状态，所以每个块要有一个自己的状态格子，由渲染器创建，按块隔离。
@@ -1087,7 +1139,7 @@ print("hi")
 :children '((col :attrs ((grow :type number :default 1 :doc "宽度份数"))))
 ```
 
-子块自带一个 `label` 属性，类型 `string`，由渲染器提供，不在 `:attrs` 里重复声明。省略时它的值是 `nil`，父容器在 `:body` 里自己补默认值：`col` 不补，`tab` 补成空字符串，`code-tabs` 补成第一段围栏代码的语言名。
+子块自带一个 `title` 属性，类型 `string`，由渲染器提供，不在 `:attrs` 里重复声明。省略时它的值是 `nil`，父容器在 `:body` 里自己补默认值：`col` 不补，`tab` 补成空字符串，`code-tabs` 补成第一段围栏代码的语言名。
 
 ### 10.2 属性与子块的规则
 
@@ -1095,11 +1147,10 @@ print("hi")
 - 每一项只有一个位置：第一个元素是名字，它是这一项的键。后面全是具名字段，和 `:children '((col ...))` 一个形状。
 - `:type` 必写，取值是 `string`、`number`、`boolean`、`length`、`surface`、`accent`、`enum`。`string` 可以再加 `:pattern`；`enum` 必须写 `:one-of (...)`。
 - `:default` 不写就是 `nil`，所以 `nil` 默认值一个字都不用写。
-- 必填写 `:required t`，例如 `(label :type string :required t :doc "标签文字")`。此时不许写 `:default`，两个都写是加载错误。必填只用于文档侧属性，读者侧的键一律可选。
+- 必填写 `:required t`，例如 `(title :type string :required t :doc "标题文字")`。此时不许写 `:default`，两个都写是加载错误。必填只用于文档侧属性，读者侧的键一律可选。
 - 外观属性写 `:appearance t`。它表示「读者可以盖掉文档给的值」，见 4.4。只能标在 `surface`、`accent`、`text-align` 这类外观类型上，标在 `string` 上是加载错误。
 - `:doc` 可选，但建议写。它出现在帮助和报错里。
-- `:kind` 是 `child` 的定义不写 `:children`。
-- **子块标签是渲染器给的，不是定义声明的。** 每个 `:children` 项都多一个 `label`，类型 `string`。定义只能在 `:body` 里给它补默认值（`code-tabs` 取围栏语言），不能改它的名字或类型。
+- **子块的标签是渲染器给的，不是定义声明的。** 每个 `:children` 项都多一个 `title`，类型 `string`。定义只能在 `:body` 里给它补默认值（`code-tabs` 取围栏语言），不能改它的名字或类型。
 - 定义不能自己读文件、发网络请求、起定时器。它只能拿到 `attrs`、`body`、`env`，其余从 `env` 具名取。
 - 渲染器的分发代码里不出现容器名字。它只按角色和属性找定义，不按名字写分支。
 
@@ -1220,10 +1271,10 @@ print("hi")
 | 阶段 | 内容 | 完成判据 |
 | --- | --- | --- |
 | 0 | GitHub 提示块 | 已实现，51 个测试覆盖 |
-| 1 | 渲染路径：解析、派生、样式表、失败目录，并把 `box`、`columns`、`card` 用定义写 | 12 种失败各有一条断言；三层嵌套与超限；窄窗三档截图；用户定义能替掉内置的 `card`；每个内置节点至少一个样式键生效；改样式表不重新解析 |
+| 1 | 渲染路径：解析、派生、样式表、失败目录，并把 `box`、`columns`、`card` 用定义写 | 13 种失败各有一条断言；三层嵌套与超限；窄窗三档截图；用户定义能替掉内置的 `card`；每个内置节点至少一个样式键生效；改样式表不重新解析 |
 | 2 | 提示容器：五个名字，和 GitHub 写法共用一张定义 | 两种写法渲染成同一个 buffer 文本；强调值映射正确 |
 | 3 | 集合：`steps`、`timeline`、`stats`、`field`、`file-tree`、`chat` | 每个容器有正例、反例、三种配色截图 |
-| 4 | 交互：`tabs`、`code-tabs`、`collapse`、`accordion` | 按键走命令循环；状态经重排与换主题不丢；扁平化输出不缺内容 |
+| 4 | 交互：`tabs`、`code-tabs`、`accordion` 与它的子块 `collapse` | 按键走命令循环；状态经重排与换主题不丢；扁平化输出不缺内容 |
 | 5 | 文稿：`table`、`window` | 表格高亮按行列生效；窗口只画标题栏 |
 | 6 | 注册表与用户定义 | 示例定义能装能卸；给内置类型加一个键并生效；覆盖后 `:default` 仍回内置；契约版本不符有提示；`doctor` 报数量与覆盖链 |
 | 7 | 源码 buffer 的编辑体验：降权、配对提示、插入与补全、折叠，合成 `etaf-md-edit-mode` | 关闭后 `font-lock-keywords` 与开启前 `equal`；`buffer-string` 不变；2000 行文档额外耗时 50 毫秒以内；同一行内打字不触发配对计算 |
@@ -1273,8 +1324,7 @@ print("hi")
 
 | 属性 | 类型 | 含义 | 用在 |
 | --- | --- | --- | --- |
-| `title` | string | 标题文字 | 提示块、card、steps、timeline、file-tree、collapse、table、window、stat |
-| `label` | string | 短标签 | tab、stat |
+| `title` | string | 标题文字 | 提示块、card、steps、timeline、file-tree、accordion、table、window；子块里是 tab、step、event、stat、collapse |
 | `description` | string | 标题下的摘要 | card |
 | `surface` | surface | 底色 | box、card |
 | `accent` | accent | 强调 | box、card |
@@ -1291,9 +1341,9 @@ print("hi")
 | `wrap` | boolean | 放不下时换行 | columns |
 | `grow` | number | 宽度份数 | col |
 | `list-style` | enum | 列表记号 | steps、timeline、file-tree |
-| `open` | boolean | 默认展开 | 提示块、collapse |
+| `open` | boolean | 默认展开 | 提示块；子块里是 collapse |
 | `collapsible` | boolean | 允许收起 | 提示块 |
-| `selected` | string | 默认选中 | tabs |
+| `selected` | boolean | 这一项默认选中 | tab 子块 |
 | `href` | string | 跳转地址 | card |
 | `start` | number | 起始编号 | steps |
 | `separator` | enum | 名称与值的分隔 | field |
@@ -1302,8 +1352,9 @@ print("hi")
 | `from` | string | 发送者 | message |
 | `time` | string | 时间 | event、message |
 | `value` | string | 数字文本 | stat |
-| `highlight-rows` | string | 高亮行 | table |
-| `highlight-columns` | string | 高亮列 | table |
+| `highlight-rows` | string | 高亮行号，空格分隔 | table |
+| `highlight-columns` | string | 高亮列号，空格分隔 | table |
+| `highlight` | accent | 高亮的强调值 | table |
 | `id` | string | 稳定锚点 | 所有块 |
 
 ## 附录 B：底色、强调与令牌
@@ -1362,8 +1413,8 @@ print("hi")
 | `card-masonry` | 不吸收 | 行高固定，瀑布流装出来就是网格 |
 | `steps` | 吸收，`steps` + `step` | 编号加标题 |
 | `tabs` | 吸收，`tabs` + `tab` | 键盘可达，切换只重画一块 |
-| `code-tabs` | 保留为 `tabs` 的一条定义 | 子块里放围栏代码，标签省略时取围栏的语言名 |
-| `collapse` | 吸收，`collapse` 与 `accordion` | 加同时只开一块，加搜索自动展开 |
+| `code-tabs` | 保留为 `tabs` 的一条定义 | 子块里放围栏代码，`title` 省略时取围栏的语言名 |
+| `collapse` | 吸收，`accordion` 的子块 | 同时只开一块，搜索命中自动展开 |
 | `field` | 吸收，`field` | 名称列自动对齐 |
 | `timeline` | 吸收，`timeline` + `event` | 记号可选 |
 | `table` | 部分吸收 | 标题与行列高亮 |
@@ -1386,7 +1437,6 @@ print("hi")
 | 名字 | 出处 | 含义 | 不要写成 |
 | --- | --- | --- | --- |
 | `title` | HTML | 标题文字 | `heading`、`caption` |
-| `label` | 表单控件的通用 prop | 短标签 | `name`、`tag` |
 | `description` | Ant、Primer | 标题下的摘要 | `summary`、`subtitle` |
 | `surface` | Material、Polaris | 底色角色 | `background`、`fill`、`panel` |
 | `accent` | shadcn/ui | 强调值 | `tone`、`variant`、`type`、`intent` |
@@ -1405,7 +1455,7 @@ print("hi")
 | `list-style` | CSS `list-style-type` | 列表记号 | `marker`、`bullet` |
 | `open` | HTML `<details open>` | 默认展开 | `expanded`、`visible` |
 | `collapsible` | Bootstrap、Primer | 允许收起 | `foldable`、`toggle` |
-| `selected` | HTML `<option selected>` | 默认选中 | `active`、`current` |
+| `selected` | HTML `<option selected>` | 这一项默认选中 | `active`、`current` |
 | `href` | HTML | 跳转地址 | `url`、`link`、`to` |
 | `start` | HTML `<ol start>` | 起始编号 | `begin`、`from` |
 | `separator` | 通用 | 名称与值的分隔 | `divider` |
@@ -1414,8 +1464,9 @@ print("hi")
 | `from` | 邮件、聊天 | 发送者 | `sender`、`author` |
 | `time` | HTML `<time>` | 时间 | `date`、`at` |
 | `value` | HTML `<input value>` | 数字文本 | `number`、`figure` |
-| `highlight-rows` | 通用 | 高亮行 | `hl-rows`、`mark` |
-| `highlight-columns` | 通用 | 高亮列 | `hl-cols`、`mark` |
+| `highlight-rows` | 通用 | 高亮行号 | `hl-rows`、`mark` |
+| `highlight-columns` | 通用 | 高亮列号 | `hl-cols`、`mark` |
+| `highlight` | 本表命名规矩 | 高亮的强调值 | `tone`、`mark-color` |
 | `id` | HTML | 稳定锚点 | `anchor`、`slug` |
 
 ### E.2 类型

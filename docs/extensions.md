@@ -6,6 +6,56 @@
 >
 > The Chinese and English versions run section for section. Change one, change the other.
 
+## Quick reference
+
+This is all a writer needs.
+
+**Two rules.** `:::name {attrs}` opens a block, a line holding `:::` alone closes the one opened last. The last block in a file may omit its closing line.
+
+A block container:
+
+````markdown
+:::card {title="Cache hit"}
+Images and figures scale with the page instead of being redrawn.
+:::
+````
+
+A parent container. A child name is interpreted by its parent, so `:::tab` means nothing outside `tabs`:
+
+````markdown
+:::tabs
+:::tab {title="Emacs 29"}
+Uses the old `image-size` signature.
+:::
+:::tab {title="Emacs 30+" selected=true}
+Passes the buffer directly.
+:::
+:::
+````
+
+**The attributes that carry most documents.**
+
+| Attribute | Type | Written on | Example |
+| --- | --- | --- | --- |
+| `title` | string | Containers and children | `title="Cache hit"` |
+| `description` | string | card | `description="One line of summary"` |
+| `surface` | surface | box, card | `surface=raised` |
+| `accent` | accent | box, card, callouts | `accent=warning` |
+| `text-align` | enum | box, card | `text-align=center` |
+| `columns` | number or string | columns, stats | `columns="2fr 1fr"` |
+| `gap` | length | columns | `gap="2ch"` |
+| `padding` | length | box, columns | `padding="1lh"` |
+| `open` | boolean | collapse, callouts | `open=true` |
+| `selected` | boolean | tab | `selected=true` |
+| `list-style` | enum | steps, timeline, file-tree | `list-style=decimal` |
+| `href` | string | card | `href="#install"` |
+
+**Five surfaces:** `none`, `page`, `raised`, `sunken`, `quote`. **Six accents:** `neutral`, `primary`, `success`, `warning`, `danger`, `important`.
+
+A length always carries its unit, `2ch` or `1lh`; a bare `2` is wrong. A document never names a colour or a type size; the reader's theme and style table decide those.
+
+When an attribute name slips your mind, ask `etaf-md-describe-containers`, or turn on `etaf-md-edit-mode` and let completion answer.
+
 ## 1. Place
 
 ### 1.1 What this package does
@@ -57,17 +107,16 @@ A container has a name, attributes and content. Its content is parsed blocks, no
 
 The parser knows three things: opening, closing and nesting. It does not know what `tab` means, nor which attributes `card` takes. The registry owns the names, the definitions own the attributes, and the renderer owns the placement.
 
-### 2.2 Three kinds of container
+### 2.2 Two kinds of container
 
-A writer sees one shape, but the system has three roles. A definition must declare which one it is.
+A writer sees one shape, and the system has two roles. A definition must declare which one it is.
 
 | Role | Content | Examples | Rule |
 | --- | --- | --- | --- |
 | Block | Any blocks | `note`, `card`, `box`, `table` | Appears anywhere a paragraph may |
-| Parent | Only the children it declares | `columns`, `tabs`, `steps` | A child name is valid only inside it |
-| Child | Meaningless without a parent | `col`, `tab`, `step`, `message` | Outside its parent it is an error, never a guess |
+| Parent | Only the children it declares | `columns`, `tabs`, `steps`, `accordion` | A child's attributes and requirements are declared in its own `:children` |
 
-One rule connects the three: **a child name is interpreted by its parent, and the parser does not recognise it.** So `:::tab` inside `tabs` is a tab, and `:::tab` at the top of a page is a line nothing can explain, reported by the failure rule.
+**A child is not a third role, and it has no definition of its own.** Its name is interpreted by its parent, and the parser does not recognise it; the same name in two parents carries whatever each parent asks for. So `:::tab` inside `tabs` is a tab, and `:::tab` at the top of a page is a line nothing can explain, reported by the failure rule.
 
 The relationship does not cross layers. A `tab` may hold a `card`, but a `tab` may not hold another `tab`. To nest, wrap another `tabs`.
 
@@ -237,7 +286,7 @@ Attributes come in two classes, and a definition marks them.
 
 | Class | Who decides the value | Examples |
 | --- | --- | --- |
-| Content | The document. A reader cannot change it | `title`, `label`, `href` |
+| Content | The document. A reader cannot change it | `title`, `href`, `selected` |
 | Appearance | The document gives the default; the reader's style table may override | `surface`, `accent`, `text-align` |
 
 An appearance attribute says `:appearance t` in the definition; see 10.2. That keeps "which attributes are appearance" in one place instead of a second list.
@@ -260,7 +309,7 @@ line 42: card received surface="#24262a"; it takes none, page, raised, sunken, q
 line 44: nesting depth 9 exceeds the limit of 8
 ```
 
-Failures come in twelve kinds. Each has a determined page result; none is "it depends".
+Failures come in thirteen kinds. Each has a determined page result; none is "it depends".
 
 | Case | Page | Scope |
 | --- | --- | --- |
@@ -272,6 +321,7 @@ Failures come in twelve kinds. Each has a determined page result; none is "it de
 | Child outside its parent | Source, and the line names the parent | This block |
 | Child missing a required attribute | Source; the parent keeps parsing the rest | This child |
 | Parent without children | Empty state, no error | This block |
+| Two children claim `selected` | Only the first counts, with one line saying so | This group |
 | Nesting beyond eight | Source, and the line gives the depth | This block |
 | Unclosed at end of file | Content still renders; one line at the end names the opening line | End of page |
 | Definition signals | Source, and the line names the definition and its error | This block |
@@ -297,6 +347,40 @@ This is still body text.
 ````
 
 The choice favours the reader. Turning the block into source makes the preview look broken; swallowing half a document is much worse than one extra line, and the author would also have a harder time finding it.
+
+### 3.6 Editing the source buffer
+
+A rendered page carries no markup, so the whole cost of it falls on the writer. Everything here happens in the source buffer. It changes neither the syntax nor the rendered result.
+
+Four layers, in order of payoff. All four form one optional minor mode named `etaf-md-edit-mode`, off by default.
+
+| Layer | What it does | What it fixes |
+| --- | --- | --- |
+| One | Push the markup back: `:::`, the braces and the equals sign in `markdown-markup-face`; the container name in the language keyword face; attribute names and values in two different faces | The colons stop competing with the prose |
+| Two | Pair hint: while point is inside a container, its opening and closing lines are each lifted one step; both fall back on leaving | No counting which colon matches which |
+| Three | Insert and complete: one command writes the opening line, a blank line and the closing line; container names and the attributes each container takes complete in place | Names and attributes need not be memorised |
+| Four | Fold: keep the container's opening line only | Read structure first in a long document |
+
+Four hard constraints, each one a test of "hurts no existing Markdown habit".
+
+1. **Add, never replace.** The new font-lock rules match `^:::` and the attribute braces only; markdown-mode has no rule for either today, so nothing is overridden. Its keymap, indent function, `electric-pair` and `markdown-hide-markup` stay untouched.
+2. **Never change buffer text.** Dimming, lifting and folding are faces, overlays and the `invisible` property only; `buffer-string` is identical before and after. Otherwise saving writes a different file.
+3. **Off means gone.** Disabling removes the font-lock keywords, deletes the overlays, clears the hook and drops its `completion-at-point-functions` entry. A test asserts that `font-lock-keywords` after an enable-and-disable cycle is `equal` to what it was before.
+4. **Never take a key.** Only its own prefix; no existing command is remapped.
+
+Performance budget, measured the same way as 8.3.
+
+| Action | Budget | What guarantees it |
+| --- | --- | --- |
+| Open a 2000-line document | 50 milliseconds of extra work at most | font-lock runs per chunk, never over the whole file |
+| Move point to another line | 5 milliseconds at most | computed once per line change |
+| Typing inside one line | no pair computation at all | the previous row |
+| Idle | no timers | no polling, no background refresh |
+| Fold and unfold | one overlay added or removed | text is never touched |
+
+The pair hint has to find the container's opening line, so it has a line limit. One backward search in a document of a few thousand lines, skipping the hint beyond that limit; never an unbounded reverse scan.
+
+Three places it cannot help, recorded here so it is never mistaken for a promise: on GitHub, in someone else's editor, and in a fragment pasted elsewhere. The syntax therefore has to read well as bare text; this section is only a bonus, and it is never a reason to add syntax.
 
 ## 4. Appearance and style
 
@@ -517,7 +601,7 @@ There are only three, and the test is the content's relationship.
 | Structure | `columns`, `card`, `box` | Decide placement and boundary only, never interpret content |
 | Callouts | `note`, `tip`, `important`, `warning`, `caution` | One definition, five fixed accent values |
 | Collections | `steps`, `timeline`, `stats`, `field`, `file-tree`, `chat` | Children carry labels and are ordered or named |
-| Interaction | `tabs`, `code-tabs`, `collapse`, `accordion` | Stateful, switchable by key |
+| Interaction | `tabs`, `code-tabs`, `accordion` (child `collapse`) | Stateful, switchable by key |
 | Documents | `table`, `window` | Wrap something else and change how it presents |
 
 ### 6.2 Callouts
@@ -711,22 +795,20 @@ The case it solves: a tutorial demonstrating one exchange. It is aligned text wi
 
 ### 6.11 Tabs
 
-| Attribute | Type | Default | Meaning |
-| --- | --- | --- | --- |
-| `selected` | string | the first | Which tab shows first, by label |
-
-The child is `tab`, with a required `label`.
+The child is `tab`, with a required `title` and an optional `selected` (a boolean; one child per group may set it).
 
 ````markdown
 :::tabs
-:::tab {label="Emacs 29"}
+:::tab {title="Emacs 29"}
 Uses the old `image-size` signature.
 :::
-:::tab {label="Emacs 30+"}
+:::tab {title="Emacs 30+" selected=true}
 Passes the buffer directly.
 :::
 :::
 ````
+
+When two children both set `selected`, only the first counts and the page says so; see 3.4.
 
 The case it solves: several spellings of one thing in parallel, of which a reader needs one. Three parallel subsections lengthen the outline; tabs occupy one block.
 
@@ -734,7 +816,7 @@ Interaction follows the contract in chapter 7; no rules are restated here. The c
 
 ### 6.12 Code tabs
 
-The same as `tabs`, except the children hold fenced code, and an omitted `label` comes from the fence's language.
+The same as `tabs`, except the children hold fenced code, and an omitted `title` comes from the fence's language.
 
 ````markdown
 :::code-tabs
@@ -751,18 +833,13 @@ print("hi")
 :::
 ````
 
-It is one definition, not new meaning. It renders along the same path as `tabs`; the only difference is where the label comes from by default, which is the language of the first fenced block when `label` is omitted.
+It is one definition, not new meaning. It renders along the same path as `tabs`; the only difference is where the label comes from by default, which is the language of the first fenced block when `title` is omitted.
 
 ### 6.13 Collapse
 
-A single fold.
+The child is `collapse`, used inside `:::accordion`, with one open at a time. A single fold is a group of one.
 
-| Attribute | Type | Default | Meaning |
-| --- | --- | --- | --- |
-| `title` | string | required | The title shown while closed |
-| `open` | boolean | `false` | Starts expanded |
-
-A group is `:::accordion`, whose children are `collapse` blocks, with one open at a time.
+A child's attributes: `title` required (the title while closed), `open` optional (a boolean, `false` by default).
 
 ````markdown
 :::accordion
@@ -772,6 +849,18 @@ The long text goes here.
 ```
 :::
 :::collapse {title="Version differences"}
+:::
+:::
+````
+
+For one fold, write one child:
+
+````markdown
+:::accordion
+:::collapse {title="The complete error" open=true}
+```
+The long text.
+```
 :::
 :::
 ````
@@ -787,11 +876,12 @@ A plain pipe table already works. The wrapper adds two things.
 | Attribute | Type | Default | Meaning |
 | --- | --- | --- | --- |
 | `title` | string | none | One title line above the table |
-| `highlight-rows` | string | none | Highlighted rows, e.g. `warning:2,3` |
-| `highlight-columns` | string | none | Highlighted columns, e.g. `primary:1` |
+| `highlight-rows` | string | none | Highlighted row numbers, space separated, e.g. `2 3` |
+| `highlight-columns` | string | none | Highlighted column numbers, space separated, e.g. `1` |
+| `highlight` | accent | `warning` | Which accent the highlight uses |
 
 ```markdown
-:::table {title="Opening cost" highlight-rows="warning:3"}
+:::table {title="Opening cost" highlight-rows="3" highlight=warning}
 | Version | Cost |
 | --- | --- |
 | 0.1.9 | 5.4 s |
@@ -833,7 +923,7 @@ A transformation of plume's `window`, which draws rounded corners and a shadow; 
 | `chat` + `message` | Collections | Planned |
 | `tabs` + `tab` | Interaction | Planned |
 | `code-tabs` + `tab` | Interaction | Planned |
-| `collapse`, `accordion` | Interaction | Planned |
+| `accordion` + `collapse` | Interaction | Planned |
 | `table` | Documents | Planned |
 | `window` | Documents | Planned |
 
@@ -909,40 +999,6 @@ A style can change a block's height, so the flow uses each block's real height. 
 
 The budget is written down so acceptance has a number to compare with. The concrete numbers are calibrated against the benchmark during implementation, and this section changes with them.
 
-### 8.4 Editing the source buffer
-
-A rendered page carries no markup, so the whole cost of it falls on the writer. Everything here happens in the source buffer. It changes neither the syntax nor the rendered result.
-
-Four layers, in order of payoff. All four form one optional minor mode named `etaf-md-edit-mode`, off by default.
-
-| Layer | What it does | What it fixes |
-| --- | --- | --- |
-| One | Push the markup back: `:::`, the braces and the equals sign in `markdown-markup-face`; the container name in the language keyword face; attribute names and values in two different faces | The colons stop competing with the prose |
-| Two | Pair hint: while point is inside a container, its opening and closing lines are each lifted one step; both fall back on leaving | No counting which colon matches which |
-| Three | Insert and complete: one command writes the opening line, a blank line and the closing line; container names and the attributes each container takes complete in place | Names and attributes need not be memorised |
-| Four | Fold: keep the container's opening line only | Read structure first in a long document |
-
-Four hard constraints, each one a test of "hurts no existing Markdown habit".
-
-1. **Add, never replace.** The new font-lock rules match `^:::` and the attribute braces only; markdown-mode has no rule for either today, so nothing is overridden. Its keymap, indent function, `electric-pair` and `markdown-hide-markup` stay untouched.
-2. **Never change buffer text.** Dimming, lifting and folding are faces, overlays and the `invisible` property only; `buffer-string` is identical before and after. Otherwise saving writes a different file.
-3. **Off means gone.** Disabling removes the font-lock keywords, deletes the overlays, clears the hook and drops its `completion-at-point-functions` entry. A test asserts that `font-lock-keywords` after an enable-and-disable cycle is `equal` to what it was before.
-4. **Never take a key.** Only its own prefix; no existing command is remapped.
-
-Performance budget, measured the same way as 8.3.
-
-| Action | Budget | What guarantees it |
-| --- | --- | --- |
-| Open a 2000-line document | 50 milliseconds of extra work at most | font-lock runs per chunk, never over the whole file |
-| Move point to another line | 5 milliseconds at most | computed once per line change |
-| Typing inside one line | no pair computation at all | the previous row |
-| Idle | no timers | no polling, no background refresh |
-| Fold and unfold | one overlay added or removed | text is never touched |
-
-The pair hint has to find the container's opening line, so it has a line limit. One backward search in a document of a few thousand lines, skipping the hint beyond that limit; never an unbounded reverse scan.
-
-Three places it cannot help, recorded here so it is never mistaken for a promise: on GitHub, in someone else's editor, and in a fragment pasted elsewhere. The syntax therefore has to read well as bare text; this section is only a bonus, and it is never a reason to add syntax.
-
 ## 9. Definitions and components
 
 This chapter settles two things: how thin a definition should be, and where reusable parts live.
@@ -968,16 +1024,12 @@ A container definition writes three things, and no more.
 ```elisp
 (etaf-md-define-container 'card
   :kind 'block
-  :attrs '((title  :type string :doc "Card title")
-           (accent :type accent :default neutral :appearance t :doc "Accent"))
+  :attrs '((title :type string :doc "Card title"))
   :body (lambda (attrs body env)
-          (etaf-card :title (plist-get attrs :title)
-                     :variant (pcase (plist-get attrs :accent)
-                                ('warning 'warning)
-                                ('success 'success)
-                                (level level))
-                     body)))
+          (etaf-card :title (plist-get attrs :title) body)))
 ```
+
+That is the shape, not a complete example. Several attributes, an appearance attribute and a component mapping are shown together in 10.1.
 
 No line in the definition draws a border or sets padding. Those live in `etaf-card`. The definition only turns the document's words into the component's parameters. `variant`'s values are `etaf-ui`'s to define; the mapping here is illustrative.
 
@@ -1049,11 +1101,11 @@ A definition is data, not code inside a document.
 | Field | Purpose |
 | --- | --- |
 | The name | The first argument, a symbol. `:::card` in a document looks it up |
-| `:kind` | `block`, `parent` or `child` |
+| `:kind` | `block` or `parent`. A child is not a kind; it has no definition of its own |
 | `:summary` | One line, used in help and errors |
 | `:attrs` | The attribute table; each entry follows 10.2 |
 | `:contract` | Contract version, an integer. It is `1` today. An attribute rename or a child-name change bumps it, and older documents degrade under 3.4, see 10.5 |
-| `:children` | Parent only: the child names and their attributes |
+| `:children` | Parent only: the child names, their attributes and their requirements. A child name is valid only inside that parent |
 | `:body` | A function taking three arguments and returning an ETAF view |
 
 What `body` receives is three things. A positional slot is only for what every definition of that kind has; everything else is a named accessor on `env`.
@@ -1087,7 +1139,7 @@ A parent adds one field.
 :children '((col :attrs ((grow :type number :default 1 :doc "Width share"))))
 ```
 
-A child carries a `label` attribute of type `string` supplied by the renderer, so a definition never redeclares it in `:attrs`. Its value is `nil` when omitted, and the parent fills in a default inside `:body`: `col` leaves it empty, `tab` fills an empty string, `code-tabs` fills the language of the first fenced block.
+A child carries a `title` attribute of type `string` supplied by the renderer, so a definition never redeclares it in `:attrs`. Its value is `nil` when omitted, and the parent fills in a default inside `:body`: `col` leaves it empty, `tab` fills an empty string, `code-tabs` fills the language of the first fenced block.
 
 ### 10.2 Rules for attributes and children
 
@@ -1095,11 +1147,10 @@ A child carries a `label` attribute of type `string` supplied by the renderer, s
 - An entry has exactly one position: its first element is the name, which is the entry's key. Everything after is a named field, the same shape as `:children '((col ...))`.
 - `:type` is required and takes `string`, `number`, `boolean`, `length`, `surface`, `accent` or `enum`. A `string` may add `:pattern`; an `enum` must write `:one-of (...)`.
 - An omitted `:default` means `nil`, so a `nil` default takes no characters at all.
-- A required attribute writes `:required t`, as in `(label :type string :required t :doc "Tab label")`, and then no `:default`; writing both is an error at load. Required exists only on the document side; reader-side keys are always optional.
+- A required attribute writes `:required t`, as in `(title :type string :required t :doc "Title text")`, and then no `:default`; writing both is an error at load. Required exists only on the document side; reader-side keys are always optional.
 - An appearance attribute writes `:appearance t`. It means "the reader may override the document's value", see 4.4. It may only mark an appearance type such as `surface`, `accent` or `text-align`; marking a `string` is an error at load.
 - `:doc` is optional but recommended; it appears in help and in errors.
-- A `child` definition declares no `:children`.
-- **The child label comes from the renderer, not from the definition.** Every `:children` entry gets one extra `label` of type `string`. A definition may fill a default inside `:body` (`code-tabs` takes the fence language); it never renames the attribute or changes its type.
+- **A child's label comes from the renderer, not from the definition.** Every `:children` entry gets one extra `title` of type `string`. A definition may fill a default inside `:body` (`code-tabs` takes the fence language); it never renames the attribute or changes its type.
 - A definition may not read files, make network requests or start timers. It receives `attrs`, `body` and `env`, and reads the rest from `env` by name.
 - The renderer's dispatch contains no container names. It looks a definition up by role and attributes, and never branches on a name.
 
@@ -1273,8 +1324,7 @@ The shared attributes. A container selects from here and never invents a synonym
 
 | Attribute | Type | Meaning | Used by |
 | --- | --- | --- | --- |
-| `title` | string | Title text | Callouts, card, steps, timeline, file-tree, collapse, table, window, stat |
-| `label` | string | Short label | tab, stat |
+| `title` | string | Title text | Callouts, card, steps, timeline, file-tree, accordion, table, window, and the children tab, step, event, stat, collapse |
 | `description` | string | Summary under the title | card |
 | `surface` | surface | Fill | box, card |
 | `accent` | accent | Emphasis | box, card |
@@ -1291,9 +1341,9 @@ The shared attributes. A container selects from here and never invents a synonym
 | `wrap` | boolean | Wrap when it does not fit | columns |
 | `grow` | number | Width share | col |
 | `list-style` | enum | List marks | steps, timeline, file-tree |
-| `open` | boolean | Starts expanded | Callouts, collapse |
+| `open` | boolean | Starts expanded | Callouts, and the collapse child |
 | `collapsible` | boolean | May collapse | Callouts |
-| `selected` | string | Initially selected | tabs |
+| `selected` | boolean | This child is selected by default | The tab child |
 | `href` | string | Target of the whole block | card |
 | `start` | number | First number | steps |
 | `separator` | enum | Name/value separator | field |
@@ -1302,8 +1352,9 @@ The shared attributes. A container selects from here and never invents a synonym
 | `from` | string | Sender | message |
 | `time` | string | Timestamp | event, message |
 | `value` | string | The number as text | stat |
-| `highlight-rows` | string | Highlighted rows | table |
-| `highlight-columns` | string | Highlighted columns | table |
+| `highlight-rows` | string | Highlighted row numbers, space separated | table |
+| `highlight-columns` | string | Highlighted column numbers, space separated | table |
+| `highlight` | accent | Accent used for the highlight | table |
 | `id` | string | Stable anchor | Every block |
 
 ## Appendix B: surfaces, accents and tokens
@@ -1362,8 +1413,8 @@ The keys a style table may write; the key names are CSS property names. In the t
 | `card-masonry` | Declined | Row heights are fixed, so packing yields a grid |
 | `steps` | Absorbed as `steps` + `step` | Number plus title |
 | `tabs` | Absorbed as `tabs` + `tab` | Keyboard reachable; a switch repaints one block |
-| `code-tabs` | Kept as one definition on top of `tabs` | Children hold fenced code; an omitted label comes from the fence's language |
-| `collapse` | Absorbed as `collapse` and `accordion` | Adds one-open-at-a-time and search auto-expansion |
+| `code-tabs` | Kept as one definition on top of `tabs` | Children hold fenced code; an omitted `title` comes from the fence's language |
+| `collapse` | Absorbed as the child of `accordion` | One open at a time, plus auto-expansion on a search hit |
 | `field` | Absorbed as `field` | Auto-aligned name column |
 | `timeline` | Absorbed as `timeline` + `event` | Optional marks |
 | `table` | Partly absorbed | Title and row/column highlights |
@@ -1386,7 +1437,6 @@ This table is the ground for naming. A new name is looked up here first; if it i
 | Name | Source | Meaning | Not |
 | --- | --- | --- | --- |
 | `title` | HTML | Title text | `heading`, `caption` |
-| `label` | Form-control props | Short label | `name`, `tag` |
 | `description` | Ant, Primer | Summary under the title | `summary`, `subtitle` |
 | `surface` | Material, Polaris | Fill role | `background`, `fill`, `panel` |
 | `accent` | shadcn/ui | Accent value | `tone`, `variant`, `type`, `intent` |
@@ -1405,7 +1455,7 @@ This table is the ground for naming. A new name is looked up here first; if it i
 | `list-style` | CSS `list-style-type` | List marks | `marker`, `bullet` |
 | `open` | HTML `<details open>` | Starts expanded | `expanded`, `visible` |
 | `collapsible` | Bootstrap, Primer | May collapse | `foldable`, `toggle` |
-| `selected` | HTML `<option selected>` | Initially selected | `active`, `current` |
+| `selected` | HTML `<option selected>` | This child is selected by default | `active`, `current` |
 | `href` | HTML | Target | `url`, `link`, `to` |
 | `start` | HTML `<ol start>` | First number | `begin`, `from` |
 | `separator` | General | Name/value separator | `divider` |
@@ -1414,8 +1464,9 @@ This table is the ground for naming. A new name is looked up here first; if it i
 | `from` | Mail, chat | Sender | `sender`, `author` |
 | `time` | HTML `<time>` | Timestamp | `date`, `at` |
 | `value` | HTML `<input value>` | The number as text | `number`, `figure` |
-| `highlight-rows` | General | Highlighted rows | `hl-rows`, `mark` |
-| `highlight-columns` | General | Highlighted columns | `hl-cols`, `mark` |
+| `highlight-rows` | General | Highlighted row numbers | `hl-rows`, `mark` |
+| `highlight-columns` | General | Highlighted column numbers | `hl-cols`, `mark` |
+| `highlight` | Naming rule of this table | Accent used for the highlight | `tone`, `mark-color` |
 | `id` | HTML | Stable anchor | `anchor`, `slug` |
 
 ### E.2 Types
