@@ -751,7 +751,7 @@ print("hi")
 :::
 ````
 
-This is sugar, not new meaning. One more definition is one more rule to maintain; what a default behaviour can do, a container need not.
+It is one definition, not new meaning. It renders along the same path as `tabs`; the only difference is where the label comes from by default, which is the language of the first fenced block when `label` is omitted.
 
 ### 6.13 Collapse
 
@@ -1357,7 +1357,7 @@ The keys a style table may write; the key names are CSS property names. In the t
 | `card-masonry` | Declined | Row heights are fixed, so packing yields a grid |
 | `steps` | Absorbed as `steps` + `step` | Number plus title |
 | `tabs` | Absorbed as `tabs` + `tab` | Keyboard reachable; a switch repaints one block |
-| `code-tabs` | Absorbed as tabs default behaviour | The label comes from the fence language |
+| `code-tabs` | Kept as one definition on top of `tabs` | Children hold fenced code; an omitted label comes from the fence's language |
 | `collapse` | Absorbed as `collapse` and `accordion` | Adds one-open-at-a-time and search auto-expansion |
 | `field` | Absorbed as `field` | Auto-aligned name column |
 | `timeline` | Absorbed as `timeline` + `event` | Optional marks |
