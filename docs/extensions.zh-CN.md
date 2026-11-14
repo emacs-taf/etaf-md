@@ -113,7 +113,7 @@
 | 一个内容模型 | 内容是块，不是字符串，不是 HTML。容器不改解析 |
 | 一套属性 | 属性名和含义来自一张共享词汇表，容器只挑选，不发明同义词 |
 | 一组布局 | 摆放只用 `box`、`columns` 和共享的间距属性 |
-| 一个外观来源 | 颜色来自面与语气，字号来自读者 |
+| 一个外观来源 | 颜色来自底色与强调，字号来自读者 |
 | 一条失败规则 | 坏块留源码加一行说明，页面继续渲染 |
 | 状态归渲染器 | 文档不写行为，交互由容器定义实现 |
 | 一条渲染路径 | 内置节点、容器节点、读者样式走同一张表，代码里没有按名字的分支 |
@@ -183,7 +183,7 @@
 
 ### 3.3 属性
 
-八种类型。前七种是通用类型，`surface` 和 `tone` 是两套固定的语义词表。
+八种类型。前七种是通用类型，`surface` 和 `accent` 是两套固定的语义词表。
 
 | 类型 | 写法 | 含义 | 非法示例 |
 | --- | --- | --- | --- |
@@ -192,7 +192,7 @@
 | `bool` | `open=true` | 只认 `true` 和 `false` | `open=yes` |
 | `length` | `gap="2ch"` | 数字加单位：`ch`、`lh`、`px`、`%` | `gap=2` |
 | `surface` | `surface=panel` | 底：`none`、`panel`、`quote`、`sunken`、`page` | `surface="#24262a"` |
-| `tone` | `tone=warn` | 语气：`neutral`、`info`、`ok`、`warn`、`danger`、`important` | `tone=urgent` |
+| `accent` | `accent=warn` | 强调：`neutral`、`info`、`ok`、`warn`、`danger`、`important` | `accent=urgent` |
 | `enum` | `items=center` | 定义里列出的词之一 | `items=middle` |
 | `regex` | `id="^[a-z]+$"` | 值要匹配这个模式 | `id="A-1"` |
 
@@ -210,7 +210,7 @@
 | 类别 | 谁说了算 | 例子 |
 | --- | --- | --- |
 | 内容属性 | 文档。读者改不了 | `title`、`label`、`href` |
-| 外观属性 | 文档给默认，读者的样式表可以盖掉 | `surface`、`tone`、`align` |
+| 外观属性 | 文档给默认，读者的样式表可以盖掉 | `surface`、`accent`、`align` |
 
 外观属性在定义里写 `:appearance t`，见 10.2。这样「哪些是外观」只有一处记录，不靠一张单独的名单。
 
@@ -227,7 +227,7 @@
 ````
 
 ```
-line 42: card 不收 "colour"，它收 title、description、surface、tone、href、align、width
+line 42: card 不收 "colour"，它收 title、description、surface、accent、href、align、width
 line 42: card 的 surface 是 "#24262a"，它只认 none、panel、quote、sunken、page
 line 44: 第 9 层嵌套超过上限 8 层
 ```
@@ -272,9 +272,9 @@ line 44: 第 9 层嵌套超过上限 8 层
 
 ## 4. 外观与样式
 
-### 4.1 面与语气
+### 4.1 底色与强调
 
-外观只有两个属性，`surface` 管底，`tone` 管强调。两套词分开，因为它们是两件事。
+外观只有两个属性：`surface` 管底色，`accent` 管强调色。两套词分开，因为它们是两件事。`accent` 的取值里没有 `accent`，`info` 才是「用强调色」那一个；属性名和令牌名是两套名字，不要混。
 
 | `surface` | 底色 | 用在哪 |
 | --- | --- | --- |
@@ -284,16 +284,16 @@ line 44: 第 9 层嵌套超过上限 8 层
 | `sunken` | `panel2` 令牌 | 表头、次要信息 |
 | `page` | `bg` 令牌 | 需要和正文拉开的地方 |
 
-| `tone` | 前景 | 浅底 | 语义 |
+| `accent` | 前景 | 浅底 | 语义 |
 | --- | --- | --- | --- |
-| `neutral` | `ink` | `panel` | 没有语气 |
+| `neutral` | `ink` | `panel` | 没有强调 |
 | `info` | `accent` | `accent-soft` | 说明、提示 |
 | `ok` | `ok` | `ok-soft` | 成功、建议 |
 | `warn` | `warn` | `warn-soft` | 注意 |
 | `danger` | `danger` | `danger-soft` | 危险 |
 | `important` | `important` | `important-soft` | 重要 |
 
-语气只影响强调色和浅底，不改字号、不改字重、不改行高。要更强的强调就换语气，不要叠效果。
+一个强调值只决定强调色和浅底，不改字号、不改字重、不改行高。要更醒目就换一个强调值，不要叠效果。
 
 ### 4.2 令牌
 
@@ -316,7 +316,7 @@ line 44: 第 9 层嵌套超过上限 8 层
 | `danger` / `danger-soft` | 危险 |
 | `important` / `important-soft` | 重要 |
 
-令牌在三种配色下各有一套值，跟随 Emacs 主题时由当前 frame 的 face 推出来。容器只声明面与语气，配色换了它跟着换。
+令牌在三种配色下各有一套值，跟随 Emacs 主题时由当前 frame 的 face 推出来。容器只声明底色与强调，配色换了它跟着换。
 
 **为什么不收十六进制。** 一个在暗色页上好看的 `#24262a`，换到纸色页就是一块黑斑。写十六进制会报错，报错行里列出这个属性认的语义词。
 
@@ -330,13 +330,13 @@ line 44: 第 9 层嵌套超过上限 8 层
                     (:level 1 :color accent :scale 2.0 :prefix "◆ ")
                     (:level 2 :prefix "◇ ")
                     (:level 6 :weight normal :color muted)))
-        (quote   . ((:surface quote-bg :tone neutral :bar-width "3px" :slant italic)))
+        (quote   . ((:surface quote-bg :accent neutral :bar-width "3px" :slant italic)))
         (code    . ((:surface panel :tag-color muted)))
         (table   . ((:header-surface table-header :stripe-surface table-stripe)))
         (strong  . ((:weight bold)))
         (em      . ((:slant italic)))
         (link    . ((:color accent :underline t)))
-        (callout . ((:tone-colors ((neutral . ink) (info . accent)
+        (callout . ((:accent-colors ((neutral . ink) (info . accent)
                                    (ok . ok) (warn . warn)
                                    (danger . danger) (important . important)))))))
 ```
@@ -365,7 +365,7 @@ line 44: 第 9 层嵌套超过上限 8 层
 
 | 谁 | 能写什么 | 为什么 |
 | --- | --- | --- |
-| 文档 | 语义词，例如 `surface=panel`、`tone=warn` | 文档要能在任何主题、任何机器上读 |
+| 文档 | 语义词，例如 `surface=panel`、`accent=warn` | 文档要能在任何主题、任何机器上读 |
 | 读者样式 | 面或令牌的名字，或字面值 `"#ff0000"` | 读者拥有自己的页面 |
 
 写字面值有一个代价：它不跟随主题切换。暗色页上选的蓝，换到纸色页可能读不清。所以文档里永远不写字面值，这条是硬规矩。
@@ -483,7 +483,7 @@ line 44: 第 9 层嵌套超过上限 8 层
 | 家族 | 容器 | 共同点 |
 | --- | --- | --- |
 | 结构 | `columns`、`card`、`box` | 只决定摆放和边界，不解释内容 |
-| 提示 | `note`、`tip`、`important`、`warning`、`caution` | 一种定义，五个固定语气 |
+| 提示 | `note`、`tip`、`important`、`warning`、`caution` | 一种定义，五个固定的强调值 |
 | 集合 | `steps`、`timeline`、`stats`、`field`、`file-tree`、`chat` | 子块带标签，按顺序或按名字排 |
 | 交互 | `tabs`、`code-tabs`、`collapse`、`collapse-group` | 有状态，可按键切换 |
 | 文稿 | `table`、`window` | 包住别的东西，换一种呈现 |
@@ -501,7 +501,7 @@ line 44: 第 9 层嵌套超过上限 8 层
 
 | 属性 | 类型 | 默认 | 说明 |
 | --- | --- | --- | --- |
-| `title` | string | 该语气的固定标题 | 换掉标题文字 |
+| `title` | string | 这个强调值的固定标题 | 换掉标题文字 |
 | `collapsible` | bool | `false` | 允许收起 |
 | `open` | bool | `true` | 收起时默认展开 |
 
@@ -511,7 +511,7 @@ line 44: 第 9 层嵌套超过上限 8 层
 :::
 ```
 
-两个写法渲染成同一个东西，都在同一张定义上。语气映射是固定的：`note` 对 `info`，`tip` 对 `ok`，`important` 对 `important`，`warning` 对 `warn`，`caution` 对 `danger`。
+两个写法渲染成同一个东西，都在同一张定义上。强调值的映射是固定的：`note` 对 `info`，`tip` 对 `ok`，`important` 对 `important`，`warning` 对 `warn`，`caution` 对 `danger`。
 
 为什么两条路都留。GitHub 上的文档粘贴过来就能用，这是最常见的入口；写长文档时容器写法能和别的容器对齐，也能带属性。
 
@@ -522,7 +522,7 @@ line 44: 第 9 层嵌套超过上限 8 层
 | `title` | string | 无 | 标题，省略就不画标题行 |
 | `description` | string | 无 | 标题下一行灰色摘要 |
 | `surface` | enum | `panel` | 见 4.1 |
-| `tone` | enum | `neutral` | 见 4.1 |
+| `accent` | enum | `neutral` | 见 4.1 |
 | `href` | string | 无 | 整张卡片可点，跳到这个地址 |
 | `align` | enum | `start` | 内容水平位置 |
 | `width` | length | `stretch` | 自身宽度 |
@@ -536,7 +536,7 @@ line 44: 第 9 层嵌套超过上限 8 层
 | 属性 | 类型 | 默认 | 说明 |
 | --- | --- | --- | --- |
 | `surface` | enum | `none` | 见 4.1 |
-| `tone` | enum | `neutral` | 见 4.1 |
+| `accent` | enum | `neutral` | 见 4.1 |
 | `pad` | length | 无 | 内边距 |
 | `align` | enum | `start` | 内容水平位置 |
 | `width` | length | `stretch` | 自身宽度 |
@@ -897,19 +897,19 @@ print("hi")
 
 1. **声明**：文档能写哪些属性，各是什么类型、默认值。
 2. **校验**：交给渲染器统一做，定义只声明。
-3. **翻译**：把文档的语义（面、语气、属性）换成组件的参数。
+3. **翻译**：把文档的语义（底色、强调、属性）换成组件的参数。
 
 ```elisp
 (etaf-md-define-container 'card
   :kind 'block
   :attrs '((title :type string :doc "卡片标题")
-           (tone  :type tone :default neutral :appearance t :doc "语气"))
+           (accent :type accent :default neutral :appearance t :doc "强调"))
   :body (lambda (attrs body env)
           (etaf-card :title (plist-get attrs :title)
-                     :variant (pcase (plist-get attrs :tone)
+                     :variant (pcase (plist-get attrs :accent)
                                 ('warn 'warning)
                                 ('ok 'success)
-                                (tone tone))
+                                (level level))
                      body)))
 ```
 
@@ -921,8 +921,8 @@ print("hi")
 
 组件的参数是给人写的 Elisp 用的，不是给文档用的。
 
-- **不收文档词汇。** 组件里不出现 `:tone`、`:container`、`:::card` 这类词，别的应用不该被迫理解 Markdown。
-- **不收颜色值。** 组件认 `surface` 与 `tone` 这类语义角色，不认 `"#c00"`。具体颜色在组件里查令牌，换配色不会漏掉某个容器。
+- **不收文档词汇。** 组件里不出现 `:accent`、`:container`、`:::card` 这类词，别的应用不该被迫理解 Markdown。
+- **不收颜色值。** 组件认 `surface` 与 `accent` 这类语义角色，不认 `"#c00"`。具体颜色在组件里查令牌，换配色不会漏掉某个容器。
 - **几何属性尽量少。** 内边距、间距这类由组件自己的默认值负责，定义只在必要时覆盖。
 
 反例：组件里加一个 `:markdown-level`，或者定义里手画卡片边框。前者把语法漏进组件，后者把组件复制一份。
@@ -970,13 +970,13 @@ print("hi")
  :kind 'block
  :summary "一张带标题的卡片"
  :attrs '((title :type string :doc "卡片标题")
-          (tone  :type tone :default neutral :appearance t :doc "语气"))
+          (accent :type accent :default neutral :appearance t :doc "强调"))
  :body (lambda (attrs body env)
          (etaf-card :title (plist-get attrs :title)
-                    :variant (pcase (plist-get attrs :tone)
+                    :variant (pcase (plist-get attrs :accent)
                                ('warn 'warning)
                                ('ok 'success)
-                               (tone tone))
+                               (level level))
                     body)))
 ```
 
@@ -1002,7 +1002,7 @@ print("hi")
 | 令牌 | `(etaf-md-token env 'info)` | 所有容器 |
 | 行高 | `(etaf-md-token env 'lh)` | 所有容器 |
 | 面 | `(etaf-md-surface env 'panel)` 把面换成底色，`none` 返回 `nil` | 所有容器 |
-| 语气 | `(etaf-md-tone env 'warn)` 把语气换成强调色 | 提示块、卡片 |
+| 强调 | `(etaf-md-accent env 'warn)` 把强调值换成颜色 | 提示块、卡片 |
 | 子块 | `(etaf-md-children env)` 按顺序给 `(:name :attrs :view)` | 父容器 |
 | 块树 | `(etaf-md-content env)` 给解析好的块，不是视图 | `field`、`code-tabs`、`table` |
 | 画子块 | `(etaf-md-render env blocks &rest options)` | `field`、`chat`、`table` |
@@ -1024,10 +1024,10 @@ print("hi")
 
 - 定义只能引用共享属性表里的名字，或者自己声明的专有属性。专有属性要在 `:summary` 里说清只能和它一起用。
 - 每一项只有一个位置：第一个元素是名字，它是这一项的键。后面全是具名字段，和 `:children '((col ...))` 一个形状。
-- `:type` 必写，取值是 `string`、`number`、`bool`、`length`、`surface`、`tone`、`enum`、`regex`。枚举写 `:type enum :one-of (...)`，正则写 `:type regex :pattern "..."`。类型只有一种写法，不再有「关键字还是列表」两种形状。
+- `:type` 必写，取值是 `string`、`number`、`bool`、`length`、`surface`、`accent`、`enum`、`regex`。枚举写 `:type enum :one-of (...)`，正则写 `:type regex :pattern "..."`。类型只有一种写法，不再有「关键字还是列表」两种形状。
 - `:default` 不写就是 `nil`，所以 `nil` 默认值一个字都不用写。
 - 必填写 `:required t`，例如 `(label :type string :required t :doc "标签文字")`。此时不许写 `:default`，两个都写是加载错误。必填只用于文档侧属性，读者侧的键一律可选。
-- 外观属性写 `:appearance t`。它表示「读者可以盖掉文档给的值」，见 4.4。只能标在 `surface`、`tone`、`align` 这类外观类型上，标在 `string` 上是加载错误。
+- 外观属性写 `:appearance t`。它表示「读者可以盖掉文档给的值」，见 4.4。只能标在 `surface`、`accent`、`align` 这类外观类型上，标在 `string` 上是加载错误。
 - `:doc` 可选，但建议写。它出现在帮助和报错里。
 - `:kind` 是 `child` 的定义不写 `:children`。
 - 定义不能自己读文件、发网络请求、起定时器。它只能拿到 `attrs`、`body`、`env`，其余从 `env` 具名取。
@@ -1149,7 +1149,7 @@ print("hi")
 | --- | --- | --- |
 | 0 | GitHub 提示块 | 已实现，51 个测试覆盖 |
 | 1 | 渲染路径：解析、派生、样式表、失败目录，并把 `box`、`columns`、`card` 用定义写 | 12 种失败各有一条断言；三层嵌套与超限；窄窗三档截图；用户定义能替掉内置的 `card`；每个内置节点至少一个样式键生效；改样式表不重新解析 |
-| 2 | 提示容器：五个名字，和 GitHub 写法共用一张定义 | 两种写法渲染成同一个 buffer 文本；语气映射正确 |
+| 2 | 提示容器：五个名字，和 GitHub 写法共用一张定义 | 两种写法渲染成同一个 buffer 文本；强调值映射正确 |
 | 3 | 集合：`steps`、`timeline`、`stats`、`field`、`file-tree`、`chat` | 每个容器有正例、反例、三种配色截图 |
 | 4 | 交互：`tabs`、`code-tabs`、`collapse`、`collapse-group` | 按键走命令循环；状态经重排与换主题不丢；扁平化输出不缺内容 |
 | 5 | 文稿：`table`、`window` | 表格高亮按行列生效；窗口只画标题栏 |
@@ -1204,7 +1204,7 @@ print("hi")
 | `label` | string | 短标签 | tab、stat |
 | `description` | string | 标题下的摘要 | card |
 | `surface` | surface | 底色角色 | box、card |
-| `tone` | tone | 语气 | box、card |
+| `accent` | accent | 强调 | box、card |
 | `align` | enum | 内容水平位置 | box、card、columns |
 | `width` | length | 自身宽度 | box、card |
 | `pad` | length | 内边距 | box、columns |
@@ -1234,7 +1234,7 @@ print("hi")
 | `hl-cols` | string | 高亮列 | table |
 | `id` | string | 稳定锚点 | 所有块 |
 
-## 附录 B：面、语气与令牌
+## 附录 B：底色、强调与令牌
 
 | 属性值 | 落到哪个令牌 | 说明 |
 | --- | --- | --- |
@@ -1243,14 +1243,14 @@ print("hi")
 | `surface=quote` | `quote-bg` | 引用性质 |
 | `surface=sunken` | `panel2` | 次要信息 |
 | `surface=page` | `bg` | 与正文拉开 |
-| `tone=neutral` | `ink` / `panel` | 无语气 |
-| `tone=info` | `accent` / `accent-soft` | 说明 |
-| `tone=ok` | `ok` / `ok-soft` | 成功 |
-| `tone=warn` | `warn` / `warn-soft` | 注意 |
-| `tone=danger` | `danger` / `danger-soft` | 危险 |
-| `tone=important` | `important` / `important-soft` | 重要 |
+| `accent=neutral` | `ink` / `panel` | 无强调 |
+| `accent=info` | `accent` / `accent-soft` | 说明 |
+| `accent=ok` | `ok` / `ok-soft` | 成功 |
+| `accent=warn` | `warn` / `warn-soft` | 注意 |
+| `accent=danger` | `danger` / `danger-soft` | 危险 |
+| `accent=important` | `important` / `important-soft` | 重要 |
 
-提示块的五个名字到语气的映射固定：`note` 对 `info`，`tip` 对 `ok`，`important` 对 `important`，`warning` 对 `warn`，`caution` 对 `danger`。
+提示块的五个名字到强调的映射固定：`note` 对 `info`，`tip` 对 `ok`，`important` 对 `important`，`warning` 对 `warn`，`caution` 对 `danger`。
 
 ## 附录 C：样式键参考
 
@@ -1260,7 +1260,7 @@ print("hi")
 | --- | --- | --- | --- |
 | `surface` | 面或颜色 | quote、code、table、callout | 底色 |
 | `color` | 颜色 | heading、strong、em、link、code | 字色 |
-| `tone` | 语气 | quote、callout | 强调色与浅底 |
+| `accent` | 强调 | quote、callout | 强调色与浅底 |
 | `weight` | `normal` / `bold` | heading、strong | 字重 |
 | `slant` | `normal` / `italic` | em、quote | 倾斜 |
 | `underline` | bool | link、strong | 下划线 |
@@ -1274,7 +1274,7 @@ print("hi")
 | `tag-color` | 颜色 | code | 围栏语言标签 |
 | `header-surface` | 面或颜色 | table | 表头底色 |
 | `stripe-surface` | 面或颜色 | table | 条纹底色 |
-| `tone-colors` | alist | callout | 语气到颜色的映射 |
+| `accent-colors` | alist | callout | 强调值到颜色的映射 |
 | `align` | `left` / `center` / `right` | table | 单元格对齐 |
 
 ## 附录 D：plume 对照

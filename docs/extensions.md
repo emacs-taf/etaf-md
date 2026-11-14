@@ -113,7 +113,7 @@ Every new container has to satisfy all nine. Miss one and it does not belong in 
 | One content model | Content is blocks, not strings, not HTML. A container never changes parsing |
 | One attribute set | Attribute names and meanings come from one shared vocabulary; a container selects, never invents a synonym |
 | One layout set | Placement uses `box`, `columns` and the shared spacing attributes only |
-| One appearance source | Colours come from surface and tone; type size comes from the reader |
+| One appearance source | Colours come from surface and accent; type size comes from the reader |
 | One failure rule | A bad block keeps its source plus one line, and the page keeps rendering |
 | State belongs to the renderer | A document states no behaviour; interaction is implemented by the container definition |
 | One render path | Built-in nodes, container nodes and reader styles go through one table, and the code has no branch on a name |
@@ -183,7 +183,7 @@ A parent must handle three edge cases without crashing or painting half a block.
 
 ### 3.3 Attributes
 
-Eight types. The first six are general types; `surface` and `tone` are two fixed word lists.
+Eight types. The first six are general types; `surface` and `accent` are two fixed word lists.
 
 | Type | Spelling | Meaning | Invalid |
 | --- | --- | --- | --- |
@@ -192,7 +192,7 @@ Eight types. The first six are general types; `surface` and `tone` are two fixed
 | `bool` | `open=true` | `true` or `false`, nothing else | `open=yes` |
 | `length` | `gap="2ch"` | A number with a unit: `ch`, `lh`, `px`, `%` | `gap=2` |
 | `surface` | `surface=panel` | Fill: `none`, `panel`, `quote`, `sunken`, `page` | `surface="#24262a"` |
-| `tone` | `tone=warn` | Emphasis: `neutral`, `info`, `ok`, `warn`, `danger`, `important` | `tone=urgent` |
+| `accent` | `accent=warn` | Emphasis: `neutral`, `info`, `ok`, `warn`, `danger`, `important` | `accent=urgent` |
 | `enum` | `items=center` | One of the words the definition lists | `items=middle` |
 | `regex` | `id="^[a-z]+$"` | A value matching the pattern | `id="A-1"` |
 
@@ -210,7 +210,7 @@ Attributes come in two classes, and a definition marks them.
 | Class | Who decides the value | Examples |
 | --- | --- | --- |
 | Content | The document. A reader cannot change it | `title`, `label`, `href` |
-| Appearance | The document gives the default; the reader's style table may override | `surface`, `tone`, `align` |
+| Appearance | The document gives the default; the reader's style table may override | `surface`, `accent`, `align` |
 
 An appearance attribute says `:appearance t` in the definition; see 10.2. That keeps "which attributes are appearance" in one place instead of a second list.
 
@@ -227,7 +227,7 @@ Content
 ````
 
 ```
-line 42: card does not take "colour"; it takes title, description, surface, tone, href, align, width
+line 42: card does not take "colour"; it takes title, description, surface, accent, href, align, width
 line 42: card received surface="#24262a"; it takes none, panel, quote, sunken, page
 line 44: nesting depth 9 exceeds the limit of 8
 ```
@@ -272,9 +272,9 @@ The choice favours the reader. Turning the block into source makes the preview l
 
 ## 4. Appearance and style
 
-### 4.1 Surface and tone
+### 4.1 Surface and accent
 
-Appearance has two attributes: `surface` for the fill, `tone` for emphasis. They are separate words because they are separate things.
+Appearance has two attributes: `surface` for the fill, `accent` for the accent colour. They are separate words because they are separate things. None of `accent`'s values is itself called `accent`; `info` is the one that means "use the accent token". An attribute name and a token name are two namespaces; do not mix them.
 
 | `surface` | Fill | Used for |
 | --- | --- | --- |
@@ -284,16 +284,16 @@ Appearance has two attributes: `surface` for the fill, `tone` for emphasis. They
 | `sunken` | `panel2` token | Table headers, secondary information |
 | `page` | `bg` token | Places that must separate from the prose |
 
-| `tone` | Foreground | Soft fill | Meaning |
+| `accent` | Foreground | Soft fill | Meaning |
 | --- | --- | --- | --- |
-| `neutral` | `ink` | `panel` | No tone |
+| `neutral` | `ink` | `panel` | No accent |
 | `info` | `accent` | `accent-soft` | Note, information |
 | `ok` | `ok` | `ok-soft` | Success, advice |
 | `warn` | `warn` | `warn-soft` | Caution |
 | `danger` | `danger` | `danger-soft` | Danger |
 | `important` | `important` | `important-soft` | Important |
 
-Tone changes the accent colour and the soft fill only. It never changes type size, weight or line height. For stronger emphasis, change the tone, do not stack effects.
+Tone changes the accent colour and the soft fill only. It never changes type size, weight or line height. For stronger emphasis, change the accent, do not stack effects.
 
 ### 4.2 Tokens
 
@@ -316,7 +316,7 @@ A token is a name inside the renderer. A document writes `surface=panel`, never 
 | `danger` / `danger-soft` | Danger |
 | `important` / `important-soft` | Important |
 
-Every token has a value in all three palettes, and the face-derived mode computes them from the active frame. A container declares a surface and a tone, and follows the palette when it changes.
+Every token has a value in all three palettes, and the face-derived mode computes them from the active frame. A container declares a surface and a accent, and follows the palette when it changes.
 
 **Why no hexadecimal.** A `#24262a` that looks right on a dark page is a black blot on a paper-coloured one. A hexadecimal value is an error, and the error line lists the semantic words that attribute accepts.
 
@@ -330,13 +330,13 @@ The style table is where a reader changes appearance. One table, keyed by node t
                     (:level 1 :color accent :scale 2.0 :prefix "◆ ")
                     (:level 2 :prefix "◇ ")
                     (:level 6 :weight normal :color muted)))
-        (quote   . ((:surface quote-bg :tone neutral :bar-width "3px" :slant italic)))
+        (quote   . ((:surface quote-bg :accent neutral :bar-width "3px" :slant italic)))
         (code    . ((:surface panel :tag-color muted)))
         (table   . ((:header-surface table-header :stripe-surface table-stripe)))
         (strong  . ((:weight bold)))
         (em      . ((:slant italic)))
         (link    . ((:color accent :underline t)))
-        (callout . ((:tone-colors ((neutral . ink) (info . accent)
+        (callout . ((:accent-colors ((neutral . ink) (info . accent)
                                    (ok . ok) (warn . warn)
                                    (danger . danger) (important . important)))))))
 ```
@@ -365,7 +365,7 @@ Editing the table repaints the page and re-derives it, but never re-parses it; s
 
 | Who | May write | Why |
 | --- | --- | --- |
-| The document | Semantic words such as `surface=panel`, `tone=warn` | A document has to read on any theme and any machine |
+| The document | Semantic words such as `surface=panel`, `accent=warn` | A document has to read on any theme and any machine |
 | The reader's style | A surface or token name, or a literal `"#ff0000"` | The reader owns their page |
 
 A literal has a cost: it stops following the theme. A blue chosen on a dark page may be unreadable on a paper-coloured one. So a document never writes a literal, and that is a hard rule.
@@ -483,7 +483,7 @@ There are only three, and the test is the content's relationship.
 | Family | Containers | Shared property |
 | --- | --- | --- |
 | Structure | `columns`, `card`, `box` | Decide placement and boundary only, never interpret content |
-| Callouts | `note`, `tip`, `important`, `warning`, `caution` | One definition, five fixed tones |
+| Callouts | `note`, `tip`, `important`, `warning`, `caution` | One definition, five fixed accents |
 | Collections | `steps`, `timeline`, `stats`, `field`, `file-tree`, `chat` | Children carry labels and are ordered or named |
 | Interaction | `tabs`, `code-tabs`, `collapse`, `collapse-group` | Stateful, switchable by key |
 | Documents | `table`, `window` | Wrap something else and change how it presents |
@@ -501,7 +501,7 @@ The planned container spelling shares one attribute set across five names.
 
 | Attribute | Type | Default | Meaning |
 | --- | --- | --- | --- |
-| `title` | string | The tone's fixed title | Replaces the title text |
+| `title` | string | The accent's fixed title | Replaces the title text |
 | `collapsible` | bool | `false` | Allow the block to collapse |
 | `open` | bool | `true` | Whether it starts expanded |
 
@@ -511,7 +511,7 @@ This only works on Emacs 30 and later.
 :::
 ```
 
-Both spellings render the same thing, from the same definition. The tone mapping is fixed: `note` to `info`, `tip` to `ok`, `important` to `important`, `warning` to `warn`, `caution` to `danger`.
+Both spellings render the same thing, from the same definition. The accent mapping is fixed: `note` to `info`, `tip` to `ok`, `important` to `important`, `warning` to `warn`, `caution` to `danger`.
 
 Why keep both. A document pasted from GitHub works immediately, which is the commonest entry; a long document written with containers aligns with the other containers and can carry attributes.
 
@@ -522,7 +522,7 @@ Why keep both. A document pasted from GitHub works immediately, which is the com
 | `title` | string | none | Title; omit it and there is no title row |
 | `description` | string | none | One muted summary line under the title |
 | `surface` | surface | `panel` | See 4.1 |
-| `tone` | tone | `neutral` | See 4.1 |
+| `accent` | accent | `neutral` | See 4.1 |
 | `href` | string | none | The whole card activates and opens this target |
 | `align` | enum | `start` | Horizontal position of its content |
 | `width` | length | `stretch` | Its own width |
@@ -536,7 +536,7 @@ Component: `etaf-card`, whose default slot takes the body and whose `title` and 
 | Attribute | Type | Default | Meaning |
 | --- | --- | --- | --- |
 | `surface` | surface | `none` | See 4.1 |
-| `tone` | tone | `neutral` | See 4.1 |
+| `accent` | accent | `neutral` | See 4.1 |
 | `pad` | length | none | Padding |
 | `align` | enum | `start` | Horizontal position of its content |
 | `width` | length | `stretch` | Its own width |
@@ -897,19 +897,19 @@ A container definition writes three things, and no more.
 
 1. **Declare**: which attributes a document may write, at which type and default.
 2. **Validate**: the renderer does it uniformly; the definition only declares.
-3. **Translate**: the document's semantics (surface, tone, attributes) into component parameters.
+3. **Translate**: the document's semantics (surface, accent, attributes) into component parameters.
 
 ```elisp
 (etaf-md-define-container 'card
   :kind 'block
   :attrs '((title :type string :doc "Card title")
-           (tone  :type tone :default neutral :appearance t :doc "Tone"))
+           (accent :type accent :default neutral :appearance t :doc "Accent"))
   :body (lambda (attrs body env)
           (etaf-card :title (plist-get attrs :title)
-                     :variant (pcase (plist-get attrs :tone)
+                     :variant (pcase (plist-get attrs :accent)
                                 ('warn 'warning)
                                 ('ok 'success)
-                                (tone tone))
+                                (level level))
                      body)))
 ```
 
@@ -921,8 +921,8 @@ One hard constraint: **a definition cannot invent a parameter its component does
 
 A component's parameters are written for Elisp, not for documents.
 
-- **No document words.** A component never mentions `:tone` as a Markdown concept, `:container` or `:::card`; no other app should have to understand Markdown.
-- **No colour values.** A component takes `surface` and `tone` as semantic roles, never `"#c00"`. Turning a role into a colour happens inside the component, so switching palettes cannot miss a container.
+- **No document words.** A component never mentions `:accent` as a Markdown concept, `:container` or `:::card`; no other app should have to understand Markdown.
+- **No colour values.** A component takes `surface` and `accent` as semantic roles, never `"#c00"`. Turning a role into a colour happens inside the component, so switching palettes cannot miss a container.
 - **Few geometry parameters.** Padding and spacing belong to the component's own defaults; a definition overrides them only when it must.
 
 Counter-examples: a component growing a `:markdown-level` parameter leaks syntax into the component layer; a definition drawing a card border copies the component.
@@ -970,13 +970,13 @@ A definition is data, not code inside a document.
  :kind 'block
  :summary "A titled card"
  :attrs '((title :type string :doc "Card title")
-          (tone  :type tone :default neutral :appearance t :doc "Tone"))
+          (accent :type accent :default neutral :appearance t :doc "Accent"))
  :body (lambda (attrs body env)
          (etaf-card :title (plist-get attrs :title)
-                    :variant (pcase (plist-get attrs :tone)
+                    :variant (pcase (plist-get attrs :accent)
                                ('warn 'warning)
                                ('ok 'success)
-                               (tone tone))
+                               (level level))
                     body)))
 ```
 
@@ -1002,7 +1002,7 @@ What `env` offers is all a definition can reach.
 | Token | `(etaf-md-token env 'info)` | Every container |
 | Line height | `(etaf-md-token env 'lh)` | Every container |
 | Surface | `(etaf-md-surface env 'panel)` turns a surface into its fill; `none` returns `nil` | Every container |
-| Tone | `(etaf-md-tone env 'warn)` turns a tone into its accent colour | Callouts, cards |
+| Tone | `(etaf-md-accent env 'warn)` turns a accent into its accent colour | Callouts, cards |
 | Children | `(etaf-md-children env)`, each as `(:name :attrs :view)` in source order | Parents |
 | Block tree | `(etaf-md-content env)`, the parsed blocks, not views | `field`, `code-tabs`, `table` |
 | Render blocks | `(etaf-md-render env blocks &rest options)` | `field`, `chat`, `table` |
@@ -1024,10 +1024,10 @@ A parent adds one field.
 
 - A definition references names from the shared attribute table, or declares its own. A private attribute says in `:summary` that it only works with that container.
 - An entry has exactly one position: its first element is the name, which is the entry's key. Everything after is a named field, the same shape as `:children '((col ...))`.
-- `:type` is required and takes `string`, `number`, `bool`, `length`, `surface`, `tone`, `enum` or `regex`. An enum writes `:type enum :one-of (...)`, a pattern writes `:type regex :pattern "..."`. There is one spelling for a type, not a keyword for some kinds and a list for others.
+- `:type` is required and takes `string`, `number`, `bool`, `length`, `surface`, `accent`, `enum` or `regex`. An enum writes `:type enum :one-of (...)`, a pattern writes `:type regex :pattern "..."`. There is one spelling for a type, not a keyword for some kinds and a list for others.
 - An omitted `:default` means `nil`, so a `nil` default takes no characters at all.
 - A required attribute writes `:required t`, as in `(label :type string :required t :doc "Tab label")`, and then no `:default`; writing both is an error at load. Required exists only on the document side; reader-side keys are always optional.
-- An appearance attribute writes `:appearance t`. It means "the reader may override the document's value", see 4.4. It may only mark an appearance type such as `surface`, `tone` or `align`; marking a `string` is an error at load.
+- An appearance attribute writes `:appearance t`. It means "the reader may override the document's value", see 4.4. It may only mark an appearance type such as `surface`, `accent` or `align`; marking a `string` is an error at load.
 - `:doc` is optional but recommended; it appears in help and in errors.
 - A `child` definition declares no `:children`.
 - A definition may not read files, make network requests or start timers. It receives `attrs`, `body` and `env`, and reads the rest from `env` by name.
@@ -1149,7 +1149,7 @@ Name clashes resolve by load order: when two third-party packages change one typ
 | --- | --- | --- |
 | 0 | GitHub alerts | Implemented, covered by 51 tests |
 | 1 | Render path: parsing, derive, the style table, the failure catalogue, with `box`, `columns` and `card` written as definitions | One assertion per failure kind; three-level nesting and the limit; captures at three widths; a user definition replaces the shipped `card`; at least one style key changes each built-in node; a style edit does not re-parse |
-| 2 | Callout containers: five names sharing one definition with the GitHub spelling | Both spellings produce the same buffer text; the tone mapping holds |
+| 2 | Callout containers: five names sharing one definition with the GitHub spelling | Both spellings produce the same buffer text; the accent mapping holds |
 | 3 | Collections: `steps`, `timeline`, `stats`, `field`, `file-tree`, `chat` | Each container has a positive case, a counter-example and captures in three palettes |
 | 4 | Interaction: `tabs`, `code-tabs`, `collapse`, `collapse-group` | Keys go through the command loop; state survives reflow and a theme change; flattened output loses nothing |
 | 5 | Documents: `table`, `window` | Row and column highlights land; the window draws only a title bar |
@@ -1204,7 +1204,7 @@ The shared attributes. A container selects from here and never invents a synonym
 | `label` | string | Short label | tab, stat |
 | `description` | string | Summary under the title | card |
 | `surface` | surface | Fill role | box, card |
-| `tone` | tone | Emphasis | box, card |
+| `accent` | accent | Emphasis | box, card |
 | `align` | enum | Horizontal position of content | box, card, columns |
 | `width` | length | Own width | box, card |
 | `pad` | length | Padding | box, columns |
@@ -1234,7 +1234,7 @@ The shared attributes. A container selects from here and never invents a synonym
 | `hl-cols` | string | Highlighted columns | table |
 | `id` | string | Stable anchor | Every block |
 
-## Appendix B: surfaces, tones and tokens
+## Appendix B: surfaces, accents and tokens
 
 | Value | Token | Meaning |
 | --- | --- | --- |
@@ -1243,14 +1243,14 @@ The shared attributes. A container selects from here and never invents a synonym
 | `surface=quote` | `quote-bg` | Quotation-like |
 | `surface=sunken` | `panel2` | Secondary information |
 | `surface=page` | `bg` | Separated from the prose |
-| `tone=neutral` | `ink` / `panel` | No tone |
-| `tone=info` | `accent` / `accent-soft` | Note |
-| `tone=ok` | `ok` / `ok-soft` | Success |
-| `tone=warn` | `warn` / `warn-soft` | Caution |
-| `tone=danger` | `danger` / `danger-soft` | Danger |
-| `tone=important` | `important` / `important-soft` | Important |
+| `accent=neutral` | `ink` / `panel` | No accent |
+| `accent=info` | `accent` / `accent-soft` | Note |
+| `accent=ok` | `ok` / `ok-soft` | Success |
+| `accent=warn` | `warn` / `warn-soft` | Caution |
+| `accent=danger` | `danger` / `danger-soft` | Danger |
+| `accent=important` | `important` / `important-soft` | Important |
 
-The five callout names map to tones fixedly: `note` to `info`, `tip` to `ok`, `important` to `important`, `warning` to `warn`, `caution` to `danger`.
+The five callout names map to accents fixedly: `note` to `info`, `tip` to `ok`, `important` to `important`, `warning` to `warn`, `caution` to `danger`.
 
 ## Appendix C: style keys
 
@@ -1260,7 +1260,7 @@ The keys a style table may write. In the type column, a surface is one of the fi
 | --- | --- | --- | --- |
 | `surface` | surface or colour | quote, code, table, callout | Fill |
 | `color` | colour | heading, strong, em, link, code | Ink |
-| `tone` | tone | quote, callout | Accent colour and soft fill |
+| `accent` | accent | quote, callout | Accent colour and soft fill |
 | `weight` | `normal` / `bold` | heading, strong | Weight |
 | `slant` | `normal` / `italic` | em, quote | Slant |
 | `underline` | bool | link, strong | Underline |
@@ -1274,7 +1274,7 @@ The keys a style table may write. In the type column, a surface is one of the fi
 | `tag-color` | colour | code | The fence's language label |
 | `header-surface` | surface or colour | table | Header fill |
 | `stripe-surface` | surface or colour | table | Stripe fill |
-| `tone-colors` | alist | callout | Tone to colour |
+| `accent-colors` | alist | callout | Tone to colour |
 | `align` | `left` / `center` / `right` | table | Cell alignment |
 
 ## Appendix D: the plume map
