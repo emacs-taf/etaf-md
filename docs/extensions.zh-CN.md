@@ -20,7 +20,7 @@
 :::
 ````
 
-一个父容器。子块的名字由父容器解释，所以 `:::tab` 只在 `tabs` 里有意义：
+一个父类型。子块的名字由它解释，所以 `:::tab` 只在 `tabs` 里有意义：
 
 ````markdown
 :::tabs
@@ -41,7 +41,7 @@
 | `description` | string | card | `description="一句话摘要"` |
 | `surface` | surface | box、card | `surface=raised` |
 | `accent` | accent | box、card、提示块 | `accent=warning` |
-| `text-align` | enum | box、card | `text-align=center` |
+| `text-align` | align | box、card | `text-align=center` |
 | `columns` | number 或 string | columns、stats | `columns="2fr 1fr"` |
 | `gap` | length | columns | `gap="2ch"` |
 | `padding` | length | box、columns | `padding="1lh"` |
@@ -54,7 +54,7 @@
 
 长度必须带单位，`2ch` 或 `1lh`，光写 `2` 是错的。颜色和字号文档里一个都不写，它们由读者的主题与样式表决定。
 
-属性名想不起来，就用 `etaf-md-describe-containers` 查，或者开 `etaf-md-edit-mode` 让补全替你想。
+属性名想不起来，就用 `etaf-md-describe-nodes` 查，或者开 `etaf-md-edit-mode` 让补全替你想。
 
 ## 1. 定位
 
@@ -99,24 +99,26 @@
 
 ## 2. 模型
 
-### 2.1 块、容器、父子
+### 2.1 一种东西：节点
 
-一篇文档是一串块。块可以是段落、标题、列表、代码、表格，也可以是一个容器。
+一篇文档是一串节点。节点有类型、属性、子节点。段落、标题、代码、表格、容器都是节点，区别只在类型。
 
-容器有名字、属性、内容。内容是解析好的块，不是字符串，也不是 HTML。所以容器里能装页面能装的任何东西，包括别的容器。
+解析器只认三件事：开、关、嵌套。它不知道 `card` 是什么意思，也不知道它收什么属性。名字的含义归注册表，属性的含义归定义，摆放归渲染。
 
-解析器只认三件事：开、关、嵌套。它不知道 `tab` 是什么意思，也不知道 `card` 有什么属性。名字的含义归注册表，属性的含义归定义，摆放归渲染。
+### 2.2 一个模型
 
-### 2.2 两种容器
+系统里只有一种东西：节点类型。文本类型和容器类型在同一张表里，走同一个 `etaf-md-define-node`。
 
-写文档的人只看见一种形状，系统里只有两种角色。定义必须声明自己是哪一种。
+| 类型 | 文档写得出来吗 | 例子 |
+| --- | --- | --- |
+| 解析器产生 | 写不出，没有名字 | `heading`、`quote`、`code`、`table` |
+| 文档写得出来 | 写 `:::名字` | `card`、`tabs`、`columns` |
 
-| 角色 | 内容是什么 | 例子 | 规则 |
-| --- | --- | --- | --- |
-| 独立块 | 任意块 | `note`、`card`、`box`、`table` | 可以出现在任何能出现段落的地方 |
-| 父容器 | 只收它声明的子块 | `columns`、`tabs`、`steps`、`accordion` | 子块的属性和必填写在它自己的 `:children` 里 |
+区别只有一处：**文档写得出来的类型有名字**（定义里的 `:name`），别的没有。`heading` 没有名字，所以 `:::heading` 不存在，它只能由 `###` 产生。
 
-**子块不是第三种角色，它没有自己的定义。** 名字由父容器解释，解析器不认；同一个名字出现在两个父容器里，两处各写各的要求。所以 `:::tab` 在 `tabs` 里是一个标签，在页面顶层只是一行没法解释的文字，按失败规则报出来。
+收固定子块的类型声明 `:accepts`，比如 `columns` 只收 `col`；不声明的类型内容是任意块，比如 `card` 里能放段落、代码、表格、另一个容器。
+
+**子块不是类型，它没有自己的定义。** 名字由父类型的 `:accepts` 解释，解析器不认。所以 `:::tab` 在 `tabs` 里是一个标签，在页面顶层只是一行没法解释的文字，按失败规则报出来。
 
 父子关系不跨层。`tabs` 里的 `tab` 可以再装一个 `card`，但 `tab` 不能再装一个 `tab`。要嵌套就再包一层 `tabs`。
 
@@ -131,7 +133,7 @@
 | 外观 | 读者的样式表 | 颜色、字重、前缀、间距、编号 | 能，见 4.3 |
 | 渲染 | 读者的函数 | 一个节点画成什么 | 能，见 10.4 |
 
-四层共用一个节点模型：`(类型 属性 子节点 出处)`。内置节点和容器节点在这张表里没有区别：`heading` 是类型叫 heading、带 `:level` 的节点，`card` 是类型叫 card、带 `:title` 的节点。
+四层共用一个节点模型：`(类型 属性 子节点)`。文本节点和容器节点在这张表里没有区别：`heading` 是类型叫 `heading`、带 `level` 属性的节点，`card` 是类型叫 `card`、带 `title` 属性的节点。
 
 还有一条：**定义本身能被覆盖**。读者可以给一个类型加键、换画法，甚至整条替掉。加键只对读者侧有效，文档侧的属性表不开放，见 10.5。
 
@@ -229,9 +231,9 @@
 
 一个代价要说清：**没有内容的子块也要写关闭行。** 比如 `:::stat` 只带属性，就写成两行。这是为了让关闭只有一种规则；能省这一行的写法，就得让解析器认识名字，而它不认。
 
-### 3.2 子块与父容器
+### 3.2 子块
 
-子块的写法和普通容器一样，只是名字由父容器解释。父容器决定它收哪些子块、子块上哪些属性有效。
+子块的写法和普通容器一样，只是名字由父类型解释。父类型通过 `:accepts` 决定它收哪些子块、子块上哪些属性有效。
 
 ````markdown
 :::columns {columns="2fr 1fr" gap="2ch"}
@@ -244,15 +246,15 @@
 :::
 ````
 
-父容器必须能处理三种边缘情况，不允许崩溃或者画出半块。
+父类型必须能处理三种边缘情况，不允许崩溃或者画出半块。
 
-- **没有子块**：画容器自己的空状态，不报错。
+- **没有子块**：画它自己的空状态，不报错。
 - **子块顺序不对**：按出现顺序解释，不重排。
 - **子块缺必填属性**：那一块降级，别的子块照常。
 
 ### 3.3 属性
 
-七种类型。所有容器都从这一张表里挑。
+八种类型。所有类型都从这一张表里挑。
 
 | 类型 | 写法 | 含义 | 非法示例 |
 | --- | --- | --- | --- |
@@ -262,9 +264,10 @@
 | `length` | `gap="2ch"` | 数字加单位：`ch`、`lh`、`%` | `gap=2` |
 | `surface` | `surface=raised` | 底色：`none`、`page`、`raised`、`sunken`、`quote` | `surface="#24262a"` |
 | `accent` | `accent=warning` | 强调：`neutral`、`primary`、`success`、`warning`、`danger`、`important` | `accent=urgent` |
-| `enum` | `align-items=center` | 定义里列出的词之一 | `align-items=middle` |
+| `align` | `text-align=center` | 水平位置：`start`、`center`、`end` | `text-align=middle` |
+| `enum` | `list-style=decimal` | 该属性声明时列出的词之一 | `list-style=number` |
 
-字符串还有两个可选修饰，写法和 `:type` 并列。
+有一种修饰，写法和 `:type` 并列。
 
 | 修饰 | 含义 | 例子 |
 | --- | --- | --- |
@@ -272,26 +275,26 @@
 
 要固定几个词就用 `enum`，不要给 `string` 加 `:one-of`。
 
-四条约定。
+五条约定。
 
-- **属性名共享。** `title` 在卡片、提示块、折叠、演示窗口里是同一个意思。容器只挑选词汇表里的名字，不发明 `heading`、`caption` 这类同义词。
-- **一个名字一个类型。** `columns` 永远是「几栏」或「一串轨道」，不会是别的。同一个名字在不同容器里换类型是禁止的。
-- **没有单位就没有长度。** `gap=2` 是错的，`gap="2ch"` 是对的。一个数字可能是字符、可能是行、可能是像素，猜错一次就排错一次。
+- **属性名共享。** `title` 在卡片、提示块、折叠、演示窗口里是同一个意思。类型只挑选词汇表里的名字，不发明 `heading`、`caption` 这类同义词。
+- **一个名字一个类型。** `columns` 永远是「几栏」或「一串轨道」，不会是别的。同一个名字在不同类型里换类型是禁止的。
+- **没有单位就没有长度。** `gap=2` 是错的，`gap="2ch"` 是对的。一个数字可能是字符、可能是行、可能是百分比，猜错一次就排错一次。
 - **布尔只认 `true` 和 `false`。** 不认 `yes`、`1`、`on`。三种写法意味着三条解析分支。
 - **联合类型只允许一个。** `columns` 写 `number 或 string`，因为「几栏」和「一套轨道」是同一个概念的两个形态，拆成两个名字会逼作者记两个词。别处不许出现联合类型。
 
 同一个属性写两次是错误，不取后者。理由：重复通常意味着作者改了一半，静默取一个会把问题藏起来。
 
-属性分两类，定义里要标出来。
+属性有两个权限，都由数据表达，不靠人的记忆。
 
-| 类别 | 谁说了算 | 例子 |
+| 权限 | 谁说了算 | 怎么写 |
 | --- | --- | --- |
-| 内容属性 | 文档。读者改不了 | `title`、`href`、`selected` |
-| 外观属性 | 文档给默认，读者的样式表可以盖掉 | `surface`、`accent`、`text-align` |
+| 作者能不能写 | 文档 | 默认能写；写不了的在定义里标 `:read-only t` |
+| 读者能不能盖 | 样式表 | 由类型决定：`surface`、`accent`、`align` 能盖，其余不能 |
 
-外观属性在定义里写 `:appearance t`，见 10.2。这样「哪些是外观」只有一处记录，不靠一张单独的名单。
+第一条最典型的例子是标题的 `level`：文档写不出它，它由 `###` 决定，所以它是只读属性；样式表却能按它选（`(:level 1 :prefix "◆ ")`）。
 
-共享属性表在附录 A，容器只引用它。定义里怎么声明这些类型，见 10.2。
+共享属性表在附录 A，类型只引用它。定义里怎么声明这些类型，见 10.2。
 
 ### 3.4 校验、降级与失败目录
 
@@ -309,7 +312,7 @@ line 42: card 的 surface 是 "#24262a"，它只认 none、page、raised、sunke
 line 44: 第 9 层嵌套超过上限 8 层
 ```
 
-失败分十三种。每一种都有确定的页面表现，不允许「看情况」。
+失败分十四种。每一种都有确定的页面表现，不允许「看情况」。
 
 | 情况 | 页面表现 | 影响范围 |
 | --- | --- | --- |
@@ -318,9 +321,10 @@ line 44: 第 9 层嵌套超过上限 8 层
 | 属性值不合法 | 源码原样，说明给出值和一个合法例子 | 这一块 |
 | 必填属性缺失 | 源码原样，说明点名缺哪个 | 这一块 |
 | 属性写了两遍 | 源码原样，说明点名重复的那个 | 这一块 |
-| 子块出现在父容器外 | 源码原样，说明它属于谁 | 这一块 |
-| 子块缺必填属性 | 源码原样，父容器继续解析其余子块 | 这个子块 |
-| 父容器没有子块 | 画空状态，不报错 | 这一块 |
+| 子块出现在父类型外 | 源码原样，说明哪个类型的 `:accepts` 收了它 | 这一块 |
+| 容器出现在不允许的位置 | 源码原样，说明它只允许在顶层与容器内容里 | 这一块 |
+| 子块缺必填属性 | 源码原样，父类型继续解析其余子块 | 这个子块 |
+| 父类型没有子块 | 画空状态，不报错 | 这一块 |
 | 同一组两项都写 `selected` | 只认第一项，报一行 | 这一组 |
 | 嵌套超过 8 层 | 源码原样，说明层数 | 这一块 |
 | 文末还有没关的容器 | 内容照常渲染，页面末尾一行说明从第几行开始没关 | 文末 |
@@ -470,13 +474,15 @@ line 44: 第 9 层嵌套超过上限 8 层
 四条规则。
 
 - **省略是继承，`nil` 是关闭，`:default` 是回落内置。** 三句话回答「怎么改回来」。`(:level 1 :prefix nil)` 是去掉一级的前缀；把 `:prefix` 整个删掉，就是从节点级继承；`:color :default` 是回到内置颜色，不管节点级写了什么。
-- **先匹配节点级，再匹配级别。** `heading` 的 `:level 1` 盖在节点级上，最终是 `:font-weight bold :color primary :scale 2.0 :prefix "◆ "`。
+- **条目先写选择器，再写键值，选择器就是属性名。** `(:level 1 :prefix "◆ ")` 的意思是「当这个节点的 `level` 是 1」。不给选择器就是整个类型。`level` 不是白名单里的特权名字，任何类型声明了同名属性都能这么选，没声明的永远匹配不上。
 - **每个键的类型固定。** 未知键加载时报错，这类型回退内置，页面照常渲染。
 - **内置样式也写在这张表里。** 代码里没有字面颜色值，所以你改的和你看的是同一套东西。
 
-`etaf-md-define-style` 往同一张表里写，不是第二套。同一个键在两处都写时，后生效的那个赢。
+能写的键有两个来源：附录 C 的全局键，加这个类型自己的可盖属性（`surface`、`accent`、`align` 三种类型）。所以 `card` 的 `accent` 可以在这里写 `(:accent warning)`，不需要另造一个键名。
 
-改了表要重画整页并重新派生，但不重新解析，见 8.2。表里的键是包自带的词汇，要给一个类型加新键，写一个渲染函数，见 10.4。
+`etaf-md-set-style` 往同一张表里写，不是第二套。同一个键在两处都写时，后生效的那个赢。传 `nil` 就删掉自己那一条，回到内置。
+
+改了表要重画整页并重新派生，但不重新解析，见 8.2。要给一个类型加新键，写一个渲染函数，见 10.4。
 
 ### 4.4 两套颜色权限
 
@@ -487,7 +493,9 @@ line 44: 第 9 层嵌套超过上限 8 层
 
 写字面值有一个代价：它不跟随主题切换。暗色页上选的蓝，换到纸色页可能读不清。所以文档里永远不写字面值，这条是硬规矩。
 
-外观属性还有一个方向：**文档的值是默认，读者的值优先。** 声明成外观的属性（`:appearance t`）才有这个待遇，内容属性只认文档，读者写了也不生效。
+**读者能盖哪些属性，由属性的类型决定。** `surface`、`accent`、`align` 三种类型天生可盖；其余五种只认文档，读者写了也不生效。所以「哪些是外观」不需要标记，也不可能标记错。
+
+只读属性（`:read-only t`）是另一件事：文档与读者都不能写它，它由解机或派生阶段给，例如标题的 `level`。它仍能被样式表当选择器用。
 
 ### 4.5 字号与度量
 
@@ -640,7 +648,7 @@ line 44: 第 9 层嵌套超过上限 8 层
 | `surface` | surface | `raised` | 见 4.1 |
 | `accent` | accent | `neutral` | 见 4.1 |
 | `href` | string | 无 | 整张卡片可点，跳到这个地址 |
-| `text-align` | enum | `start` | 内容水平位置 |
+| `text-align` | align | `start` | 内容水平位置 |
 | `width` | length | `stretch` | 自身宽度 |
 
 解决的场景：一组并列材料需要一个共同边界。用标题分节会把材料抬到节标题同级，用列表会把图压成一项。
@@ -654,7 +662,7 @@ line 44: 第 9 层嵌套超过上限 8 层
 | `surface` | surface | `none` | 见 4.1 |
 | `accent` | accent | `neutral` | 见 4.1 |
 | `padding` | length | 无 | 内边距 |
-| `text-align` | enum | `start` | 内容水平位置 |
+| `text-align` | align | `start` | 内容水平位置 |
 | `width` | length | `stretch` | 自身宽度 |
 
 盒子是卡片的无标题形式。居中一张图就是它。
@@ -933,11 +941,11 @@ print("hi")
 
 ## 7. 交互契约
 
-### 7.1 只有声明过的容器可以交互
+### 7.1 交互来自组件
 
-文档不能给任何东西加行为。可交互是容器定义的属性，不是文档的属性。
+文档不能给任何东西加行为。定义也不能：**能交互是因为它背后是一个组件，不是因为定义里写了什么。** 定义只负责两件事：给一个本块状态格子，给状态变化时的回调。按键、焦点、方向键全在组件里。
 
-理由：一份 Markdown 文件可能有执行权限的错觉。它没有。文档能做的只有声明「这里有一组标签页」，按键由渲染器决定。
+这条跟第 9 章的「组件厚」是同一件事：`etaf-tabs` 本来就能用键盘，`:::tabs` 只是把它接到文档里。所以没有「声明可交互」的关键字，也不需要。
 
 ### 7.2 焦点与按键
 
@@ -1033,21 +1041,22 @@ print("hi")
 
 ### 9.3 定义只做三件事
 
-一个容器定义写三样东西，不多写。
+一个类型的定义写三样东西，不多写。
 
 1. **声明**：文档能写哪些属性，各是什么类型、默认值。
 2. **校验**：交给渲染器统一做，定义只声明。
 3. **翻译**：把文档的语义（底色、强调、属性）换成组件的参数。
 
 ```elisp
-(etaf-md-define-container 'card
-  :kind 'block
+(etaf-md-define-node 'card
+  :name "card"
   :attrs '((title :type string :doc "卡片标题"))
-  :body (lambda (attrs body env)
-          (etaf-card :title (plist-get attrs :title) body)))
+  :view (lambda (node env)
+          (etaf-card :title (etaf-md-attr env :title)
+                     (etaf-md-children env))))
 ```
 
-这是形状，不是完整例子。带多个属性、外观属性与组件映射的完整写法在 10.1。
+这是形状，不是完整例子。带多个属性、可盖属性与组件映射的完整写法在 10.1。
 
 定义里没有一行画边框、写内边距。那些在 `etaf-card` 里。定义只把文档的词翻成组件的参数。`variant` 的取值由 `etaf-ui` 定，这里只是示意映射。
 
@@ -1084,9 +1093,9 @@ print("hi")
 
 ### 9.7 内置定义也走定义
 
-`box`、`card`、`columns` 不是渲染器里的特例，它们是同一张注册表里的三条定义。
+`box`、`card`、`columns` 不是渲染器里的特例，它们是同一张注册表里的三条定义。`heading`、`quote`、`code` 也一样，只不过它们没有名字，文档写不出来。
 
-这一条是整套分法能不能长期成立的关键。只要有一个容器在渲染器里有专属分支，这套 API 就没被验证过，用户迟早撞上只有那条分支才有的能力。
+这一条是整套分法能不能长期成立的关键。只要有一个类型在渲染器里有专属分支，这套 API 就没被验证过，用户迟早撞上只有那条分支才有的能力。
 
 三个后果。
 
@@ -1096,89 +1105,101 @@ print("hi")
 
 ## 10. 扩展
 
-### 10.1 定义的数据形状
+### 10.1 一个类型的定义
 
-一个定义是数据，不是文档里的代码。
+一个定义是数据加一个函数，不是文档里的代码。
 
 ```elisp
-(etaf-md-define-container
- 'card
- :kind 'block
- :summary "一张带标题的卡片"
- :attrs '((title  :type string :doc "卡片标题")
-          (accent :type accent :default neutral :appearance t :doc "强调"))
- :body (lambda (attrs body env)
-         (etaf-card :title (plist-get attrs :title)
-                    :variant (pcase (plist-get attrs :accent)
-                               ('warning 'warning)
-                               ('success 'success)
-                               (level level))
-                    body)))
+(etaf-md-define-node 'card
+  :name "card"
+  :summary "一张带标题的卡片"
+  :attrs '((title  :type string :doc "卡片标题")
+           (accent :type accent :default neutral :doc "强调"))
+  :view (lambda (node env)
+          (etaf-card :title (etaf-md-attr env :title)
+                     :variant (pcase (etaf-md-attr env :accent)
+                                ('warning 'warning)
+                                ('success 'success)
+                                (level level))
+                     (etaf-md-children env))))
 ```
 
-| 字段 | 作用 |
-| --- | --- |
-| 名字 | 第一个参数，符号。文档写 `:::card` 就找它 |
-| `:kind` | `block` 或 `parent`。子块不是一种 kind，它没有自己的定义 |
-| `:summary` | 一行说明，出现在帮助和报错里 |
-| `:attrs` | 属性表，每项写法见 10.2 |
-| `:contract` | 契约版本，整数。当前是 `1`。属性改名、子块名字改动要加一，旧文档按 3.4 降级，见 10.5 |
-| `:children` | 只有父容器要写，声明子块的名字、属性与必填。子块名字只在这个父容器里有效 |
-| `:body` | 函数，收三样东西，返回 ETAF 视图 |
+| 关键字 | 取值 | 含义 |
+| --- | --- | --- |
+| 名字 | 符号，第一个参数 | 类型名。`heading` 和 `card` 都在这张表里 |
+| `:name` | 字符串 | 文档写得出的写法，`"card"` 对应 `:::card`。省略表示文档写不出来 |
+| `:summary` | 字符串 | 一行说明，进帮助和报错 |
+| `:attrs` | 属性表 | 属性名、类型、默认值、权限 |
+| `:accepts` | 子块表 | 收哪些子块。有它就是父类型，没有就是任意块 |
+| `:view` | 函数 | `(lambda (node env) VIEW)`，这个类型的默认画法 |
+| `:contract` | 整数，当前 `1` | 文档侧属性表的版本，见 10.5 |
+| `:extends t` | 标记 | 保留内置，你的追加，见 10.5 |
+| `:replace t` | 标记 | 丢掉内置，由你重写，见 10.5 |
 
-`body` 收到三样东西。位置参数只留给每类定义都有的，其余都从 `env` 具名取。
+标题没有 `:name`，所以 `:::heading` 不存在；它的层级是一条只读属性：
 
-- `attrs`：校验过的 plist。没写的取默认值，类型已经转换好。
-- `body`：解析好的内容，一串视图。默认画法就是它。
+```elisp
+(etaf-md-define-node 'heading
+  :attrs '((level :type number :read-only t :default 1))
+  :view #'etaf-md-heading-view)
+```
+
+`level` 文档写不出来，`###` 写几级它就是几。样式表却能拿它当选择器，见 4.3。这就是「层级」的全部定义，没有专属关键字，也没有渲染器里的分支。
+
+**`view` 收到两样东西。**
+
+- `node`：`(:type :attrs :children)`。属性已经校验、补过默认值；只读属性也在里面。
 - `env`：渲染环境，可选能力都从这里取，见下表。
-
-`env` 提供的能力，就是定义能拿到的全部。
 
 | 能力 | 用法 | 给谁用 |
 | --- | --- | --- |
-| 令牌 | `(etaf-md-token env 'muted)` | 所有容器 |
-| 行高 | `(etaf-md-token env 'lh)` | 所有容器 |
-| 面 | `(etaf-md-surface env 'raised)` 把面换成底色，`none` 返回 `nil` | 所有容器 |
+| 读属性 | `(etaf-md-attr env :title)` | 所有类型 |
+| 子节点 | `(etaf-md-children env)` 按顺序给一串节点 | 所有类型 |
+| 画节点 | `(etaf-md-render env nodes)` | 只画一部分子节点时 |
+| 内置画法 | `(etaf-md-default-view 'heading node env)` | 包一层时 |
+| 令牌 | `(etaf-md-token env 'muted)` | 所有类型 |
+| 行高 | `(etaf-md-token env 'lh)` | 所有类型 |
+| 面 | `(etaf-md-surface env 'raised)` 把面换成底色，`none` 返回 `nil` | 所有类型 |
 | 强调 | `(etaf-md-accent env 'warning)` 把强调值换成颜色 | 提示块、卡片 |
-| 子块 | `(etaf-md-children env)` 按顺序给 `(:name :attrs :view)` | 父容器 |
-| 块树 | `(etaf-md-content env)` 给解析好的块，不是视图 | `field`、`code-tabs`、`table` |
-| 画子块 | `(etaf-md-render env blocks &rest options)` | `field`、`chat`、`table` |
+| 样式值 | `(etaf-md-style env :background)` 读本节点的样式值 | 自定义画法 |
+| 编号 | `(etaf-md-number env)`，`(etaf-md-format-number N 'lower-roman)` | 标题、表格 |
 | 打开链接 | `(etaf-md-follow-link env href)` | `card` 的 `href` |
 | 本块状态 | `(etaf-md-block-state env :selected)` | `tabs`、`accordion` |
 | 可用宽度 | `(etaf-md-available-width env)` | `columns` 的降级判断 |
 
-状态那一行是关键。目录里的 `etaf-tabs` 是受控组件，`selected` 和 `on-change` 都由调用方给；定义本身没有地方存状态，所以每个块要有一个自己的状态格子，由渲染器创建，按块隔离。
+状态那一行是关键。`etaf-tabs` 是受控组件，`selected` 和 `on-change` 都由调用方给；定义本身没有地方存状态，所以每个块要有一个自己的状态格子，由渲染器创建，按块隔离。
 
-`etaf-md-render` 带 `&rest options`，是为了包装容器。`table` 要在包住的那张表上打开行高亮，它不需要改表怎么画，只需要把选项递下去。
-
-父容器多写一个字段。
+**子块表每项写什么。**
 
 ```elisp
-:children '((col :attrs ((grow :type number :default 1 :doc "宽度份数"))))
+:accepts '((col :attrs ((grow :type number :default 1 :doc "宽度份数")))
+           (tab :attrs ((title :type string :required t)
+                        (selected :type boolean :default false))))
 ```
 
-子块自带一个 `title` 属性，类型 `string`，由渲染器提供，不在 `:attrs` 里重复声明。省略时它的值是 `nil`，父容器在 `:body` 里自己补默认值：`col` 不补，`tab` 补成空字符串，`code-tabs` 补成第一段围栏代码的语言名。
+子块自带一个 `title` 属性，类型 `string`，由渲染器提供，不在 `:attrs` 里重复声明。省略时它的值是 `nil`，父类型在 `:view` 里自己补默认值：`col` 不补，`tab` 补成空字符串，`code-tabs` 补成第一段围栏代码的语言名。
 
-### 10.2 属性与子块的规则
+### 10.2 属性的规则
 
 - 定义只能引用共享属性表里的名字，或者自己声明的专有属性。专有属性要在 `:summary` 里说清只能和它一起用。
-- 每一项只有一个位置：第一个元素是名字，它是这一项的键。后面全是具名字段，和 `:children '((col ...))` 一个形状。
-- `:type` 必写，取值是 `string`、`number`、`boolean`、`length`、`surface`、`accent`、`enum`。`string` 可以再加 `:pattern`；`enum` 必须写 `:one-of (...)`。
+- 每一项只有一个位置：第一个元素是名字，它是这一项的键。后面全是具名字段。
+- `:type` 必写，取值是 `string`、`number`、`boolean`、`length`、`surface`、`accent`、`align`、`enum`。`string` 可以再加 `:pattern`；`enum` 必须写 `:one-of (...)`。
 - `:default` 不写就是 `nil`，所以 `nil` 默认值一个字都不用写。
 - 必填写 `:required t`，例如 `(title :type string :required t :doc "标题文字")`。此时不许写 `:default`，两个都写是加载错误。必填只用于文档侧属性，读者侧的键一律可选。
-- 外观属性写 `:appearance t`。它表示「读者可以盖掉文档给的值」，见 4.4。只能标在 `surface`、`accent`、`text-align` 这类外观类型上，标在 `string` 上是加载错误。
+- 只读属性写 `:read-only t`，例如标题的 `level`。文档写不出它，读者也改不了，但它能被样式表当选择器。
+- `surface`、`accent`、`align` 三种类型天生可被读者盖，不需要标记；其余五种只认文档。所以没有 `:appearance` 这个字段，也就没有标错的可能。
 - `:doc` 可选，但建议写。它出现在帮助和报错里。
-- **子块的标签是渲染器给的，不是定义声明的。** 每个 `:children` 项都多一个 `title`，类型 `string`。定义只能在 `:body` 里给它补默认值（`code-tabs` 取围栏语言），不能改它的名字或类型。
-- 定义不能自己读文件、发网络请求、起定时器。它只能拿到 `attrs`、`body`、`env`，其余从 `env` 具名取。
-- **`:body` 里用 `etaf-` 开头的公开接口，不用 `ebox-` 的引擎函数**，见 9.2。引擎是 `etaf-ui` 的内部，越过它的人会在下一次升级时撞车。
-- 渲染器的分发代码里不出现容器名字。它只按角色和属性找定义，不按名字写分支。
+- **子块的标签是渲染器给的，不是定义声明的。** 每个 `:accepts` 项都多一个 `title`，类型 `string`。定义只能在 `:view` 里给它补默认值，不能改它的名字或类型。
+- 定义不能自己读文件、发网络请求、起定时器。它只能拿到 `node` 和 `env`。
+- **`:view` 里用 `etaf-` 开头的公开接口，不用 `ebox-` 的引擎函数**，见 9.2。引擎是 `etaf-ui` 的内部，越过它的人会在下一次升级时撞车。
+- 渲染器的分发代码里不出现类型名字。它只按注册表找定义，不按名字写分支。
 
-### 10.3 定义一条样式
+### 10.3 给一个类型装值
 
-和数据表同形，只是写成一次调用。按级别给不同前缀，就是三行数据。
+样式是数据，不写代码。按层级给不同前缀，就是三行。
 
 ```elisp
-(etaf-md-define-style 'heading
+(etaf-md-set-style 'heading
   '((:font-weight bold)
     (:level 1 :prefix "◆ ")
     (:level 2 :prefix "◇ ")
@@ -1193,35 +1214,35 @@ print("hi")
 · Emacs 29 以上
 ```
 
+条目第一段是选择器，就是属性名；`(:level 1 …)` 的意思是「当这个节点的 `level` 是 1」。不给选择器就是整个类型。`level` 没有特权，任何类型声明了同名属性都能这么选，没声明过的名字永远匹配不上。
+
 前缀是包自带的键，所以这一段不用写函数。默认定义没想到的东西，才需要函数，见 10.4。
 
-加载时校验：节点类型不认识、键不认识、值类型不对，都当场报错，这一类型回退内置。错误行点名节点、键、合法值。
+加载时校验：类型不认识、键不认识、值类型不对，都当场报错，这一类型回退内置。错误行点名类型、键、合法值。传 `nil` 就删掉自己那一条。
 
-### 10.4 换一个节点的渲染
+### 10.4 给一个类型换画法
 
-样式不够用时，给一个函数。函数还能给这个类型加新的键。
+样式不够用时，给一个函数。函数还能给这个类型加读者侧的新键。
 
 ```elisp
-(etaf-md-define-render 'heading
-  :extends t
-  :keys '((background :type surface :doc "标题底色"))
+(etaf-md-set-view 'heading
   (lambda (node env)
     (etaf-node 'box
                (list :width 'stretch
                      :background-color (etaf-md-surface env
                                                         (etaf-md-style env :background)))
-               (list (etaf-md-default-view 'heading node env)))))
+               (list (etaf-md-default-view 'heading node env))))
+  :extends t
+  :style-keys '((background :type surface :doc "标题底色")))
 ```
 
-| 拿到什么 | 说明 |
+| 部分 | 含义 |
 | --- | --- |
-| `node` | 类型、属性、子节点。`heading` 带 `:level` 和 `:children` |
-| `env` | 令牌、度量、派生数据。`(etaf-md-style env :background)` 读本块的样式值，`(etaf-md-number env)` 读编号 |
-| `:extends t` | 保留内置的键和画法，只往上加 |
-| `:keys` | 新键，写法同 10.2。只能在函数里声明 |
-| `etaf-md-default-view` | 内置画法。包一层，或改一处，或完全不用。标题多收一个 `:label`，用来接编号 |
-
-一个名字可以出现在多个类型上：这里是给 `heading` 加一个它原本没有的 `background`。
+| 第一个参数 | 类型名，`heading` 或 `card` 都行，没有特例 |
+| 第二个参数 | `(lambda (node env) VIEW)`，和定义里的 `:view` 同一个签名 |
+| `:extends t` | 保留内置的画法与键，你的追加 |
+| `:replace t` | 丢掉内置的画法与键 |
+| `:style-keys` | 新的读者键，写法同 10.2。只能在函数里声明 |
 
 三条规则。
 
@@ -1229,52 +1250,64 @@ print("hi")
 - 函数报错时，这类型回退内置，页面继续渲染，错误进 `doctor`。
 - **加键必须配函数。** 数据定义不能加键，理由很直接：没人读的键就是死配置。
 
-按章节号变的前缀也用这里。它不是常量，数据写不出来。
+编号也走这里，不需要专用关键字：`etaf-md-number` 读派生阶段算好的数，`etaf-md-format-number` 按 CSS `list-style-type` 的词格式化，取 `decimal`、`lower-roman`、`upper-alpha`。
 
 ```elisp
-(etaf-md-define-render 'heading
-  :extends t
+(etaf-md-set-view 'heading
   (lambda (node env)
-    (etaf-md-default-view 'heading node env
-                          :label (etaf-md-format-number (etaf-md-number env) 'lower-roman))))
+    (etaf-node 'text
+               (list :prefix (concat (etaf-md-style env :prefix)
+                                     (etaf-md-format-number (etaf-md-number env) 'decimal)
+                                     " "))
+               (etaf-md-children env)))
+  :extends t)
 ```
 
-`:label` 是标题专用关键字，接派生阶段算好的编号；其它类型不认这个关键字。`etaf-md-format-number` 的第二个参数取 CSS `list-style-type` 的词：`decimal`、`lower-roman`、`upper-alpha`。
-
-### 10.5 覆盖一个内置定义
+### 10.5 覆盖与卸载
 
 三种写法，一张表说清。
 
 | 写法 | 效果 | 用在 |
 | --- | --- | --- |
-| `:extends t` | 保留内置的键和画法，你的键追加进去 | 想加参数、包一层 |
-| `:replace t` | 丢掉内置定义，键表和画法都由你定 | 想彻底换一种画法 |
-| 两个都不写 | 只在没有同名定义时生效，重名报错 | 新类型 |
+| `:extends t` | 保留内置的属性与画法，你的追加进去 | 想加属性、包一层 |
+| `:replace t` | 丢掉内置定义，属性表和画法都由你定 | 想彻底换一种做法 |
+| 两个都不写 | 只在没有同名类型时生效，重名报错 | 新类型 |
 
 四条约束。
 
-- **文档侧的属性表只能增，不能改。** 容器的新属性只能追加，改名或删掉算破坏性变更，升 `:contract`，旧文档按 3.4 降级并说明。子块名字同理。加键只对读者侧有效。
-- **`attrs` 和 `keys` 是两个名字，权限不同。** `attrs` 是文档写的，封闭；`keys` 是读者写的，可扩展。
+- **文档侧的属性表只能增，不能改。** 新属性只能追加，改名或删掉算破坏性变更，升 `:contract`，旧文档按 3.4 降级并说明。子块名字同理。
+- **`:attrs` 和 `:style-keys` 是两个名字，权限不同。** `:attrs` 是文档写的；`:style-keys` 是读者写的，可扩展。
 - **`:default` 永远指内置原值。** 加载时给内置定义留一份快照，否则「回到默认」没有意义。
 - **覆盖要留痕。** `:replace t` 的报错行点名被替换的定义，`doctor` 列出覆盖链和来源文件。
 
 同名冲突按加载顺序解决：两个第三方包都改一个类型时，后加载的那个必须显式 `:replace t`，否则报错点名双方。
 
+**卸载。** 每个入口都给一条回路，测试才写得出「装上去、卸下来、页面回到内置」。
+
+| 动作 | 怎么写 |
+| --- | --- |
+| 删掉一个类型定义 | `(etaf-md-undefine-node 'card)` |
+| 删掉自己的一条样式 | `(etaf-md-set-style 'heading nil)` |
+| 删掉自己换的画法 | `(etaf-md-set-view 'heading nil)` |
+
+内置类型卸载后回到内置那份；用户定义卸载后名字不再存在，文档里写它就是「名字没有定义」。
+
 ### 10.6 定义放在哪、什么时候读
 
-- 内置定义写在 `lisp/etaf-md-containers.el`，包加载时按注册表顺序注册一次：先提示块，再结构，再集合，最后交互。它们和用户定义走同一个 `etaf-md-define-container`，没有第二套注册路径。
-- 定义放在用户目录里的 `.el` 文件，路径写进 `etaf-md-container-directory`。
+- 内置定义写在 `lisp/etaf-md-nodes.el`，包加载时按注册表顺序注册一次：先文本类型，再提示，再结构，再集合，最后交互。它们和用户定义走同一个 `etaf-md-define-node`，没有第二套注册路径。
+- 用户定义放在 `etaf-md-node-directory` 指的目录里，一个 `.el` 一个文件。
 - 加载顺序固定：包自带的先，用户目录后，同一目录内按文件名排序。后加载的能覆盖先加载的，但必须显式声明，见 10.5。
 - 一个 session 创建时读一次注册表，之后不再读盘。改了定义要 `r` 重载，或者重开预览。
-- 文档不能注册容器，也不能执行 Elisp。分享文档不等于分享代码。
+- 文档不能注册类型，也不能执行 Elisp。分享文档不等于分享代码。
+- **契约版本由文档自己声明。** front matter 里可以写 `contract: 1`；不写就按当前版本处理。声明了却对不上时，那一份文档按 3.4 逐块降级并说明要哪个版本。
 
 ### 10.7 调试
 
-- `etaf-md-describe-containers` 列出注册表：名字、角色、摘要、属性、来源文件。计划中。
+- `etaf-md-describe-nodes` 列出注册表：类型名、文档里的写法、摘要、属性、子块、实现层、来源文件。计划中。
 - 出问题先查一条链：这块是什么类型 → 哪个定义 → 调了哪个组件 → 样式值来自哪里 → 落到哪个令牌。计划中。
 - 报错行永远在页面上，不用开日志。
 - 定义自己报错时，那一块降级成源码，加一行「`card` 的定义报错：…」，后面的块照常。
-- `etaf-md-doctor` 报告注册了几个容器、有没有定义文件加载失败、有哪些覆盖。计划中。
+- `etaf-md-doctor` 报告注册了几个类型、有没有定义文件加载失败、有哪些覆盖、有没有卸载不了的残留。计划中。
 
 ### 10.8 信任模型
 
@@ -1290,12 +1323,12 @@ print("hi")
 | 阶段 | 内容 | 完成判据 |
 | --- | --- | --- |
 | 0 | GitHub 提示块 | 已实现，51 个测试覆盖 |
-| 1 | 渲染路径：解析、派生、样式表、失败目录，并把 `box`、`columns`、`card` 用定义写 | 13 种失败各有一条断言；三层嵌套与超限；窄窗三档截图；用户定义能替掉内置的 `card`；每个内置节点至少一个样式键生效；改样式表不重新解析 |
+| 1 | 渲染路径：解析、派生、样式表、失败目录，并把 `heading`、`box`、`columns`、`card` 用定义写 | 14 种失败各有一条断言；三层嵌套与超限；窄窗三档截图；用户定义能替掉内置的 `card`；每个内置节点至少一个样式键生效；改样式表不重新解析 |
 | 2 | 提示容器：五个名字，和 GitHub 写法共用一张定义 | 两种写法渲染成同一个 buffer 文本；强调值映射正确 |
 | 3 | 集合：`steps`、`timeline`、`stats`、`field`、`file-tree`、`chat` | 每个容器有正例、反例、三种配色截图 |
 | 4 | 交互：`tabs`、`code-tabs`、`accordion` 与它的子块 `collapse` | 按键走命令循环；状态经重排与换主题不丢；扁平化输出不缺内容 |
 | 5 | 文稿：`table`、`window` | 表格高亮按行列生效；窗口只画标题栏 |
-| 6 | 注册表与用户定义 | 示例定义能装能卸；给内置类型加一个键并生效；覆盖后 `:default` 仍回内置；契约版本不符有提示；`doctor` 报数量与覆盖链 |
+| 6 | 注册表与用户定义 | 示例定义能装能卸，卸载后页面回到内置；给内置类型加一个键并生效；覆盖后 `:default` 仍回内置；契约版本不符有提示；`doctor` 报数量与覆盖链 |
 | 7 | 源码 buffer 的编辑体验：降权、配对提示、插入与补全、折叠，合成 `etaf-md-edit-mode` | 关闭后 `font-lock-keywords` 与开启前 `equal`；`buffer-string` 不变；2000 行文档额外耗时 50 毫秒以内；同一行内打字不触发配对计算 |
 
 ### 11.2 每个容器的验收矩阵
@@ -1339,7 +1372,7 @@ print("hi")
 
 ## 附录 A：属性参考
 
-共享属性。容器只从这里挑，不发明同义词。
+共享属性。类型只从这里挑，不发明同义词。下表是文档可写的属性；只读属性（作者的写不出、读者的改不了）在最后单独列出。
 
 | 属性 | 类型 | 含义 | 用在 |
 | --- | --- | --- | --- |
@@ -1347,7 +1380,7 @@ print("hi")
 | `description` | string | 标题下的摘要 | card |
 | `surface` | surface | 底色 | box、card |
 | `accent` | accent | 强调 | box、card |
-| `text-align` | enum | 内容水平位置 | box、card |
+| `text-align` | align | 内容水平位置 | box、card |
 | `align-self` | enum | 自身在父级里的位置 | columns |
 | `align-items` | enum | 子块的交叉轴对齐 | columns |
 | `justify-content` | enum | 子块的主轴对齐 | columns |
@@ -1376,6 +1409,14 @@ print("hi")
 | `highlight` | accent | 高亮的强调值 | table |
 | `id` | string | 稳定锚点 | 所有块 |
 
+**只读属性。** 文档写不出，读者也改不了，由解析器或派生阶段给。它们能被样式表当选择器用，见 4.3。
+
+| 属性 | 类型 | 含义 | 用在 |
+| --- | --- | --- | --- |
+| `level` | number | 标题级别，由 `#` 的数量决定 | heading |
+| `language` | string | 围栏代码的语言名 | code |
+| `number` | number | 派生阶段算好的序号 | heading、table |
+
 ## 附录 B：底色、强调与令牌
 
 `surface` 的每个值对应一个令牌，`accent` 的每个值对应一对。
@@ -1398,7 +1439,7 @@ print("hi")
 
 ## 附录 C：样式键参考
 
-样式表能写的键，键名就是 CSS 属性名。类型一列里，面是 4.1 的五个词，颜色是令牌名，两者都可以写字面值。值写 `:default` 表示回落内置。这张表是包自带的词汇，用户可以用 `:keys` 给某个类型加键，见 10.4。
+样式表能写的键有三个来源：下面这张全局表，该类型自己的可盖属性（`surface`、`accent`、`align` 三种类型），用 `:style-keys` 新加的键。键名就是 CSS 属性名。类型一列里，面是 4.1 的五个词，颜色是令牌名，两者都可以写字面值。值写 `:default` 表示回落内置。这张表是包自带的词汇。要给某个类型加键，用 `:style-keys`，见 10.4。
 
 | 键 | 类型 | 用在 | 含义 |
 | --- | --- | --- | --- |
@@ -1498,6 +1539,7 @@ print("hi")
 | `length` | CSS 值类型 | 数字加单位 | `size`、`dimension` |
 | `enum` | JSON Schema | 定义列出的词之一 | `one-of`、`choice` |
 | `surface` | Material、Polaris | 五个面值之一 | `background`、`fill` |
+| `align` | CSS | 三个水平位置之一 | `text-align`、`justify` |
 | `accent` | shadcn/ui | 六个强调值之一 | `tone`、`variant` |
 
 ### E.3 令牌
@@ -1558,12 +1600,12 @@ print("hi")
 
 | 名字 | 含义 |
 | --- | --- |
+| `etaf-md-attr` | 读本节点校验过的属性 |
 | `etaf-md-token` | 按令牌名取颜色或行高 |
 | `etaf-md-surface` | 把面换成底色，`none` 返回 `nil` |
 | `etaf-md-accent` | 把强调值换成颜色 |
-| `etaf-md-children` | 取子块的 `(:name :attrs :view)` |
-| `etaf-md-content` | 取解析好的块树，不是视图 |
-| `etaf-md-render` | 画一串块，可传选项给下层 |
+| `etaf-md-children` | 按顺序取子节点 |
+| `etaf-md-render` | 画一串节点 |
 | `etaf-md-follow-link` | 打开一个目标 |
 | `etaf-md-block-state` | 读写本块的状态 |
 | `etaf-md-available-width` | 本块可用的宽度，用于降级判断 |
@@ -1571,8 +1613,10 @@ print("hi")
 | `etaf-md-number` | 读派生阶段算好的编号 |
 | `etaf-md-format-number` | 按 `list-style-type` 的词格式化编号 |
 | `etaf-md-default-view` | 取某个类型的**内置**画法 |
-| `etaf-md-define-container` | 注册一个容器 |
-| `etaf-md-define-style` | 往样式表里写一条 |
-| `etaf-md-define-render` | 换一个类型的渲染函数 |
+| `etaf-md-define-node` | 注册一个节点类型 |
+| `etaf-md-undefine-node` | 删掉一个类型定义 |
+| `etaf-md-set-style` | 给一个类型装值 |
+| `etaf-md-set-view` | 给一个类型换画法 |
+| `etaf-md-describe-nodes` | 列出注册表 |
 
 四个 `etaf-md-` 之外的名字：`etaf-card`、`etaf-tabs`、`etaf-accordion`、`etaf-steps`、`etaf-timeline`、`etaf-statistic` 属于 `etaf-ui` 的组件目录，本包只调用，不改名。
