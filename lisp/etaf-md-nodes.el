@@ -31,6 +31,10 @@
            (box :width (or (etaf-md-attr env :width) 'stretch)
                 :padding (list '(lh 1) (etaf-md-attr env :padding))
                 :background-color (etaf-md-surface env (etaf-md-attr env :surface))
+                :border-top (list '(px 1) 'solid (etaf-md-accent env 'neutral))
+                :border-right (list '(px 1) 'solid (etaf-md-accent env 'neutral))
+                :border-bottom (list '(px 1) 'solid (etaf-md-accent env 'neutral))
+                :border-left (list '(px 1) 'solid (etaf-md-accent env 'neutral))
              (expr (etaf-md-content env))))))
 
 (etaf-md--define-shipped 'card
@@ -48,8 +52,10 @@
                 :text-align (etaf-md-attr env :text-align)
                 :padding '((lh 1) (ch 2))
                 :background-color (etaf-md-surface env 'raised)
-                :border-left (list '(ch 1) 'solid
-                                   (etaf-md-accent env (etaf-md-attr env :accent)))
+                :border-top (list '(px 1) 'solid (etaf-md-accent env 'neutral))
+                :border-right (list '(px 1) 'solid (etaf-md-accent env 'neutral))
+                :border-bottom (list '(px 1) 'solid (etaf-md-accent env 'neutral))
+                :border-left (list '(px 1) 'solid (etaf-md-accent env 'neutral))
              (column :item-gap '(lh 1)
                (text :font-weight 'bold
                      :color (etaf-md-accent env (etaf-md-attr env :accent))
@@ -124,9 +130,13 @@
     (etaf-view
      (box :width 'stretch
           :padding '((lh 1) (ch 2))
-          :background-color (etaf-md-surface env (etaf-md-attr env :background))
-          :border-left (list (etaf-md-attr env :border-left-width) 'solid
-                             (etaf-md-accent env accent))
+          :background-color (etaf-md-surface env 'raised)
+          :border-top (list '(px 1) 'solid (etaf-md-accent env 'neutral))
+          :border-right (list '(px 1) 'solid (etaf-md-accent env 'neutral))
+          :border-bottom (list '(px 1) 'solid (etaf-md-accent env 'neutral))
+          :border-left (list (or (etaf-md-attr env :border-left-width)
+                                 (list 'px 3))
+                             'solid (etaf-md-accent env accent))
        (column :item-gap '(lh 1)
          (text :font-weight 'bold
                :color (etaf-md-accent env accent)
@@ -143,7 +153,7 @@
              (collapsible      :type boolean :default nil   :doc "允许收起")
              (open             :type boolean :default t     :doc "收起时默认展开")
              (background       :type surface :default quote :doc "底色")
-             (border-left-width :type length :default "1ch" :doc "左侧竖条宽度"))
+             (border-left-width :type length :doc "左侧竖条宽度，省略 3 像素"))
     :view #'etaf-md--callout-view))
 
 
