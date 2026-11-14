@@ -674,36 +674,103 @@ follow the children instead of a flat depth sequence."
                              :expanded (etaf-md--tree-branch-keys items))
                        nil)))))))))
 
+;;; Chat
+
+(defun etaf-md--chat-marker (node)
+  "Return (KIND . TEXT) when NODE is a chat marker paragraph.
+Plume writes a sender as `{name}' and a date as `{:date}'; `{.}' means the
+reader themself.  Anything else is message content."
+  (when (eq (etaf-md-node-type node) 'paragraph)
+    (let ((text (string-trim (etaf-md--inline-text (etaf-md-node-block node)))))
+      (cond
+       ((string-match "\\`{:\\(.+\\)}\\'" text) (cons 'date (match-string 1 text)))
+       ((string-match "\\`{\\(.+\\)}\\'" text) (cons 'sender (match-string 1 text)))))))
+
+(defun etaf-md--chat-finish (current)
+  "Return CURRENT as a finished chat message.
+CURRENT is (NAME SELF BLOCKS...); the blocks read in the order they appear."
+  (list :name (nth 0 current)
+        :self (nth 1 current)
+        :blocks (nreverse (nth 2 current))))
+
+(defun etaf-md--chat-messages (env)
+  "Return ENV's children grouped into chat messages.
+The result is a list of (KIND . PAYLOAD): `date' carries its text and
+`message' carries a plist of :name, :self and :blocks."
+  (let ((items nil)
+        (current nil))
+    (dolist (child (etaf-md-children env))
+      (let ((marker (etaf-md--chat-marker child)))
+        (pcase (car-safe marker)
+          ('date
+           (when current
+             (push (cons 'message (etaf-md--chat-finish current)) items))
+           (setq current nil)
+           (push (cons 'date (cdr marker)) items))
+          ('sender
+           (when current
+             (push (cons 'message (etaf-md--chat-finish current)) items))
+           (let ((name (cdr marker)))
+             (setq current (list (if (equal name ".") nil name)
+                                 (equal name ".")
+                                 nil))))
+          (_ (when current
+               (setcar (nthcdr 2 current)
+                       (cons child (nth 2 current))))))))
+    (when current
+      (push (cons 'message (etaf-md--chat-finish current)) items))
+    (nreverse items)))
+
+(defun etaf-md--chat-date-view (env text)
+  "Return the date row TEXT of a chat in ENV."
+  (etaf-node 'box
+             (list :width 'stretch :text-align 'center)
+             (list (etaf-node 'text
+                              (list :color (etaf-md--muted env))
+                              (list text)))))
+
+(defun etaf-md--chat-message-view (env message)
+  "Return MESSAGE of a chat painted in ENV.
+The name sits above the words; what the reader wrote is aligned right and
+carries no name."
+  (let ((name (plist-get message :name))
+        (self (plist-get message :self)))
+    (etaf-node
+     'box
+     (list :width 'stretch :text-align (if self 'right 'left))
+     (list
+      (etaf-node
+       'column
+       (list :width 'stretch :item-gap '(lh 0))
+       (append
+        (when name
+          (list (etaf-node 'text
+                           (list :color (etaf-md-accent env 'neutral)
+                                 :font-weight 'bold)
+                           (list name))))
+        (list (etaf-md-render env (plist-get message :blocks)))))))))
+
 (etaf-md--define-shipped 'chat
   :name "chat"
   :summary "一问一答的对话，不画气泡"
-  :attrs '((self :type enum :one-of (left right)
-             :default left :doc "自己说的话放哪边"))
-  :accepts '((message :attrs ((from :type string :required t :doc "发送者")
-                             (time :type string :doc "时间文字"))))
+  :attrs '((title :type string :doc "对话上方的标题"))
   :view (lambda (env)
-          (let ((right (eq (etaf-md-attr env :self) 'right)))
-            (etaf-node
-             'column
-             (list :width 'stretch :item-gap '(lh 1)
-                   :cross-align (if right 'end 'start))
-             (mapcar
-              (lambda (message)
-                (etaf-node
-                 'box (list :width 'stretch
-                            :text-align (if right 'right 'left))
-                 (list
-                  (etaf-node
-                   'column (list :width 'stretch :item-gap '(lh 0))
-                   (list
-                    (etaf-node 'text
-                               (list :color (etaf-md-accent env 'neutral))
-                               (list (concat (or (etaf-md-attr env :from message) "")
-                                             (when-let* ((time (etaf-md-attr env :time message)))
-                                               (concat "  " time)))))
-                    (etaf-md--child-view env message))))))
-              (etaf-md-children env))))))
-
+          (etaf-view
+           (column :width 'stretch :item-gap '(lh 0)
+             (expr (when-let* ((title (etaf-md-attr env :title)))
+                     (etaf-view
+                      (box :width 'stretch :padding-bottom '(lh 1)
+                        (etaf-label :text title :variant 'strong)))))
+             (expr
+              (etaf-node
+               'column
+               (list :width 'stretch :item-gap '(lh 1))
+               (mapcar
+                (lambda (item)
+                  (if (eq (car item) 'date)
+                      (etaf-md--chat-date-view env (cdr item))
+                    (etaf-md--chat-message-view env (cdr item))))
+                (etaf-md--chat-messages env))))))))
 
 ;;; Interaction
 

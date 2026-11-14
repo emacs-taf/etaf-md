@@ -894,22 +894,30 @@ Component: `etaf-tree`.
 
 | Attribute | Type | Default | Meaning |
 | --- | --- | --- | --- |
-| `self` | enum | `left` | Which side the reader's own words take: `left`, `right` |
+| `title` | string | none | Title above the conversation |
 
-The child is `message`, with a required `from` and an optional `time`.
+The messages are grouped by marker lines, the way plume writes them: `{name}`
+starts a message, `{.}` is the reader themself, and `{:time}` changes the time.
+The blocks after a marker belong to that message, so a message may hold several
+paragraphs, a list or code.
 
 ````markdown
-:::chat
-:::message {from="Q" time="14:20"}
+:::chat {title="Why does the preview not refresh"}
+{:2026-11-14 14:20}
+
+{ask}
 Why does the preview not refresh?
-:::
-:::message {from="A" time="14:21"}
-It refreshes after a save; a half-finished edit does not reflow.
-:::
+
+{.}
+It refreshes after saving, so half typed text does not reflow.
 :::
 ````
 
-The case it solves: a tutorial demonstrating one exchange. It is aligned text with an indent, and no bubble is drawn.
+What the reader writes sits on the right and the other side on the left; the
+time takes a row of its own.  The case it solves: putting a conversation into a
+document as text instead of a screenshot.
+
+Component: `etaf-chat` when the catalog has one, painted in place otherwise.
 
 ### 6.11 Tabs
 

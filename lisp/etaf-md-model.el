@@ -252,11 +252,28 @@ inside a fence stays code.  BASE is where TEXT starts in the page."
                                         (plist-get marker :start)
                                         body-end)))))))
 
+(defun etaf-md--chat-split-markers (text)
+  "Return TEXT with a blank line around every chat marker line.
+Plume writes `{name}' on the line before the message; a paragraph parser
+would join them, so the marker gets its own paragraph here."
+  (mapconcat
+   #'identity
+   (cl-loop for line in (split-string text "\n")
+            if (string-match-p "\\`{[^}]+}[ \t]*\\'" line)
+            append (list "" line "")
+            else collect line)
+   "\n"))
+
 (defun etaf-md--parse-container-body (name text flavor base)
   "Return NAME's children parsed from TEXT, which starts at BASE in the page."
   (if (eq (etaf-md--child-syntax (intern name)) 'markers)
       (etaf-md--parse-marker-children name text flavor base)
-    (plist-get (etaf-md--parse text flavor) :children)))
+    (plist-get (etaf-md--parse
+                (if (equal name "chat")
+                    (etaf-md--chat-split-markers text)
+                  text)
+                flavor)
+               :children)))
 
 (defun etaf-md--parse-containers (text flavor)
   "Parse TEXT with FLAVOR, reading `:::name {attrs}' containers.

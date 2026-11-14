@@ -1732,6 +1732,29 @@ its name and value rows."
         (should (string-match-p "版本" text))
         (should (string-match-p "12.3.0" text))))))
 
+(ert-deftest etaf-md-tests-a-chat-groups-its-marked-messages ()
+  "A chat groups its blocks by sender markers and hides the markers.
+Plume writes a sender as `{name}', the reader as `{.}' and a date as
+`{:date}'; the reader sees the name, the date and the words, not the braces."
+  (let ((session (etaf-md-create
+                  :text (concat ":::chat
+"
+                                "{:2026-11-14 14:20}\n\n"
+                                "{问}\n"
+                                "预览为什么不刷新？\n\n"
+                                "{.}\n"
+                                "保存之后才刷新。\n"
+                                ":::\n")
+                  :theme 'dark)))
+    (etaf-md-tests--with-mount session
+      (etaf-runtime-flush (etaf-runtime-for-buffer (current-buffer)))
+      (let ((text (buffer-string)))
+        (should (string-match-p "2026-11-14 14:20" text))
+        (should (string-match-p "问" text))
+        (should (string-match-p "预览为什么不刷新？" text))
+        (should (string-match-p "保存之后才刷新。" text))
+        (should-not (string-match-p "{\\." text))))))
+
 (ert-deftest etaf-md-tests-a-steps-list-becomes-numbered-steps ()
   "A steps container written as an ordered list keeps every item's text."
   (let ((session (etaf-md-create

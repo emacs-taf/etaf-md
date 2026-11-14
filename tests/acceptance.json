@@ -411,6 +411,11 @@
       "purpose": "An attribute field paints its name, state chips, type, default, since, enum/unit/format/constraint notes and body, while the list form still paints name and value rows."
     },
     {
+      "name": "etaf-md-tests-a-chat-groups-its-marked-messages",
+      "file": "tests/etaf-md-tests.el",
+      "purpose": "A chat groups its blocks by {name}, {.} and {:date} markers, painting the name, date and words without the braces."
+    },
+    {
       "name": "etaf-md-tests-a-steps-list-becomes-numbered-steps",
       "file": "tests/etaf-md-tests.el",
       "purpose": "A steps container written as an ordered list paints every item's text as a numbered step."
