@@ -223,10 +223,15 @@ its own `fr' share or fixed size."
                           'column
                           (append
                            (list :item-gap '(lh 0))
+                           ;; Equal tracks start from zero and share the row:
+                           ;; a column that starts from its content width
+                           ;; would make a long paragraph wider than its
+                           ;; neighbour, and the panes would never line up.
                            (if (eq (car track) :width)
                                (list :width (cadr track))
-                             (list :width 'stretch
-                                   :flex-grow (cadr track))))
+                             (list :flex-basis '(ch 0)
+                                   :flex-grow (cadr track)
+                                   :width 'stretch)))
                           (list (etaf-md-render
                                  env
                                  (etaf-md-children env col)))))))))
@@ -945,6 +950,204 @@ frame and its colours; only the language row is left out."
               :multiple (or expand (not (etaf-md-attr env :accordion)))
               :on-toggle (lambda (open)
                            (etaf-md-set-block-state env :open open)))))))
+
+;;; Edge containers
+
+(defun etaf-md--edge-accent (env)
+  "Return ENV's accent colour, or nil when it asks for the plain rule."
+  (let ((accent (etaf-md-attr env :accent)))
+    (unless (or (null accent) (eq accent 'neutral))
+      (etaf-md-accent env accent))))
+
+(defun etaf-md--panel-view (env)
+  "Paint ENV's panel: its title and status sit on the top rule."
+  (etaf-view
+   (etaf-edge-panel :title (etaf-md-attr env :title)
+                    :status (etaf-md-attr env :status)
+                    :variant (etaf-md-attr env :variant)
+                    :focus (etaf-md-attr env :focus)
+                    :accent (etaf-md--edge-accent env)
+                    :background (etaf-md-surface env 'raised)
+                    :width (or (etaf-md-attr env :width) 'stretch)
+                    :margin-top (etaf-md--vertical-length
+                                 (etaf-md-attr env :margin-top))
+     (expr (etaf-md-content env)))))
+
+(defun etaf-md--tab-panel (env)
+  "Return ENV's tabs, the active index and the table of tab nodes."
+  (let* ((tabs (etaf-md-children env))
+         (count (length tabs))
+         (initial (or (cl-position-if
+                       (lambda (tab) (etaf-md-attr env :selected tab))
+                       tabs)
+                      0))
+         (active (min (or (etaf-md-block-state env :active initial) 0)
+                      (max 0 (1- count)))))
+    (list tabs active (nth active tabs))))
+
+(defun etaf-md--tab-panel-view (env)
+  "Paint ENV's tab panel: the tabs share the pane's top rule."
+  (pcase-let* ((`(,tabs ,active ,selected) (etaf-md--tab-panel env)))
+    (etaf-view
+     (etaf-edge-tabs
+      :items (seq-map-indexed
+              (lambda (tab index)
+                (list :key index :label (etaf-md--tab-label env tab)))
+              tabs)
+      :active active
+      :accent (etaf-md--edge-accent env)
+      :width (or (etaf-md-attr env :width) 'stretch)
+      :margin-top (etaf-md--vertical-length (etaf-md-attr env :margin-top))
+      :on-change (lambda (key) (etaf-md-set-block-state env :active key))
+      (expr (when selected (etaf-md--child-view env selected)))))))
+
+(defun etaf-md--form-rows (env)
+  "Return ENV's list items as (LABEL . VALUE) pairs.
+A row is written `名称：值'; the first colon in either width splits it, and a
+row without one is a label with an empty value."
+  (let* ((list-node (car (etaf-md-children env)))
+         (items (and list-node
+                     (seq-filter (lambda (node)
+                                   (eq (etaf-md-node-type node) 'list-item))
+                                 (etaf-md-children env list-node)))))
+    (mapcar
+     (lambda (item)
+       (let ((text (or (etaf-md-attr env :text item) "")))
+         (if (string-match "\\`\\([^：:]+\\)[：:]\\s-*\\(.*\\)\\'" text)
+             (cons (string-trim (match-string 1 text))
+                   (string-trim (match-string 2 text)))
+           (cons (string-trim text) ""))))
+     items)))
+
+(defun etaf-md--form-view (env)
+  "Paint ENV's form rows as labelled values with a rule under each."
+  (etaf-view
+   (column :width (or (etaf-md-attr env :width) 'stretch) :item-gap '(lh 1)
+     (expr (mapcar (lambda (row)
+                     (etaf-view
+                      (etaf-underline-field
+                       :label (car row) :value (cdr row))))
+                   (etaf-md--form-rows env))))))
+
+(etaf-md--define-shipped 'panel
+  :name "panel"
+  :summary "标题与状态都写在顶边上的面板"
+  :attrs '((title   :type string :doc "面板标题，写在顶边上")
+           (status  :type string :doc "顶边右端的说明")
+           (variant :type enum :one-of (default flat) :default default
+                    :doc "flat 只留框线，不铺底色")
+           (focus   :type boolean :default nil :doc "用强调色画框线")
+           (accent  :type accent :default neutral
+                    :doc "框线与标题的颜色；neutral 用页面描边色")
+           (width   :type length :doc "面板宽度，省略铺满一行")
+           (margin-top :type length :default "1lh" :doc "与上一块的距离"))
+  :view #'etaf-md--panel-view)
+
+(etaf-md--define-shipped 'tab-panel
+  :name "tab-panel"
+  :summary "标签坐在面板顶边上的标签页"
+  :attrs '((margin-top :type length :default "1lh" :doc "与上一块的距离")
+           (width   :type length :doc "面板宽度，省略铺满一行")
+           (accent :type accent :default neutral
+                   :doc "框线与选中标签的颜色；neutral 用页面描边色"))
+  :accepts '((tab :attrs ((title    :type string  :required t :doc "标签文字")
+                          (selected :type boolean :default nil :doc "打开时选中这一页"))))
+  :child-syntax 'markers
+  :view #'etaf-md--tab-panel-view)
+
+(etaf-md--define-shipped 'form
+  :name "form"
+  :summary "标签加下划线的表单行"
+  :attrs '((width :type length :doc "表单宽度，省略铺满一行"))
+  :accepts '((list :attrs nil))
+  :view #'etaf-md--form-view)
+
+;;; Pane furniture
+
+(defun etaf-md--log-rows (env)
+  "Return ENV's list items as log entries.
+A row is written `09:41:14 WARN message': the first word is the time, the
+second the level, and the rest the message; a row without a level keeps its
+whole text as the message."
+  (let* ((list-node (car (etaf-md-children env)))
+         (items (and list-node
+                     (seq-filter (lambda (node)
+                                   (eq (etaf-md-node-type node) 'list-item))
+                                 (etaf-md-children env list-node)))))
+    (mapcar
+     (lambda (item)
+       (let ((text (or (etaf-md-attr env :text item) "")))
+         (if (string-match "\\`\\([^ \t]+\\)[ \t]+\\([A-Za-z]+\\)[ \t]+\\(.*\\)\\'" text)
+             (list :time (match-string 1 text)
+                   :level (match-string 2 text)
+                   :message (match-string 3 text))
+           (list :time "" :level "" :message text))))
+     items)))
+
+(defun etaf-md--log-view (env)
+  "Paint ENV's list items as a log."
+  (etaf-view
+   (etaf-log :rows (etaf-md--log-rows env))))
+
+(defun etaf-md--status-keys (text)
+  "Return TEXT's `key:label' pairs as a list."
+  (mapcar (lambda (part)
+            (let ((colon (string-search ":" part)))
+              (if colon
+                  (cons (substring part 0 colon)
+                        (substring part (1+ colon)))
+                (cons part ""))))
+          (split-string (or text "") "[,，]" t)))
+
+(defun etaf-md--status-view (env)
+  "Paint ENV's status bar."
+  (etaf-view
+   (etaf-status-bar :mode (etaf-md-attr env :mode)
+                    :keys (etaf-md--status-keys (etaf-md-attr env :keys))
+                    :note (etaf-md-attr env :note))))
+
+(defun etaf-md--chart-values (text)
+  "Return the numbers TEXT writes, separated by spaces or commas."
+  (let (values)
+    (dolist (token (split-string (or text "") "[ \t,]+" t))
+      (when (string-match-p "\\`-?[0-9]+\\(?:\\.[0-9]+\\)?\\'" token)
+        (push (string-to-number token) values)))
+    (nreverse values)))
+
+(defun etaf-md--chart-view (env)
+  "Paint ENV's block chart."
+  (let ((values (etaf-md--chart-values (etaf-md-attr env :values))))
+    (unless (> (length values) 1)
+      (signal 'etaf-md-node-error
+              (list "chart: values needs at least two numbers")))
+    (etaf-view
+     (etaf-braille-chart :values values
+                         :width (etaf-md-attr env :width)
+                         :height (etaf-md-attr env :height)
+                         :label (etaf-md-attr env :label)))))
+
+(etaf-md--define-shipped 'log
+  :name "log"
+  :summary "按级别上色的日志，不画框"
+  :accepts '((list :attrs nil))
+  :view #'etaf-md--log-view)
+
+(etaf-md--define-shipped 'statusbar
+  :name "statusbar"
+  :summary "一行状态栏：模式、按键提示与右端说明"
+  :attrs '((mode :type string :doc "当前模式，画成一个填色的小块")
+           (keys :type string :doc "按键提示，写成 key:说明，逗号分隔")
+           (note :type string :doc "右端的说明"))
+  :view #'etaf-md--status-view)
+
+(etaf-md--define-shipped 'chart
+  :name "chart"
+  :summary "盲文点阵画的折线图"
+  :attrs '((values :type string :required t :doc "用空格或逗号分隔的数字")
+           (width  :type number :default 40 :integer t :min 1 :doc "宽度，单位格")
+           (height :type number :default 6  :integer t :min 1 :doc "高度，单位行")
+           (label  :type string :doc "图表上方的标题"))
+  :view #'etaf-md--chart-view)
 
 ;;; Documents
 

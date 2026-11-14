@@ -1732,6 +1732,60 @@ its name and value rows."
         (should (string-match-p "版本" text))
         (should (string-match-p "12.3.0" text))))))
 
+(ert-deftest etaf-md-tests-a-panel-carries-its-title-on-the-edge ()
+  "A panel paints its title, its status and its body from one container."
+  (let ((session (etaf-md-create
+                  :text (mapconcat #'identity
+                                   '(":::panel {title=\"读取设置\" status=\"12.3.0\"}"
+                                     "面板把标题与状态画在顶边上。"
+                                     ":::")
+                                   "\n")
+                  :theme 'dark)))
+    (etaf-md-tests--with-mount session
+      (etaf-runtime-flush (etaf-runtime-for-buffer (current-buffer)))
+      (let ((text (buffer-string)))
+        (should (string-match-p "读取设置" text))
+        (should (string-match-p "12.3.0" text))
+        (should (string-match-p "标题与状态" text))))))
+
+(ert-deftest etaf-md-tests-a-tab-panel-shows-one-page ()
+  "A tab panel keeps its frame and swaps only the body of the chosen tab."
+  (let ((session (etaf-md-create
+                  :text (mapconcat #'identity
+                                   '(":::tab-panel"
+                                     "@tab 概览"
+                                     "第一页的正文。"
+                                     "@tab {title=\"配置\" selected=true}"
+                                     "第二页的正文。"
+                                     ":::")
+                                   "\n")
+                  :theme 'dark)))
+    (etaf-md-tests--with-mount session
+      (etaf-runtime-flush (etaf-runtime-for-buffer (current-buffer)))
+      (let ((text (buffer-string)))
+        (should (string-match-p "概览" text))
+        (should (string-match-p "配置" text))
+        (should (string-match-p "第二页的正文" text))
+        (should-not (string-match-p "第一页的正文" text))))))
+
+(ert-deftest etaf-md-tests-a-form-lines-up-labels-and-values ()
+  "A form paints each row's label above its value."
+  (let ((session (etaf-md-create
+                  :text (mapconcat #'identity
+                                   '(":::form"
+                                     "- 仓库地址：github.com/emacs-taf"
+                                     "- 渲染器：Ebox"
+                                     ":::")
+                                   "\n")
+                  :theme 'dark)))
+    (etaf-md-tests--with-mount session
+      (etaf-runtime-flush (etaf-runtime-for-buffer (current-buffer)))
+      (let ((text (buffer-string)))
+        (should (string-match-p "仓库地址" text))
+        (should (string-match-p "github.com/emacs-taf" text))
+        (should (string-match-p "渲染器" text))
+        (should (string-match-p "Ebox" text))))))
+
 (ert-deftest etaf-md-tests-a-chat-groups-its-marked-messages ()
   "A chat groups its blocks by sender markers and hides the markers.
 Plume writes a sender as `{name}', the reader as `{.}' and a date as

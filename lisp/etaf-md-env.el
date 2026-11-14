@@ -146,15 +146,20 @@ the same component, so the lookup accepts either."
       ('table-stripe (etaf-md--palette-value palette :table-stripe)))))
 
 (defun etaf-md-accent (env word)
-  "Return accent WORD as a colour for ENV."
-  (let ((palette (etaf-md-env-palette env)))
+  "Return accent WORD as a colour for ENV.
+Every word reads the page's palette first, so a light page and a dark page
+keep their own ink instead of sharing one fixed set of colours."
+  (let* ((palette (etaf-md-env-palette env))
+         (value (lambda (key fallback)
+                  (or (etaf-md--palette-value palette key) fallback))))
     (pcase word
-      ('neutral (or (etaf-md--palette-value palette :muted) "#9198a1"))
-      ('primary (or (etaf-md--palette-value palette :accent) "#4493f8"))
-      ('success "#2da44e")
-      ('warning "#bf8700")
-      ('danger "#cf222e")
-      ('important (or (etaf-md--palette-value palette :heading) "#8250df")))))
+      ('neutral (funcall value :muted "#9198a1"))
+      ('primary (funcall value :accent "#4493f8"))
+      ('info (funcall value :accent "#4493f8"))
+      ('success (funcall value :ok "#2da44e"))
+      ('warning (funcall value :warn "#bf8700"))
+      ('danger (funcall value :danger "#cf222e"))
+      ('important (funcall value :important "#8250df")))))
 
 (defun etaf-md-default-view (env)
   "Return ENV's node painted with the definition's previous view."

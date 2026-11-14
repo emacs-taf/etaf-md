@@ -411,6 +411,21 @@
       "purpose": "An attribute field paints its name, state chips, type, default, since, enum/unit/format/constraint notes and body, while the list form still paints name and value rows."
     },
     {
+      "name": "etaf-md-tests-a-panel-carries-its-title-on-the-edge",
+      "file": "tests/etaf-md-tests.el",
+      "purpose": "面板容器的标题、状态和正文都画出来，标题落在顶边那一行。"
+    },
+    {
+      "name": "etaf-md-tests-a-tab-panel-shows-one-page",
+      "file": "tests/etaf-md-tests.el",
+      "purpose": "标签页面板画出一行标签，只显示选中那一页的正文。"
+    },
+    {
+      "name": "etaf-md-tests-a-form-lines-up-labels-and-values",
+      "file": "tests/etaf-md-tests.el",
+      "purpose": "表单容器把每一行的名称与值按上下两行画出。"
+    },
+    {
       "name": "etaf-md-tests-a-chat-groups-its-marked-messages",
       "file": "tests/etaf-md-tests.el",
       "purpose": "A chat groups its blocks by {name}, {.} and {:date} markers, painting the name, date and words without the braces."

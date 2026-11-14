@@ -2,7 +2,7 @@
 
 > **Status.** The only extension the page renders today is the GitHub alert block: `> [!NOTE]`, `> [!TIP]`, `> [!IMPORTANT]`, `> [!WARNING]`, `> [!CAUTION]`. Everything else here is a design contract: it fixes the model, the syntax, the attributes and the acceptance before the code exists. Any name marked *planned* does not exist today, and its function names are proposals.
 >
-> **How to read it.** Writing a document: chapters 3, 5 and 6. Writing a container definition: chapters 9 and 10. Implementing the renderer: chapters 2, 7, 8 and 11. What works today: the status table in 6.16. Why a name is spelled that way: Appendix E.
+> **How to read it.** Writing a document: chapters 3, 5 and 6. Writing a container definition: chapters 9 and 10. Implementing the renderer: chapters 2, 7, 8 and 11. What works today: the status table in 6.17. Why a name is spelled that way: Appendix E.
 >
 > The Chinese and English versions run section for section. Change one, change the other.
 
@@ -1051,7 +1051,83 @@ A screenshot or a passage of text.
 
 A transformation of plume's `window`, which draws rounded corners and a shadow; we draw one title bar. Rounded corners cannot be drawn on a character grid, and forcing them produces a row of stray glyphs.
 
-### 6.16 Status table
+### 6.16 Pane containers
+
+Three containers paint a rule a cell already owns instead of spending a row on
+it: a panel puts its title on its top rule, tabs sit in that rule, and a form
+hangs its value under a single line.
+
+#### Panel
+
+| Attribute | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `title` | string | none | Title on the top rule |
+| `status` | string | none | Note at the right end of that rule |
+| `variant` | enum | `default` | `flat` keeps the rule and drops the surface |
+| `focus` | boolean | `false` | Paints the whole rule in the accent colour |
+| `accent` | accent | `neutral` | Colour of the rule and the title |
+| `width` | length | the row | Panel width |
+| `margin-top` | length | `1lh` | Distance from the block above |
+
+```markdown
+:::panel {title="Read settings" status="12.3.0" accent=primary}
+The panel names itself on its top rule; the body starts on the next row.
+:::
+```
+
+The case it solves: several blocks sit side by side, each has to say what it
+is, and none of them wants to spend a whole row on a heading.
+
+Component: `etaf-edge-panel`.
+
+#### Tab panel
+
+| Attribute | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `accent` | accent | `neutral` | Colour of the rule and the chosen tab |
+| `width` | length | the row | Panel width |
+| `margin-top` | length | `1lh` | Distance from the block above |
+
+The child is `tab`, with a required `title` and an optional `selected`.
+
+```markdown
+:::tab-panel {accent=primary}
+@tab notes.md
+The first page.
+@tab {title="todo.md" selected=true}
+The second page.
+:::
+```
+
+The tabs and the body share one frame: the tab row is the top rule, the chosen
+tab is filled with the accent colour, and switching a tab swaps only the body.
+This separates it from `tabs` in 6.11: `tabs` is a strip of its own, while a
+tab panel grows its tabs on the pane's edge.
+
+Component: `etaf-edge-tabs`.
+
+#### Form
+
+| Attribute | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `width` | length | the row | Form width |
+
+The body is a list, one `label: value` per item; the label sits above the value
+and a line closes the value.
+
+```markdown
+:::form
+- Repository: github.com/emacs-taf
+- Renderer: Ebox
+:::
+```
+
+The case it solves: settings and environment facts, one column of names and one
+of values, with no need for a table's header row and alignment row.
+
+Component: `etaf-underline-field`.
+
+### 6.17 Status table
 
 | Container | Family | Implementation | Status |
 | --- | --- | --- | --- |
@@ -1071,6 +1147,9 @@ A transformation of plume's `window`, which draws rounded corners and a shadow; 
 | `accordion` + `collapse` | Interaction | `etaf-accordion` | Planned |
 | `table` | Documents | Primitives | Planned |
 | `window` | Documents | Primitives | Planned |
+| `panel` | Pane | `etaf-edge-panel` | Implemented |
+| `tab-panel` + `tab` | Pane | `etaf-edge-tabs` | Implemented |
+| `form` | Pane | `etaf-underline-field` | Implemented |
 
 ## 7. The interaction contract
 
@@ -1263,7 +1342,7 @@ Step 3 is not an exception, it is the first implementation. Its risk is staying 
 
 **The interface boundary.** `:body` may call public interfaces whose names start with `etaf-`; it may not call the engine's internals, which start with `ebox-`. The same rule already binds applications and components.
 
-**Shipped containers take the same route.** The implementation column in 6.16 names the component each shipped container uses, or says it is built from primitives. A custom container reads that column to decide its own route.
+**Shipped containers take the same route.** The implementation column in 6.17 names the component each shipped container uses, or says it is built from primitives. A custom container reads that column to decide its own route.
 
 ### 9.3 A definition does three things
 
@@ -2020,7 +2099,7 @@ The page:
 
 Together the two say one thing: **the document writes semantics, the declaration fixes the contract, the paint translates, the reader changes appearance, and every fact has one carrier.**
 
-### 6.17 Site components
+### 6.18 Site components
 
 Sections 6.2–6.15 are the containers inside a document's prose; this one is the set a documentation site writes around it. They register through the same definitions and views as a callout, and the renderer itself is unchanged.
 
