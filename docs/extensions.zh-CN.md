@@ -1926,3 +1926,23 @@ heading            内置语法，文档写不出名字
 | 入口 | `etaf-md-define-node` | 同一个 |
 
 两例合起来只说明一句：**文档写语义，声明定契约，画法做翻译，读者改外观，任何事实只有一处承载者。**
+
+### 6.17 站点组件目录
+
+6.2–6.15 是文档正文里的容器；这一节是站点围绕正文写的组件。它们和一些提示块一样走定义与组件，不改渲染器。
+
+| 类型 | 写法 | 作用 | 子块 |
+| --- | --- | --- | --- |
+| `home-box` | `:::home-box {title description href}` | 首屏大块：强调标题、摘要、行动链接与正文 | 任意块 |
+| `image-card` | `:::image-card {src title description href}` | 图片在上，标题与说明在下 | 无 |
+| `link-card` | `:::link-card {href title description}` | 整块可点的链接卡片 | 无 |
+| `npm-badge` | `:::npm-badge {name version downloads}` | 一行静态 npm 徽章 | 无 |
+| `plot` | `:::plot {values labels max accent}` | 横向条形图，每行一个数值 | 无 |
+| `qrcode` | `:::qrcode {text title}` | 可扫描的二维码；`qrencode` 缺失时保留文本 | 无 |
+| `swiper` | `:::swiper` + `@slide {title}` | 一次显示一页，切换条给标题或页码 | `slide` |
+| `code-tree` | `:::code-tree {title}` + `@file path` | 左边文件列表，右边选中文件的代码 | `file` |
+| `npm-to` | `:::npm-to {tabs}` + 一个 `sh` 围栏 | 把一条 npm 命令换成各包管理器的写法并排成代码标签页 | 一个代码块 |
+
+行内还有四个记号，由共享的 markdown 渲染器提供：`==高亮==`（可带 `{.warning}` 等配色）、`::图标名::`、`:kbd[Ctrl+B]` 与 `:badge[文字]{.tip}`。表情短代码 `:tada:` 本来就在 `etaf` 方言里。
+
+`qrcode` 的绘制与图表一样不发生在渲染里：发布时读缓存，缺失时由定时任务调用 `qrencode`，画好后重发一次页面。`npm-to` 只改它支持的几条命令，其余原样复制。`swiper` 与 `code-tree` 的选择状态存在块状态里，换主题、改宽度都不丢。

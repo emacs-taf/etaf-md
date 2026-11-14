@@ -344,3 +344,13 @@ pixels below itself.  A picture now takes the size of the page it sits on.
 
 - A table caption stands on its own line: one blank row separates it from the
   header, so a caption no longer reads as part of the first row.
+
+- The site component catalog joins the prose containers: `home-box`,
+  `image-card`, `link-card`, `npm-badge`, `plot`, `qrcode`, `swiper`,
+  `code-tree` and `npm-to`.  `swiper` and `code-tree` use the same `@name`
+  child markers as tabs; `npm-to` rewrites one npm command for pnpm, yarn,
+  bun and deno; `qrcode` draws with the optional `qrencode` program and
+  keeps the text when it is missing.
+- The `etaf` dialect now paints `==highlighted==` runs, `::name::` icons,
+  `:kbd[KEY+KEY]` key groups and `:badge[TEXT]` badges inline, through the
+  shared renderer.

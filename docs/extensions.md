@@ -1927,3 +1927,23 @@ The page:
 | Entry | `etaf-md-define-node` | The same |
 
 Together the two say one thing: **the document writes semantics, the declaration fixes the contract, the paint translates, the reader changes appearance, and every fact has one carrier.**
+
+### 6.17 Site components
+
+Sections 6.2–6.15 are the containers inside a document's prose; this one is the set a documentation site writes around it. They register through the same definitions and views as a callout, and the renderer itself is unchanged.
+
+| Type | Written as | Purpose | Children |
+| --- | --- | --- | --- |
+| `home-box` | `:::home-box {title description href}` | A first-screen block: accent title, summary, action link and prose | any block |
+| `image-card` | `:::image-card {src title description href}` | An image above its title and description | none |
+| `link-card` | `:::link-card {href title description}` | A link card whose whole surface follows the target | none |
+| `npm-badge` | `:::npm-badge {name version downloads}` | One static npm badge row | none |
+| `plot` | `:::plot {values labels max accent}` | A horizontal bar per value | none |
+| `qrcode` | `:::qrcode {text title}` | A scannable code; the text stays when `qrencode` is missing | none |
+| `swiper` | `:::swiper` + `@slide {title}` | One page at a time, with a strip naming the pages | `slide` |
+| `code-tree` | `:::code-tree {title}` + `@file path` | A file list beside the selected file's code | `file` |
+| `npm-to` | `:::npm-to {tabs}` + one `sh` fence | One npm command rewritten per package manager, shown as code tabs | one code block |
+
+The shared markdown renderer also paints four inline forms: `==highlighted==` (with an optional `{.warning}` colour), `::icon-name::`, `:kbd[Ctrl+B]` and `:badge[text]{.tip}`. Emoji shortcodes such as `:tada:` were already part of the `etaf` dialect.
+
+A QR is drawn outside a render, like a diagram: a publish reads the cache, a timer asks `qrencode` for what is missing, and a finished drawing republishes once. `npm-to` rewrites only the commands it knows and copies the rest; the selection of a `swiper` or a `code-tree` lives in the block state, so a theme switch or a resize keeps it.

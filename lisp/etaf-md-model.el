@@ -621,6 +621,8 @@ list costs one comparison for it instead of a new call."
                     (plist-get document :children) text))
       (when env
         (setq block (etaf-md-typeset-attach block env)))
+      (when (fboundp 'etaf-md-qrcode-attach)
+        (setq block (etaf-md-qrcode-attach block)))
       (let* ((blank (eq (plist-get block :type) 'blank))
              (source (or (etaf-md--block-source block text) ""))
              ;; The picture is part of the block: it is drawn for one palette,
@@ -959,6 +961,8 @@ itself and every other block keeps its instance."
     (plist-put session :published (cdr keyed))
     (when (fboundp 'etaf-md-typeset-request)
       (etaf-md-typeset-request session))
+    (when (fboundp 'etaf-md-qrcode-request)
+      (etaf-md-qrcode-request session))
     document))
 
 (defun etaf-md--publish (session contents)

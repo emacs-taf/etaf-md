@@ -512,10 +512,11 @@ follow the children instead of a flat depth sequence."
       (etaf-md--tab-language env tab)
       ""))
 
-(defun etaf-md--tabs-view (env &optional page-view)
+(defun etaf-md--tabs-view (env &optional page-view label-fn)
   "Paint a tab strip and the selected page; both tab styles share it.
 PAGE-VIEW, when given, paints the selected page's body instead of the
-default child view."
+default child view.  LABEL-FN, when given, names each tab from the child,
+its index and the count instead of the title-or-language default."
   (let* ((tabs (etaf-md-children env))
          (count (length tabs))
          (initial (or (cl-position-if
@@ -533,7 +534,10 @@ default child view."
        (etaf-tabs
         :items (seq-map-indexed
                 (lambda (tab index)
-                  (list :key index :label (etaf-md--tab-label env tab)))
+                  (list :key index
+                        :label (if label-fn
+                                   (funcall label-fn tab index count)
+                                 (etaf-md--tab-label env tab))))
                 tabs)
         :active active
         :framed nil
@@ -756,6 +760,10 @@ frame and its colours; only the language row is left out."
 (etaf-md--define-shipped 'code-block
   :summary "围栏代码；语言名供代码标签页取用"
   :derived '((language :type string :doc "围栏的语言名")))
+
+;; The site component catalog builds on the prose definitions above and
+;; registers before reader definitions, so a document can still override one.
+(require 'etaf-md-components)
 
 ;; Reader definitions load after the shipped ones, so :extends can rely
 ;; on them and a plain definition may still add a new type.

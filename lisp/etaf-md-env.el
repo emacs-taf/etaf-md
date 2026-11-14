@@ -61,9 +61,11 @@
            (not (eq (plist-get (etaf-md-node-block node) :type) 'container)))
       (etaf-ui-markdown-view-block
        (etaf-md-node-block node)
-       (list :theme (etaf-md-env-theme env)
-             :palette (etaf-md-env-palette env)
-             :width (etaf-md-env-width env))))
+       ;; A block painted below a container keeps the page services: media,
+       ;; links and the page directory are part of the environment the block
+       ;; was written for, and a minimal plist would show a placeholder.
+       (plist-put (copy-sequence (etaf-md--env (etaf-md-env-session env)))
+                  :width (etaf-md-env-width env))))
      (t
       (etaf-md--failure-view
        env (or (etaf-md-node-source node)

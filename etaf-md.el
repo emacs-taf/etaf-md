@@ -323,6 +323,7 @@
 (require 'etaf-md-app)
 (require 'etaf-md-live)
 (require 'etaf-md-typeset)
+(require 'etaf-md-qrcode)
 
 (defun etaf-md-doctor ()
   "Return capability facts for reading Markdown in ETAF.
