@@ -384,6 +384,35 @@ line 44: 第 9 层嵌套超过上限 8 层
 
 这个选择偏向读者。把整块判成源码会让人以为预览坏了；吞掉半篇文档比多一行字糟得多，而且作者改起来也更难发现。
 
+### 3.6 代码块
+
+围栏的 info 里能写四类选项，写在语言名后面，顺序不限。
+
+| 写法 | 作用 |
+| --- | --- |
+| `title="x"` | 代码块顶部写标题，不写就用语言名 |
+| `:line-numbers`、`:line-numbers=3`、`:no-line-numbers` | 开行号，或从 3 起编号；不写不开 |
+| `{1,4-7}` | 这些行刷一层强调底色 |
+| 行尾 `[!code highlight]`、`[!code focus]`、`[!code ++]`、`[!code --]`、`[!code warning]`、`[!code error]` | 标记这一行是高亮、聚焦、新增、删除、警告还是错误 |
+
+````markdown
+```elisp title="lisp/etaf-md-env.el" :line-numbers
+(defun etaf-md--muted (env)
+  (or (etaf-md--palette-value (etaf-md-env-palette env) :muted)
+      "#9198a1"))
+```
+
+```elisp
+(defun etaf-md--toggle-line (env block line)
+  (let ((open (etaf-md-block-state env :open)))        ; [!code --]
+    (etaf-md-set-block-state env :open (not open))))   ; [!code ++]
+```
+````
+
+标记只决定画法，画出来的代码里没有它。聚焦块里没被聚焦的行会退到背景色里；底色的墨色按当前底色重新算过，浅色与深色主题下都读得清。标题行右侧的「复制」把去掉标记的代码放进 kill ring。
+
+代码块由 `etaf-ui` 的 Markdown 渲染器画，页面主题只决定调色板。
+
 ### 3.6 源码 buffer 的编辑体验
 
 渲染出来的页面没有标记，所以标记的代价全落在写的人身上。这一节说的东西全部发生在源码 buffer，不改语法，也不改渲染结果。

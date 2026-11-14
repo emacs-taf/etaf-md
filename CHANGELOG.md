@@ -4,6 +4,11 @@
 
 ### Added
 
+- A fenced code block takes plume's options: `title=`, `:line-numbers[=N]`,
+  `{1,4-7}` and the `[!code ...]` row markers, with a copy action in its
+  header.  The options and the guard that keeps every row readable live in the
+  `etaf-ui` renderer this page already uses.
+
 - A `steps` container also accepts an ordered list: each item is one step and
   its text is the title, which is how Plume documents write steps.  A
   `timeline` event takes `status` (`success`, `warning`, `danger` or `info`),

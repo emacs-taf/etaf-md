@@ -384,6 +384,39 @@ This is still body text.
 
 The choice favours the reader. Turning the block into source makes the preview look broken; swallowing half a document is much worse than one extra line, and the author would also have a harder time finding it.
 
+### 3.6 Code blocks
+
+A fence's info takes four kinds of options after the language, in any order.
+
+| Writing | Meaning |
+| --- | --- |
+| `title="x"` | Names the block; without it the header shows the language |
+| `:line-numbers`, `:line-numbers=3`, `:no-line-numbers` | Turns numbering on, starts at 3, or off; off by default |
+| `{1,4-7}` | Paints those rows on the accent surface |
+| A `[!code highlight]`, `focus`, `++`, `--`, `warning` or `error` at the end of a row | Paints that row as highlighted, focused, added, removed, warned or failed |
+
+````markdown
+```elisp title="lisp/etaf-md-env.el" :line-numbers
+(defun etaf-md--muted (env)
+  (or (etaf-md--palette-value (etaf-md-env-palette env) :muted)
+      "#9198a1"))
+```
+
+```elisp
+(defun etaf-md--toggle-line (env block line)
+  (let ((open (etaf-md-block-state env :open)))        ; [!code --]
+    (etaf-md-set-block-state env :open (not open))))   ; [!code ++]
+```
+````
+
+The markers choose the paint and never reach the code.  Inside a focused block
+the rows that are not focused recede into the surface, and every ink is made
+readable against the fill it sits on, in light and dark themes alike.  The
+copy action in the header puts the code, markers removed, on the kill ring.
+
+Code blocks are painted by the `etaf-ui` markdown renderer; the page theme
+only supplies the palette.
+
 ### 3.6 Editing the source buffer
 
 A rendered page carries no markup, so the whole cost of it falls on the writer. Everything here happens in the source buffer. It changes neither the syntax nor the rendered result.

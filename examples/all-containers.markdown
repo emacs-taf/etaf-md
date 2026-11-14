@@ -239,3 +239,40 @@ print("hi")
 :::
 ```
 
+
+## 代码块
+
+标题写在围栏的 info 里，`:line-numbers` 开行号，花括号里的行号画高亮，行尾的 `[!code ...]` 标记决定这一行怎么画。
+
+```elisp title="lisp/etaf-md-env.el" :line-numbers
+(defun etaf-md--hairline (env)
+  "Return a one-pixel border as the Theme ENV's page lives in defines it."
+  (etaf-theme-token
+   :ui-panel-border
+   (or (etaf-md--palette-value (etaf-md-env-palette env) :border)
+       "#3a3f4b")))
+
+(defun etaf-md--muted (env)
+  "Return the muted ink of ENV's palette."
+  (or (etaf-md--palette-value (etaf-md-env-palette env) :muted)
+      "#9198a1"))
+```
+
+```elisp {3,6-7}
+(defun etaf-md--surface (env name)
+  (or (etaf-md--palette-value (etaf-md-env-palette env)
+                              (intern (concat ":" (symbol-name name))))
+      (etaf-theme-token :ui-panel-fg)))
+```
+
+```elisp
+(defun etaf-md--toggle-line (env block line)
+  (let ((open (etaf-md-block-state env :open)))        ; [!code --]
+    (etaf-md-set-block-state env :open (not open))))   ; [!code ++]
+```
+
+```elisp
+(defun etaf-md--fold (text width)
+  (let ((rows (etaf-md--wrap text width)))  ; [!code warning]
+    (mapconcat #'identity rows "\n")))      ; [!code error]
+```
