@@ -24,6 +24,7 @@
 (require 'etaf)
 (require 'etaf-ui)
 (require 'etaf-md-theme)
+(require 'etaf-md-env)
 
 (defconst etaf-md--alert-labels
   '((note . "笔记") (tip . "提示") (important . "重要")
@@ -462,6 +463,34 @@ as a bordered placeholder that opens in the browser."
 (declare-function etaf-md--session-text "etaf-md-model" (session))
 (declare-function etaf-md--card-env "etaf-md-model" (session env scope))
 
+(defun etaf-md--node-for-block (block)
+  "Return BLOCK as a node, or nil for a block that paints no content.
+A container node's type is the name the document wrote, so its definition is
+found exactly as `etaf-md-define-node' registered it."
+  (if (eq (plist-get block :type) 'container)
+      (etaf-md-node-create
+       :type (intern (plist-get block :name))
+       :attrs (plist-get block :attrs)
+       :children (delq nil (mapcar #'etaf-md--node-for-block
+                                   (plist-get block :children)))
+       :source (plist-get block :source)
+       :block block)
+    (etaf-md-node-create :type (plist-get block :type) :block block)))
+
+(defun etaf-md--container-view (session env block)
+  "Return the view BLOCK's definition gives it, under SESSION and ENV.
+A container whose name has no definition shows its source and one line saying
+so; that block alone degrades and the rest of the page renders."
+  (let* ((node (etaf-md--node-for-block block))
+         (paint-env (etaf-md-env-create
+                     :session session
+                     :node node
+                     :width (plist-get env :width)
+                     :palette (plist-get env :palette)
+                     :theme (plist-get env :theme)
+                     :block block)))
+    (etaf-md--paint node paint-env)))
+
 (etaf-define-component etaf-md-block (&key session identity block)
   "Render one published markdown BLOCK of SESSION under IDENTITY.
 The Component owns one block's hosts, and reads the session's environment in
@@ -482,6 +511,8 @@ stay."
          ;; reader types on.  One empty cell per blank line is enough for the
          ;; caret to stand there, and one row per line keeps every source
          ;; offset and its painted cell in step.
+         ((eq (plist-get block :type) 'container)
+          (etaf-md--container-view session env block))
          ((eq (plist-get block :type) 'blank)
           (etaf-node 'column nil
                      (make-list (max 1 (or (plist-get block :lines) 1))

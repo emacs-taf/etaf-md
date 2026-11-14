@@ -116,12 +116,143 @@ re-renders on every write."
     (insert-file-contents file)
     (buffer-string)))
 
+(defconst etaf-md--container-open
+  "\\`:::\\([[:alpha:]][[:alnum:]-]*\\)[ \t]*\\(?:{\\(.*\\)}[ \t]*\\)?\\'"
+  "Shape of a container opening line.")
+
+(defconst etaf-md--container-close "\\`:::\\'"
+  "Shape of a container closing line.")
+
+(defun etaf-md--parse-attributes (text)
+  "Return TEXT's attribute body as a keyword plist.
+A quoted value keeps its spaces; a bare value ends at the next blank; a name
+without `=' is a flag set to t."
+  (let ((position 0) (length (length text)) (result nil))
+    (while (< position length)
+      (cond
+       ((memq (aref text position) '(?\s ?\t))
+        (setq position (1+ position)))
+       (t
+        (let ((start position))
+          (while (and (< position length)
+                      (not (memq (aref text position) '(?\s ?\t ?=))))
+            (setq position (1+ position)))
+          (let ((key (intern (format ":%s" (substring text start position)))))
+            (if (and (< position length) (eq (aref text position) ?=))
+                (progn
+                  (setq position (1+ position))
+                  (if (and (< position length) (eq (aref text position) ?\"))
+                      (let ((end (1+ position)))
+                        (while (and (< end length) (not (eq (aref text end) ?\")))
+                          (setq end (1+ end)))
+                        (setq result
+                              (plist-put result key (substring text (1+ position) end)))
+                        (setq position (min length (1+ end))))
+                    (let ((end position))
+                      (while (and (< end length)
+                                  (not (memq (aref text end) '(?\s ?\t))))
+                        (setq end (1+ end)))
+                      (setq result
+                            (plist-put result key (substring text position end)))
+                      (setq position end))))
+              (setq result (plist-put result key t))))))))
+    result))
+
+(defun etaf-md--shift-blocks (blocks offset)
+  "Return BLOCKS with their source ranges moved by OFFSET."
+  (mapcar
+   (lambda (block)
+     (let ((copy (copy-sequence block)))
+       (dolist (key '(:begin :end))
+         (when (integerp (plist-get copy key))
+           (setf (plist-get copy key) (+ offset (plist-get copy key)))))
+       (when (eq (plist-get copy :type) 'container)
+         (setf (plist-get copy :children)
+               (etaf-md--shift-blocks (plist-get copy :children) offset)))
+       copy))
+   blocks))
+
+(defun etaf-md--parse-containers (text flavor)
+  "Parse TEXT with FLAVOR, reading `:::name {attrs}' containers.
+A container runs to the matching close, or to the end of the file for the last
+one.  Plain stretches between containers go to the shared Markdown parser, and
+their block ranges move to where the stretch sits in TEXT."
+  (let ((offset 0) (plain-start 0) (container nil) (depth 0) (result nil)
+        (template nil))
+    (cl-flet ((flush (end)
+                (when (< plain-start end)
+                  (let* ((parsed (etaf-ui-markdown-parse
+                                  (substring text plain-start end) flavor))
+                         (blocks (plist-get parsed :children)))
+                    (unless template (setq template parsed))
+                    (setq result
+                          (nconc result (etaf-md--shift-blocks
+                                         blocks plain-start)))))))
+      (dolist (line (split-string text "\n"))
+        (let ((line-start offset)
+              (line-end (+ offset (length line))))
+          (cond
+           ((and (null container) (string-match etaf-md--container-open line))
+            ;; Read the name and the attributes before parsing the stretch
+            ;; above, because that parse moves the match data.
+            (let ((name (match-string 1 line))
+                  (attrs (etaf-md--parse-attributes
+                          (or (match-string 2 line) ""))))
+              (flush line-start)
+              (setq container (list :name name
+                                    :attrs attrs
+                                    :begin line-start
+                                    :content-start (min (length text) (1+ line-end)))
+                    depth 0)))
+           ((and container (string-match etaf-md--container-close line))
+            (if (> depth 0)
+                (cl-decf depth)
+              (progn
+                (let ((inner-start (plist-get container :content-start)))
+                  (push (list :type 'container
+                              :name (plist-get container :name)
+                              :attrs (plist-get container :attrs)
+                              :children (plist-get (etaf-md--parse
+                                          (substring text inner-start line-start)
+                                          flavor)
+                                         :children)
+                              :begin (plist-get container :begin)
+                              :end line-end
+                              :source (substring text (plist-get container :begin)
+                                                 line-end))
+                          result))
+                (setq container nil
+                      plain-start (min (length text) (1+ line-end))))))
+           ((and container (string-match etaf-md--container-open line))
+            (cl-incf depth)))
+          (setq offset (1+ line-end))))
+      (if container
+          (let ((inner-start (plist-get container :content-start)))
+            (push (list :type 'container
+                        :name (plist-get container :name)
+                        :attrs (plist-get container :attrs)
+                        :children (plist-get (etaf-md--parse (substring text inner-start) flavor)
+                                         :children)
+                        :begin (plist-get container :begin)
+                        :end (length text)
+                        :source (substring text (plist-get container :begin)))
+                  result))
+        (flush (length text)))
+      (let ((document (copy-sequence (or template
+                                            (etaf-ui-markdown-parse "" flavor)))))
+        (setf (plist-get document :children) (nreverse result))
+        (plist-put document :meta (or (plist-get document :meta) nil))
+        document))))
+
 (defun etaf-md--parse (text flavor)
   "Parse TEXT with FLAVOR, reporting failures as `etaf-md-error'.
-Parsing is shared with the other document viewers; this package keeps its
-own error type at its boundary."
+Container syntax is this package's own; everything else is shared with the
+other document viewers, and this package keeps its own error type at its
+boundary."
   (condition-case err
-      (etaf-ui-markdown-parse text flavor)
+      (if (string-match-p "^:::" text)
+          (etaf-md--parse-containers text flavor)
+        (etaf-ui-markdown-parse text flavor))
     (etaf-ui-markdown-error
      (signal 'etaf-md-error (cdr err)))))
 

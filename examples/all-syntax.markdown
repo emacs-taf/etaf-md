@@ -88,21 +88,14 @@ Setext 二级标题
 
 ## 链接
 
-行内链接：[ETAF 仓库](https://github.com/emacs-taf/etaf)。
-
-带标题的链接，鼠标停在上面能看到标题：[Ebox 渲染器](https://github.com/emacs-taf/ebox "Ebox 的排版引擎")。
-
-引用式链接：[规范][commonmark]、折叠式 [折叠式][]、快捷式 [快捷式]。
-
-自动链接：<https://etaf.top> 与裸地址 https://github.com/emacs-taf/etaf-ui 。
-
-邮箱地址也能识别：<mail@example.com>。
-
-链接里的文字可以带样式：**[粗体链接](https://etaf.top)** 与 [`代码链接`](https://etaf.top)。
-
-本页内的锚点链接：[回到标题](#标题)。
-
-定义式链接的地址写在这里，页面不显示这一行：
+- 行内链接：[ETAF 仓库](https://github.com/emacs-taf/etaf)。
+- 带标题的链接，鼠标停在上面能看到标题：[Ebox 渲染器](https://github.com/emacs-taf/ebox "Ebox 的排版引擎")。
+- 引用式链接：[规范][commonmark]、折叠式 [折叠式][]、快捷式 [快捷式]。
+- 自动链接：<https://etaf.top> 与裸地址 https://github.com/emacs-taf/etaf-ui 。
+- 邮箱地址也能识别：<mail@example.com>。
+- 链接里的文字可以带样式：**[粗体链接](https://etaf.top)** 与 [`代码链接`](https://etaf.top)。
+- 本页内的锚点链接：[回到标题](#标题)。
+- 定义式链接的地址写在这里，页面不显示这一行：
 
 [commonmark]: https://spec.commonmark.org "CommonMark 规范"
 [折叠式]: https://github.github.com/gfm/

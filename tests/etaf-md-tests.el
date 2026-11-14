@@ -1421,3 +1421,121 @@ a session text that is not published yet would paint a skeleton over its data."
 
 (provide 'etaf-md-tests)
 ;;; etaf-md-tests.el ends here
+
+;;; ---------------------------------------------------------------------------
+;;; Node definitions
+;;; ---------------------------------------------------------------------------
+
+(ert-deftest etaf-md-tests-a-definition-declares-both-attribute-tables ()
+  (unwind-protect
+      (progn
+        (etaf-md-define-node 'probe
+          :name "probe"
+          :summary "A probe type"
+          :attrs '((title  :type string  :required t :pattern "\\S")
+                   (width  :type length)
+                   (accent :type accent  :default neutral))
+          :derived '((level :type number :min 1 :max 6 :integer t))
+          :view (lambda (_env) nil))
+        (should (equal '(level) (etaf-md-derived-attributes 'probe)))
+        (let ((text (etaf-md-describe-nodes 'probe)))
+          (should (string-match-p "probe" text))
+          (should (string-match-p "文档写法 :::probe" text))
+          (should (string-match-p "derived   level" text))
+          (should (string-match-p "ordinary  title  width  accent" text))))
+    (etaf-md-undefine-node 'probe)))
+
+(ert-deftest etaf-md-tests-a-second-definition-needs-extends-or-replace ()
+  (unwind-protect
+      (progn
+        (etaf-md-define-node 'probe :attrs '((title :type string)) :view #'ignore)
+        (should-error (etaf-md-define-node 'probe :attrs '((title :type string)))
+                      :type 'etaf-md-error)
+        (etaf-md-define-node 'probe :extends t
+          :attrs '((accent :type accent :default neutral)))
+        (should (string-match-p "ordinary  title  accent"
+                                (etaf-md-describe-nodes 'probe))))
+    (etaf-md-undefine-node 'probe)))
+
+(ert-deftest etaf-md-tests-extends-refuses-a-second-declaration-of-one-name ()
+  (unwind-protect
+      (progn
+        (etaf-md-define-node 'probe :attrs '((title :type string)) :view #'ignore)
+        (should-error (etaf-md-define-node 'probe :extends t
+                        :attrs '((title :type string)))
+                      :type 'etaf-md-error))
+    (etaf-md-undefine-node 'probe)))
+
+(ert-deftest etaf-md-tests-a-declaration-must-be-usable ()
+  (should-error (etaf-md-define-node 'probe
+                  :attrs '((kind :type enum)) :view #'ignore)
+                :type 'etaf-md-error)
+  (should-error (etaf-md-define-node 'probe
+                  :derived '((level :type number :default 1)) :view #'ignore)
+                :type 'etaf-md-error)
+  (should-error (etaf-md-define-node 'probe
+                  :attrs '((title :type string :required t :default "x"))
+                  :view #'ignore)
+                :type 'etaf-md-error)
+  (should-error (etaf-md-define-node 'probe
+                  :attrs '((width :type length :pattern "x")) :view #'ignore)
+                :type 'etaf-md-error))
+
+(ert-deftest etaf-md-tests-a-rule-set-is-replaced-per-selector ()
+  (unwind-protect
+      (progn
+        (etaf-md-set-attr '(probe) '((:width "2ch")))
+        (etaf-md-set-attr '(probe) '((:width "4ch")))
+        (should (= 1 (length etaf-md-styles)))
+        (etaf-md-set-attr '(probe) nil)
+        (should (null etaf-md-styles)))
+    (etaf-md-set-attr '(probe) nil)))
+
+;;; ---------------------------------------------------------------------------
+;;; Container syntax and node definitions
+;;; ---------------------------------------------------------------------------
+
+(ert-deftest etaf-md-tests-a-container-is-painted-by-its-definition ()
+  (etaf-md-tests--with-preview-source
+      ":::card {title=\"缓存命中\" accent=warning}\n正文一段。\n:::\n\n\
+:::columns {columns=2}\n:::col\n左栏。\n:::\n:::col\n右栏。\n:::\n:::\n"
+    (with-current-buffer preview
+      (etaf-runtime-flush (etaf-runtime-for-buffer preview))
+      (should (string-match-p "缓存命中" (buffer-string)))
+      (should (string-match-p "正文一段" (buffer-string)))
+      (should (string-match-p "左栏" (buffer-string)))
+      (should (string-match-p "右栏" (buffer-string)))
+      (should-not (string-match-p "没有" (buffer-string))))))
+
+(ert-deftest etaf-md-tests-a-container-with-no-definition-keeps-its-source ()
+  (etaf-md-tests--with-preview-source
+      ":::nope {title=\"不存在\"}\n这一段原样出现。\n:::\n"
+    (with-current-buffer preview
+      (etaf-runtime-flush (etaf-runtime-for-buffer preview))
+      (should (string-match-p "这一段原样出现" (buffer-string)))
+      (should (string-match-p "没有 nope 的定义" (buffer-string))))))
+
+(ert-deftest etaf-md-tests-a-user-definition-replaces-a-shipped-one ()
+  (unwind-protect
+      (progn
+        (etaf-md-define-node 'card :replace t
+          :name "card"
+          :attrs '((title :type string :required t))
+          :view (lambda (env)
+                  (etaf-view
+                   (text (expr (concat "替换：" (etaf-md-attr env :title)))))))
+        (etaf-md-tests--with-preview-source
+            ":::card {title=\"缓存命中\"}\n正文。\n:::\n"
+          (with-current-buffer preview
+            (etaf-runtime-flush (etaf-runtime-for-buffer preview))
+            (should (string-match-p "替换：缓存命中" (buffer-string)))
+            (should-not (string-match-p "正文。" (buffer-string))))))
+    (etaf-md-undefine-node 'card)))
+
+(ert-deftest etaf-md-tests-a-block-that-breaks-its-declaration-shows-a-line ()
+  (etaf-md-tests--with-preview-source
+      ":::card {description=\"没有标题\"}\n正文。\n:::\n"
+    (with-current-buffer preview
+      (etaf-runtime-flush (etaf-runtime-for-buffer preview))
+      (should (string-match-p "title is required" (buffer-string)))
+      (should (string-match-p ":::card" (buffer-string))))))

@@ -264,6 +264,51 @@
       "name": "etaf-md-tests-front-matter-labels-join-without-gaps",
       "file": "tests/etaf-md-tests.el",
       "purpose": "A document whose front matter omits version and license shows its labels joined by one separator each, with no separator left standing for the missing value."
+    },
+    {
+      "name": "etaf-md-tests-a-definition-declares-both-attribute-tables",
+      "file": "tests/etaf-md-tests.el",
+      "purpose": "A type definition stores its ordinary and derived attribute tables in the registry, and the inventory prints both plus the document spelling."
+    },
+    {
+      "name": "etaf-md-tests-a-second-definition-needs-extends-or-replace",
+      "file": "tests/etaf-md-tests.el",
+      "purpose": "A second definition of an existing type is refused unless it says :extends or :replace, and :extends appends rather than redeclares."
+    },
+    {
+      "name": "etaf-md-tests-extends-refuses-a-second-declaration-of-one-name",
+      "file": "tests/etaf-md-tests.el",
+      "purpose": "Extending a type with an attribute name it already declares is refused, because a name has one declaration."
+    },
+    {
+      "name": "etaf-md-tests-a-declaration-must-be-usable",
+      "file": "tests/etaf-md-tests.el",
+      "purpose": "A declaration that names an unusable type, puts a default on a derived attribute, combines :required with :default, or uses :pattern off string is refused at load time."
+    },
+    {
+      "name": "etaf-md-tests-a-rule-set-is-replaced-per-selector",
+      "file": "tests/etaf-md-tests.el",
+      "purpose": "A second rule set for the same selector replaces the first instead of stacking, and nil removes it."
+    },
+    {
+      "name": "etaf-md-tests-a-container-is-painted-by-its-definition",
+      "file": "tests/etaf-md-tests.el",
+      "purpose": "A :::card and a :::columns with :::col children are parsed and painted by their definitions, with no failure line."
+    },
+    {
+      "name": "etaf-md-tests-a-container-with-no-definition-keeps-its-source",
+      "file": "tests/etaf-md-tests.el",
+      "purpose": "A container whose name has no definition keeps its source on the page and reports one line naming the missing definition."
+    },
+    {
+      "name": "etaf-md-tests-a-user-definition-replaces-a-shipped-one",
+      "file": "tests/etaf-md-tests.el",
+      "purpose": "A user definition with :replace changes how :::card paints; undefining it restores the shipped definition."
+    },
+    {
+      "name": "etaf-md-tests-a-block-that-breaks-its-declaration-shows-a-line",
+      "file": "tests/etaf-md-tests.el",
+      "purpose": "A container missing a required attribute keeps its source and reports the missing attribute on the page."
     }
   ]
 }

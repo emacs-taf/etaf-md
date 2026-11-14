@@ -37,6 +37,80 @@
 ;; implementations and precise docstrings remain beside their definitions, and
 ;; the manual contains workflows.
 ;;
+;; Function: etaf-md-define-node (type &rest args)
+;;   Register a node type, or extend or replace one; see article 10.
+;;   ARGS: :name, :summary, :attrs, :derived, :accepts, :contract, :view,
+;;   :extends, :replace.  A second definition of a type must say :extends or
+;;   :replace, and a declared attribute name is never redeclared.
+;;
+;; Function: etaf-md-undefine-node (type)
+;;   Remove a user definition; a shipped type returns to its shipped one.
+;;
+;; Function: etaf-md-set-attr (selector rules)
+;;   Install RULES for SELECTOR, or remove them with nil.  RULES is a list of
+;;   (KEY VALUE); a later rule for the same selector replaces the earlier one.
+;;
+;; Function: etaf-md-set-view (type function &rest args)
+;;   Give TYPE the paint FUNCTION.  ARGS: :extends, :replace, :style-keys.
+;;   A nil FUNCTION puts the previous paint back.
+;;
+;; Function: etaf-md-describe-nodes (&optional type)
+;;   Return the registry as text, one type per stanza; TYPE limits it to one.
+;;
+;; Function: etaf-md-derived-attributes (type)
+;;   Return TYPE's derived attribute names in declaration order.
+;;
+;; Variable: etaf-md-node-definitions
+;;   Registry from a type symbol to its definition plist; the single source of
+;;   every attribute declaration.
+;;
+;; Variable: etaf-md-node-directory
+;;   Directory whose `.el' files hold user definitions, one per file.
+;;
+;; Variable: etaf-md-styles
+;;   Ordered style rules, oldest first, each (SELECTOR KEY VALUE...).
+;;
+;; Variable: etaf-md-contract
+;;   Version of the document-side attribute table this build accepts.
+;;
+;; Function: etaf-md-attr (env key &optional node)
+;;   KEY's final value on NODE, or on ENV's node: a rule beats the document,
+;;   the document beats the declaration's default, a derived value has none but
+;;   itself.
+;;
+;; Function: etaf-md-type (env)
+;;   The type name of ENV's node.
+;;
+;; Function: etaf-md-children (env &optional node)
+;;   NODE's children, or ENV's node's children, in document order.
+;;
+;; Function: etaf-md-content (env)
+;;   ENV's children painted as one view; the whole-block case.
+;;
+;; Function: etaf-md-render (env nodes)
+;;   NODES painted as one view; the one-item-at-a-time case.
+;;
+;; Function: etaf-md-surface (env word)
+;;   Surface WORD as a colour for ENV, or nil for none.
+;;
+;; Function: etaf-md-accent (env word)
+;;   Accent WORD as a colour for ENV.
+;;
+;; Function: etaf-md-default-view (env)
+;;   ENV's node painted with the definition's previous view.
+;;
+;; Function: etaf-md-follow-link (env target)
+;;   Open TARGET through ENV's session; non-nil when it was followed.
+;;
+;; Function: etaf-md-block-state (env key &optional default)
+;;   KEY's state for ENV's block, or DEFAULT.
+;;
+;; Function: etaf-md-set-block-state (env key value)
+;;   Store VALUE under KEY for ENV's block and return VALUE.
+;;
+;; Function: etaf-md-available-width (env)
+;;   The columns ENV's block may occupy.
+;;
 ;; Function: etaf-md-doctor ()
 ;; Return capability facts for reading Markdown.  The shape matches
 ;; `etaf-install-doctor'; ffmpeg is optional and only affects video cards and
@@ -240,6 +314,9 @@
 
 (require 'etaf-ui)
 (require 'etaf-md-theme)
+(require 'etaf-md-node)
+(require 'etaf-md-env)
+(require 'etaf-md-nodes)
 (require 'etaf-md-model)
 (require 'etaf-md-views)
 (require 'etaf-md-app)
