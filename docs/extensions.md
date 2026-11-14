@@ -45,7 +45,7 @@ Copying shows immediately. A card's rounded corners and shadow become garbled gl
 Two things are worth taking, and neither is an implementation.
 
 1. **The container factory.** Twenty effects sharing two factory functions means the shape of a definition converged. We keep that shape, but the render hook returns an ETAF view.
-2. **The effect inventory.** What plume solved is a requirement list. Ask of each one what it looks like on a character grid. What the grid can express gets absorbed; what it cannot gets declined, with the reason in Appendix C.
+2. **The effect inventory.** What plume solved is a requirement list. Ask of each one what it looks like on a character grid. What the grid can express gets absorbed; what it cannot gets declined, with the reason in Appendix D.
 
 ## 2. Model
 
@@ -71,9 +71,39 @@ One rule connects the three: **a child name is interpreted by its parent, and th
 
 The relationship does not cross layers. A `tab` may hold a `card`, but a `tab` may not hold another `tab`. To nest, wrap another `tabs`.
 
-### 2.3 Eight invariants
+### 2.3 Four extension points
 
-Every new container has to satisfy all eight. Miss one and it does not belong in the registry.
+The system has four layers, each with different rights.
+
+| Layer | Decided by | Changes | Open? |
+| --- | --- | --- | --- |
+| Syntax | The package's parser | How text becomes nodes | No |
+| Structure | The document and container definitions | A new kind of block, the attributes it takes | Yes, chapter 9 |
+| Appearance | The reader's style table | Colours, weight, prefixes, spacing, numbering | Yes, 4.3 |
+| Rendering | The reader's functions | What one node is painted as | Yes, 9.4 |
+
+The four share one node model: `(type attributes children origin)`. A built-in node and a container node are the same shape in that table: `heading` is a node whose type is heading and which carries `:level`; `card` is a node whose type is card and which carries `:title`.
+
+### 2.4 The pipeline
+
+```
+text → parse → node tree → derive → render → views
+```
+
+- **Parse**: closed. It calls the shared `etaf-ui-markdown-parse`, and nothing here changes it.
+- **Derive**: computed once for the whole document. Heading numbers, table numbers, anchors and each block's display identity live here.
+- **Render**: per block. Style and render functions take effect in this step.
+
+Why derive is its own step. A block repaints alone, but a number depends on the whole document. Inside rendering, repainting one block would recompute the document; inside parsing, a display decision would leak into the syntax layer.
+
+Two derive rules.
+
+- **Anchors come from the source, never from displayed text.** A heading's `§` prefix is a display fact. Changing it must not break someone's saved `#install` link.
+- **Numbers are computed only when the style asks for them.** With numbering off, the step is skipped.
+
+### 2.5 Nine invariants
+
+Every new container has to satisfy all nine. Miss one and it does not belong in the registry.
 
 | Invariant | Test |
 | --- | --- |
@@ -84,6 +114,7 @@ Every new container has to satisfy all eight. Miss one and it does not belong in
 | One appearance source | Colours come from surface and tone; type size comes from the reader |
 | One failure rule | A bad block keeps its source plus one line, and the page keeps rendering |
 | State belongs to the renderer | A document states no behaviour; interaction is implemented by the container definition |
+| One render path | Built-in nodes, container nodes and reader styles go through one table, and the code has no branch on a name |
 | Portable | Without the definition the page is still readable, minus the effect |
 
 ## 3. Syntax
@@ -221,7 +252,7 @@ This is still body text.
 
 The choice favours the reader. Swallowing half a document is much worse than one extra line of text, and the author would also have a harder time finding it.
 
-## 4. Appearance
+## 4. Appearance and style
 
 ### 4.1 Surface and tone
 
@@ -271,15 +302,57 @@ Every token has a value in all three palettes, and the face-derived mode compute
 
 **Why no hexadecimal.** A `#24262a` that looks right on a dark page is a black blot on a paper-coloured one. A hexadecimal value is an error, and the error line lists the semantic words that attribute accepts.
 
-### 4.3 Type size and measures
+### 4.3 The style table
 
-There is no `size`, no `font-size`, no `scale`, and no equivalent. Type size always comes from the reader's Emacs.
+The style table is where a reader changes appearance. One table, keyed by node type.
 
-Hierarchy uses weight, whitespace, a rule or a fill. A short window drops a whole row instead of shrinking text.
+```elisp
+(setq etaf-md-styles
+      '((heading . ((:weight bold :color heading)        ; every level
+                    (:level 1 :color accent :scale 2.0 :prefix "§ ")
+                    (:level 2 :prefix "▌ ")
+                    (:level 6 :weight normal :color muted)))
+        (quote   . ((:bar-color quote-bar :bar-width "3px"
+                     :background quote-bg :slant italic)))
+        (code    . ((:background panel :border border :tag-color muted)))
+        (table   . ((:header table-header :stripe table-stripe :border border)))
+        (strong  . ((:weight bold)))
+        (em      . ((:slant italic)))
+        (link    . ((:color accent :underline t)))
+        (callout . ((:tone-colors ((neutral . ink) (info . accent)
+                                   (ok . ok) (warn . warn)
+                                   (danger . danger) (important . important)))))))
+```
+
+Four rules.
+
+- **Omitted inherits, `nil` disables, `:default` resets to the shipped value.** Three answers to "how do I undo this". `(:level 1 :prefix nil)` drops the level-1 prefix; deleting `:prefix` entirely inherits it from the node entry; `:color :default` goes back to the shipped colour whatever the node entry said.
+- **The node entry matches first, the level entry second.** `heading`'s `:level 1` lands on the node entry, so level 1 ends up as `:weight bold :color accent :scale 2.0 :prefix "§ "`.
+- **Every key has one type.** An unknown key is an error at load; that node type falls back to the shipped style and the page still renders.
+- **The shipped styles live in this table too.** No literal colour values in the code, so what you change and what you see are the same thing.
+
+Editing the table repaints the page and re-derives it, but never re-parses it; see 8.2.
+
+### 4.4 Two colour rights
+
+| Who | May write | Why |
+| --- | --- | --- |
+| The document | Semantic words such as `tone=warn`, `surface=panel` | A document has to read on any theme and any machine |
+| The reader's style | A token name, or a literal `"#ff0000"` | The reader owns their page |
+
+A literal has a cost: it stops following the theme. A blue chosen on a dark page may be unreadable on a paper-coloured one. So a document never writes a literal, and that is a hard rule.
+
+### 4.5 Type size and measures
+
+A document has no size attribute and no equivalent. A container and the body always share one size.
+
+The reader's style table has `:scale`, a **multiple** of the reader's base size, never a point size. `1.0` is body text; a level-1 heading defaults to `2.0`, level 2 to `1.5`. On another machine the size changes and the ratio does not.
+
+Scaling makes that block taller, so the block flow uses each block's real height and never assumes one row. Without scaling, hierarchy comes from weight, colour, a prefix, a rule or a fill.
 
 Two counter-examples. A `size=large` card occupies three rows at 12-point and five at 20-point, so the same document lays out differently on two machines. A table squeezed to 80% makes its text smaller than the body, and the reader concludes they zoomed the page.
 
-### 4.4 Decoration characters
+### 4.6 Decoration characters
 
 Decoration uses ASCII and box-drawing characters only. No emoji, no variation selectors.
 
@@ -539,7 +612,7 @@ The body is an indented list, one `-` per level.
 :::
 ```
 
-The case it solves: saying what a directory holds. A fenced block can show the same thing, but its lines have to line up with the indentation, and hand-written ones are off by a cell sooner or later. The marks use only the characters 4.4 allows.
+The case it solves: saying what a directory holds. A fenced block can show the same thing, but its lines have to line up with the indentation, and hand-written ones are off by a cell sooner or later. The marks use only the characters 4.6 allows.
 
 ### 6.10 Chat
 
@@ -740,8 +813,11 @@ A container is no exception. A `card` is one block, a `columns` is one block, an
 | A fold opened | That block |
 | A tab switched | That block |
 | The theme changed | The page, but each block only recolours, never reflows |
+| The style table changed | The page repaints and re-derives; nothing is re-parsed |
 | The window width changed | The page reflows, and nothing is rebuilt |
 | A container definition changed | The blocks that use it |
+
+A style can change a block's height, so the flow uses each block's real height. A `:scale` heading occupies several rows, and the next block starts below them.
 
 ### 8.3 Cost and budget
 
@@ -749,6 +825,7 @@ A container is no exception. A `card` is one block, a `columns` is one block, an
 - A nested column measures its own subtree, not the page.
 - A block's reflow targets 50 milliseconds. A 200-block document targets one second for its first open.
 - No timers, no background refresh. A still page does nothing.
+- The style table is looked up once per node: one hash lookup, never inside a character loop.
 
 The budget is written down so acceptance has a number to compare with. The concrete numbers are calibrated against the benchmark during implementation, and this section changes with them.
 
@@ -829,27 +906,59 @@ The three built-in structure containers take this road too. `box`, `card` and `c
 - The renderer's dispatch contains no container names. It looks a definition up by role and attributes, and never branches on a name.
 - Shipped definitions and user definitions load from the same table. A test must replace the shipped `card` with a user definition and render the result.
 
-### 9.3 Where definitions live and when they are read
+### 9.3 Defining one style
+
+Same shape as the table, written as one call.
+
+```elisp
+(etaf-md-define-style 'heading
+  '((:weight bold :color heading)
+    (:level 1 :scale 2.0 :prefix "§ ")))
+```
+
+Validation happens at load: an unknown node type, an unknown key or a value of the wrong type is an error, that node type falls back to the shipped style, and the error names the node, the key and the accepted values.
+
+### 9.4 Replacing one node's rendering
+
+When the style table is not free enough, supply a function.
+
+```elisp
+(etaf-md-define-render 'heading
+  (lambda (node env)
+    (etaf-md-style-default 'heading node env)))
+```
+
+- `node`: type, attributes and children. A `heading` carries `:level` and `:children`.
+- `env`: tokens, measures and derived data (`(etaf-md-derived env :number)` reads the number).
+- `etaf-md-style-default`: the shipped view, to change on top of. It is optional.
+
+Three rules.
+
+- It returns a view and never modifies the node tree.
+- When it signals, that node type falls back to the shipped rendering, the page keeps going, and `doctor` reports the error.
+- Precedence, highest first: `define-render`, the style table, the shipped style. All three are looked up by node type in one table.
+
+### 9.5 Where definitions live and when they are read
 
 - Definitions are `.el` files in a user directory named by `etaf-md-container-directory`.
 - A session reads the registry once when created and does not touch the disk again. A changed definition needs `r` or a fresh preview.
 - A document cannot register a container and cannot run Elisp. Sharing a document is not sharing code.
 - A duplicate name is an error. Replacing a shipped definition takes `:replace t`, and the error line names what was replaced.
 
-### 9.4 Conflicts, replacement, contract version
+### 9.6 Conflicts, replacement, contract version
 
 - Every definition declares `:contract 1`. A mismatch degrades that block and says so.
 - Attribute names are half the contract. New attributes may only be appended; a rename is breaking and bumps the contract version.
 - Child names are the other half. Renaming a child degrades old documents under the failure rule instead of drawing them wrongly.
 
-### 9.5 Debugging
+### 9.7 Debugging
 
 - `etaf-md-describe-containers` lists the registry: name, kind, summary, attributes and source file. Planned.
 - The error line is always on the page, so no log has to be opened.
 - When a definition signals, that block degrades to its source plus one line reading "the `card` definition failed: …", and the rest of the page keeps rendering.
 - `etaf-md-doctor` reports how many containers are registered and whether a definition file failed to load. Planned.
 
-### 9.6 Trust model
+### 9.8 Trust model
 
 - A document has no execution rights. It can name things and pass attributes.
 - Definitions load only from the configured directory. Not the current directory, not a directory beside the document.
@@ -863,7 +972,7 @@ The three built-in structure containers take this road too. `box`, `card` and `c
 | Phase | Content | Done when |
 | --- | --- | --- |
 | 0 | GitHub alerts | Implemented, covered by 51 tests |
-| 1 | Block model: parsing, the failure catalogue, `box`, `columns`, `card`, with the three structure containers written as definitions | One assertion per failure kind; three-level nesting and the limit; captures at three widths; a user definition replaces the shipped `card` |
+| 1 | Render path: parsing, derive, the style table, the failure catalogue, with `box`, `columns` and `card` written as definitions | One assertion per failure kind; three-level nesting and the limit; captures at three widths; a user definition replaces the shipped `card`; at least one style key changes each built-in node; a style edit does not re-parse |
 | 2 | Callout containers: five names sharing one definition with the GitHub spelling | Both spellings produce the same buffer text; the tone mapping holds |
 | 3 | Collections: `steps`, `timeline`, `stats`, `field`, `file-tree`, `chat` | Each container has a positive case, a counter-example and captures in three palettes |
 | 4 | Interaction: `tabs`, `code-tabs`, `collapse`, `collapse-group` | Keys go through the command loop; state survives reflow and a theme change; flattened output loses nothing |
@@ -881,6 +990,13 @@ Every container passes these five cells; fewer is not done.
 | Nesting | Inside a `columns` column and inside a `card`, it still holds |
 | Palette | Dark, light, sepia and face-derived: readable in all four |
 | Narrow | Wide, medium and narrow: nothing lost, type size unchanged |
+| Style | One style key changes its appearance; an unknown key is reported and falls back to the shipped style |
+
+The render path carries three more assertions, independent of any container.
+
+- Editing the style table leaves the parse count unchanged.
+- A heading prefix does not change its anchor.
+- With numbering off, the derive step is skipped.
 
 ### 10.3 Done means
 
@@ -888,7 +1004,7 @@ A phase is done only when all three hold.
 
 1. `make check` passes: structure, compilation, tests and the API check.
 2. The affected examples have been run in a real GUI and their captures reviewed.
-3. The attribute table in Appendix A and the mapping in Appendix C are updated with it.
+3. The attribute table in Appendix A, the style keys in Appendix C and the mapping in Appendix D are updated with it.
 
 ## 11. What this will not do
 
@@ -959,7 +1075,31 @@ The shared attributes. A container selects from here and never invents a synonym
 
 The five callout names map to tones fixedly: `note` to `info`, `tip` to `ok`, `important` to `important`, `warning` to `warn`, `caution` to `danger`.
 
-## Appendix C: the plume map
+## Appendix C: style keys
+
+The keys a style table may write. In the type column, a colour means a token name or a literal, and a length uses `ch`, `lh` or `px`. The value `:default` means the shipped value.
+
+| Key | Type | Used by | Meaning |
+| --- | --- | --- | --- |
+| `color` | colour | heading, strong, em, link, code-inline | Text colour |
+| `background` | colour | code, table, quote, callout | Fill |
+| `border` | colour | code, table | Border colour |
+| `weight` | `normal` / `bold` | heading, strong | Weight |
+| `slant` | `normal` / `italic` | em, quote | Slant |
+| `underline` | bool | link, strong | Underline |
+| `prefix` | string | heading | Display prefix; anchors unaffected |
+| `suffix` | string | heading | Display suffix |
+| `numbering` | `none` / `arabic` / `roman` | heading, table | Numbered by the derive step |
+| `scale` | number | heading | Multiple of the base size |
+| `gap-before` / `gap-after` | length | heading, quote, code, table | Space above and below |
+| `bar-color` / `bar-width` | colour / length | quote, callout | The left bar |
+| `marker` | string | list | The bullet glyph; only characters 4.6 allows |
+| `tag-color` | colour | code | The fence's language label |
+| `header` / `stripe` | colour | table | Header and stripe fills |
+| `tone-colors` | alist | callout | Tone to colour |
+| `align` | `left` / `center` / `right` | table | Cell alignment |
+
+## Appendix D: the plume map
 
 | Plume | Our decision | Note |
 | --- | --- | --- |
