@@ -93,7 +93,9 @@
                                         ;; A column is a declared child, not a
                                         ;; type of its own, so the parent paints
                                         ;; its content instead of asking for a
-                                        ;; definition the child never has.
+                                        ;; definition the child never has.  A
+                                        ;; hairline on the right edge separates
+                                        ;; neighbours; the last one stays open.
                                         (etaf-node 'column
                                                    (list :width 'stretch
                                                          :item-gap '(lh 0))
