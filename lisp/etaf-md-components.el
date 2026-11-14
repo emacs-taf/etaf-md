@@ -419,7 +419,9 @@ A directory is `(dir . NAME)' and appears when it changes; a file is
   "Return NODE's code drawn for ENV's tree."
   (when node
     (etaf-ui-markdown-view-block
-     (etaf-md-node-block node)
+     ;; The scroll area around the code is the visible frame, so the fence
+     ;; leaves its own border off and the card keeps one edge for both halves.
+     (plist-put (copy-sequence (etaf-md-node-block node)) :frame nil)
      (etaf-md--component-view-env env))))
 
 (defun etaf-md--code-tree-view (env)
@@ -450,9 +452,12 @@ halves read as separate things rather than one surface with a rule."
     (etaf-view
       (row :width 'stretch :item-gap '(ch 1)
         (box :width (list 'ch width)
-             ;; Both halves take the same rows: the list's panel must end
-             ;; where the code's frame ends, not where its own files do.
+             ;; Both halves hold the same fixed rows: the list's panel must
+             ;; end where the code's area ends, not where its own files do,
+             ;; and neither may shrink back to its content.
              :height (list 'lh height)
+             :min-height (list 'lh height)
+             :flex-shrink 0
              :border (etaf-md--hairline env)
              :background-color (etaf-md-surface env 'raised)
              :padding '((lh 1) (ch 1))
@@ -487,6 +492,13 @@ halves read as separate things rather than one surface with a rule."
               rows))))
         (box :width 'stretch
              :height (list 'lh height)
+             :min-height (list 'lh height)
+             :flex-shrink 0
+             :border (etaf-md--hairline env)
+             :background-color (or (etaf-md--palette-value
+                                    (etaf-md-env-palette env) :code-bg)
+                                   (etaf-md--palette-value
+                                    (etaf-md-env-palette env) :panel2))
              :overflow 'scroll
              :tab-index 0
              :aria-label "代码，滚动查看"
