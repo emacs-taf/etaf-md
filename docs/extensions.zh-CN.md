@@ -842,18 +842,18 @@ print("hi")
  'card
  :kind 'block
  :summary "一张带标题的卡片"
- :attrs '((title :string "" "卡片标题")
-          (description :string "" "标题下的摘要")
-          (surface (enum none panel quote sunken page) panel "底色")
-          (tone (enum neutral info ok warn danger important) neutral "语气"))
+ :attrs '((title :string :doc "卡片标题")
+          (description :string :doc "标题下的摘要")
+          (surface :enum (none panel quote sunken page) :default panel :doc "底色")
+          (tone :enum (neutral info ok warn danger important) :default neutral :doc "语气"))
  :body (lambda (attrs body env)
          (etaf-node 'box
                     (list :width 'stretch
                           :gap '((lh 1) (ch 0))
                           :padding '((lh 1) (ch 2))
-                          :background-color (etaf-md-token env (plist-get attrs :surface))
+                          :background-color (etaf-md-surface env (plist-get attrs :surface))
                           :border-left (list '(px 3) 'solid
-                                             (etaf-md-token env (plist-get attrs :tone))))
+                                             (etaf-md-tone env (plist-get attrs :tone))))
                     (append
                      (when-let* ((title (plist-get attrs :title)))
                        (list (etaf-node 'text (list :weight 'bold) (list title))))
@@ -865,16 +865,15 @@ print("hi")
 | 名字 | 第一个参数，符号。文档写 `:::card` 就找它 |
 | `:kind` | `block`、`parent`、`child` |
 | `:summary` | 一行说明，出现在帮助和报错里 |
-| `:attrs` | 属性表，每项是 `(名字 类型 默认值 说明)` |
+| `:attrs` | 属性表，每项写法见 9.2：`(名字 类型 :default 值 :doc 说明)` |
 | `:children` | 只有父容器要写，声明子块名字和它们的属性 |
 | `:body` | 函数，收三样东西，返回 ETAF 视图 |
 
-`body` 收到四样东西。
+`body` 收到三样东西。位置参数只留给每类定义都有的，其余都从 `env` 具名取。
 
 - `attrs`：校验过的 plist。没写的取默认值，类型已经转换好。
-- `children`：父容器专有，按出现顺序给出每个子块的 `(:name :attrs :view)`。没有它，父容器没法把子块的标题收进自己画的标签行或手风琴。
-- `content`：解析好的块树，不是视图。`field` 要在第一个冒号处切开，`code-tabs` 要读围栏语言，`table` 要拿行列数据，都靠它。
-- `env`：渲染环境，能力见下表。
+- `body`：解析好的内容，一串视图。默认画法就是它。
+- `env`：渲染环境，可选能力都从这里取，见下表。
 
 `env` 提供的能力，就是定义能拿到的全部。
 
@@ -882,6 +881,10 @@ print("hi")
 | --- | --- | --- |
 | 令牌 | `(etaf-md-token env 'info)` | 所有容器 |
 | 行高 | `(etaf-md-token env 'lh)` | 所有容器 |
+| 面 | `(etaf-md-surface env 'panel)` 把面换成底色，`none` 返回 `nil` | 所有容器 |
+| 语气 | `(etaf-md-tone env 'warn)` 把语气换成强调色 | 提示块、卡片 |
+| 子块 | `(etaf-md-children env)` 按顺序给 `(:name :attrs :view)` | 父容器 |
+| 块树 | `(etaf-md-content env)` 给解析好的块，不是视图 | `field`、`code-tabs`、`table` |
 | 画子块 | `(etaf-md-render env blocks &rest options)` | `field`、`chat`、`table` |
 | 打开目标 | `(etaf-md-open env href)` | `card` 的 `href` |
 | 本块状态 | `(etaf-md-state env :active)` | `tabs`、`collapse` |
@@ -894,7 +897,7 @@ print("hi")
 父容器多写一个字段。
 
 ```elisp
-:children '((col :attrs ((grow :number 1 "宽度份数"))))
+:children '((col :attrs ((grow :number :default 1 :doc "宽度份数"))))
 ```
 
 三个内置结构容器也走这条路。`box`、`card`、`columns` 不是特例，它们是同一张注册表里的三条定义。理由很简单：只要有一个容器在渲染器里有专属分支，这套 API 就没被验证过，用户迟早撞上只有那条分支才有的能力。
@@ -902,7 +905,8 @@ print("hi")
 ### 9.2 属性与子块的规则
 
 - 定义只能引用共享属性表里的名字，或者自己声明的专有属性。专有属性要在 `:summary` 里说清只能和它一起用。
-- 属性和子块都要给默认值。没有默认值就是必填，必填的属性缺了按 3.4 的失败规则处理。
+- 属性表的每一格都具名，前两位除外：第一个是名字，第二个是类型，后面全是 `:default`、`:doc`、`:required` 这类具名字段。位置参数只留两位，多一位就要查文档。
+- `:default` 不写就是 `nil`。要必填就写 `:required t`，不能再靠 `nil` 隐含。两个都写是错误。
 - `:kind` 是 `child` 的定义不写 `:children`。
 - 定义不能自己读文件、发网络请求、起定时器。它只能拿到 `attrs`、`children`、`content`、`env`。
 - 渲染器的分发代码里不出现容器名字。它只按角色的和属性找定义，不按名字写分支。
@@ -939,7 +943,7 @@ print("hi")
 ```elisp
 (etaf-md-define-render 'heading
   :extends t
-  :keys '((background :color nil "标题底色"))
+  :keys '((background :color :doc "标题底色"))
   (lambda (node env)
     (etaf-node 'box
                (list :width 'stretch
@@ -953,7 +957,7 @@ print("hi")
 | `node` | 类型、属性、子节点。`heading` 带 `:level` 和 `:children` |
 | `env` | 令牌、度量、派生数据。`(etaf-md-style env :background)` 读本块的样式值，`(etaf-md-derived env :number)` 读编号 |
 | `:extends t` | 保留内置的键和画法，只往上加 |
-| `:keys` | 新键，每项是 `(名字 类型 默认值 说明)`。只能在函数里声明 |
+| `:keys` | 新键，写法同 9.2。只能在函数里声明 |
 | `etaf-md-style-default` | 内置画法。包一层，或改一处，或完全不用。标题多收一个 `:label`，用来接编号 |
 
 三条规则。

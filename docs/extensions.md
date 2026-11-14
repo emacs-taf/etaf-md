@@ -842,18 +842,18 @@ A definition is data, not code inside a document.
  'card
  :kind 'block
  :summary "A titled card"
- :attrs '((title :string "" "Card title")
-          (description :string "" "Summary under the title")
-          (surface (enum none panel quote sunken page) panel "Fill")
-          (tone (enum neutral info ok warn danger important) neutral "Tone"))
+ :attrs '((title :string :doc "Card title")
+          (description :string :doc "Summary under the title")
+          (surface :enum (none panel quote sunken page) :default panel :doc "Fill")
+          (tone :enum (neutral info ok warn danger important) :default neutral :doc "Tone"))
  :body (lambda (attrs body env)
          (etaf-node 'box
                     (list :width 'stretch
                           :gap '((lh 1) (ch 0))
                           :padding '((lh 1) (ch 2))
-                          :background-color (etaf-md-token env (plist-get attrs :surface))
+                          :background-color (etaf-md-surface env (plist-get attrs :surface))
                           :border-left (list '(px 3) 'solid
-                                             (etaf-md-token env (plist-get attrs :tone))))
+                                             (etaf-md-tone env (plist-get attrs :tone))))
                     (append
                      (when-let* ((title (plist-get attrs :title)))
                        (list (etaf-node 'text (list :weight 'bold) (list title))))
@@ -865,16 +865,15 @@ A definition is data, not code inside a document.
 | The name | The first argument, a symbol. `:::card` in a document looks it up |
 | `:kind` | `block`, `parent` or `child` |
 | `:summary` | One line, used in help and errors |
-| `:attrs` | The attribute table; each entry is `(name type default docstring)` |
+| `:attrs` | The attribute table; each entry follows 9.2: `(name type :default value :doc docstring)` |
 | `:children` | Parent only: the child names and their attributes |
 | `:body` | A function taking three arguments and returning an ETAF view |
 
-What `body` receives is four things.
+What `body` receives is three things. A positional slot is only for what every definition of that kind has; everything else is a named accessor on `env`.
 
 - `attrs`: a validated plist. Omitted attributes hold their defaults and types are converted.
-- `children`: parents only, in source order, each child as `(:name :attrs :view)`. Without it a parent cannot collect its children's titles into the tab row or the accordion it draws.
-- `content`: the parsed block tree, not views. `field` splits a line at its first colon, `code-tabs` reads a fence language, `table` needs its rows, and all three need this.
-- `env`: the rendering environment, with the capabilities below.
+- `body`: the parsed content as views. This is the default rendering.
+- `env`: the rendering environment; optional capabilities come from here, as the table below lists.
 
 What `env` offers is all a definition can reach.
 
@@ -882,6 +881,10 @@ What `env` offers is all a definition can reach.
 | --- | --- | --- |
 | Token | `(etaf-md-token env 'info)` | Every container |
 | Line height | `(etaf-md-token env 'lh)` | Every container |
+| Surface | `(etaf-md-surface env 'panel)` turns a surface into its fill; `none` returns `nil` | Every container |
+| Tone | `(etaf-md-tone env 'warn)` turns a tone into its accent colour | Callouts, cards |
+| Children | `(etaf-md-children env)`, each as `(:name :attrs :view)` in source order | Parents |
+| Block tree | `(etaf-md-content env)`, the parsed blocks, not views | `field`, `code-tabs`, `table` |
 | Render blocks | `(etaf-md-render env blocks &rest options)` | `field`, `chat`, `table` |
 | Open a target | `(etaf-md-open env href)` | `card`'s `href` |
 | This block's state | `(etaf-md-state env :active)` | `tabs`, `collapse` |
@@ -894,7 +897,7 @@ The `&rest options` on `etaf-md-render` are for wrapping containers. `table` tur
 A parent adds one field.
 
 ```elisp
-:children '((col :attrs ((grow :number 1 "Width share"))))
+:children '((col :attrs ((grow :number :default 1 :doc "Width share"))))
 ```
 
 The three built-in structure containers take this road too. `box`, `card` and `columns` are not special cases; they are three definitions in the same registry. The reason is simple: as long as one container has a private branch in the renderer, the API has never been exercised, and a user will eventually hit a capability only that branch has.
@@ -902,7 +905,8 @@ The three built-in structure containers take this road too. `box`, `card` and `c
 ### 9.2 Rules for attributes and children
 
 - A definition references names from the shared attribute table, or declares its own. A private attribute says in `:summary` that it only works with that container.
-- Every attribute and child has a default. No default means required, and a missing required attribute follows the failure rule in 3.4.
+- Every cell of an attribute table is named except the first two: the first is the name, the second the type, and everything after is a named field such as `:default`, `:doc` or `:required`. Two positional slots only; a third would send the reader back to the manual.
+- An omitted `:default` means `nil`. A required attribute says `:required t` instead of hiding it behind `nil`. Writing both is an error.
 - A `child` definition declares no `:children`.
 - A definition may not read files, make network requests or start timers. It receives `attrs`, `children`, `content` and `env`, nothing else.
 - The renderer's dispatch contains no container names. It looks a definition up by role and attributes, and never branches on a name.
@@ -939,7 +943,7 @@ When the style table is not enough, supply a function. The function can also giv
 ```elisp
 (etaf-md-define-render 'heading
   :extends t
-  :keys '((background :color nil "Heading fill"))
+  :keys '((background :color :doc "Heading fill"))
   (lambda (node env)
     (etaf-node 'box
                (list :width 'stretch
@@ -953,7 +957,7 @@ When the style table is not enough, supply a function. The function can also giv
 | `node` | Type, attributes and children. A `heading` carries `:level` and `:children` |
 | `env` | Tokens, measures and derived data. `(etaf-md-style env :background)` reads this block's style value; `(etaf-md-derived env :number)` reads its number |
 | `:extends t` | Keep the shipped keys and rendering, and add to them |
-| `:keys` | New keys, each `(name type default docstring)`. Only a function may declare them |
+| `:keys` | New keys, written like 9.2. Only a function may declare them |
 | `etaf-md-style-default` | The shipped view. Wrap it, change one thing, or skip it. A heading also takes `:label` for its number |
 
 Three rules.
