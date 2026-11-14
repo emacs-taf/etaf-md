@@ -2,7 +2,7 @@
 
 > **状态。** 今天页面能渲染的只有 GitHub 提示块，写法是 `> [!NOTE]`、`> [!TIP]`、`> [!IMPORTANT]`、`> [!WARNING]`、`> [!CAUTION]`。本文其余部分是设计契约，先把模型、语法、属性和验收定下来，实现时照它做。标「计划中」的名字今天都不存在，函数名也只是提案。
 >
-> **怎么读。** 写文档看第 3、5、6 章。写容器定义看第 9、10 章。实现渲染器看第 2、7、8、11 章。想知道今天能用什么，看 6.16。
+> **怎么读。** 写文档看第 3、5、6 章。写容器定义看第 9、10 章。实现渲染器看第 2、7、8、11 章。想知道今天能用什么，看 6.16。想知道某个名字为什么这么写，看附录 E。
 >
 > 中英两版一节对一节。改一处，另一处同时改。
 
@@ -65,7 +65,7 @@
 | --- | --- | --- | --- |
 | 独立块 | 任意块 | `note`、`card`、`box`、`table` | 可以出现在任何能出现段落的地方 |
 | 父容器 | 只收它声明的子块 | `columns`、`tabs`、`steps` | 子块的名字只在它内部有效 |
-| 子块 | 没有父容器就没有意义 | `col`、`tab`、`step`、`item` | 出现在父容器外是错误，不做猜测 |
+| 子块 | 没有父容器就没有意义 | `col`、`tab`、`step`、`message` | 出现在父容器外是错误，不做猜测 |
 
 一条规则连接三者：**子块的名字由父容器解释，解析器不认它们。** 所以 `:::tab` 在 `tabs` 里是一个标签，在页面顶层只是一行没法解释的文字，按失败规则报出来。
 
@@ -119,12 +119,32 @@
 | 一条渲染路径 | 内置节点、容器节点、读者样式走同一张表，代码里没有按名字的分支 |
 | 一条定义边界 | 定义只做声明、校验、翻译；可复用的壳和交互归组件，见第 9 章 |
 
+### 2.6 命名规则
+
+名字分五个命名空间。每个命名空间只有一个权威，新名字必须能在附录 E 找到出处；找不到就不许加。
+
+| 命名空间 | 谁写 | 权威 | 例子 |
+| --- | --- | --- | --- |
+| 文档属性 | 文档作者 | HTML 属性名，加主流组件库共用的 prop 名 | `title`、`href`、`open`、`selected`、`padding`、`columns` |
+| 类型 | 写定义的人 | JSON Schema 加 CSS 值类型 | `string`、`number`、`boolean`、`length`、`enum` |
+| 令牌 | 渲染器 | shadcn/ui 的一套语义令牌 | `background`、`foreground`、`surface-raised`、`primary` |
+| 样式键 | 读者 | CSS 属性名 | `background`、`color`、`font-weight`、`margin-top` |
+| 函数 | 包作者 | 动词加宾语，一个动词一个意思 | `etaf-md-render`、`etaf-md-follow-link` |
+
+五条规矩。
+
+1. **不缩写。** 写 `background` 不写 `bg`，写 `columns` 不写 `cols`，写 `padding` 不写 `pad`。只有 `id` 和 `href` 例外，它们是 HTML 的正式拼写。
+2. **不编号。** 写 `surface-raised` 不写 `panel2`，写 `primary` 不写 `accent-1`。
+3. **一个词一个意思。** `accent` 永远是强调值，不是令牌；`surface` 永远是面，样式键叫 `background`，不叫 `surface`。
+4. **值用标准词。** `decimal`、`lower-roman`、`bullet` 取自 CSS 的 `list-style-type`；`boolean` 取自 JSON Schema。
+5. **先查再借。** 同一含义已有词就复用；没有就从权威里借一个；借不到才新造，并在附录 E 写明为什么。
+
 ## 3. 语法
 
 ### 3.1 开与关
 
 ````markdown
-:::card {title="缓存命中" surface=panel}
+:::card {title="缓存命中" surface=raised}
 图片和公式都按矢量画一次，之后按页面尺寸缩放。
 
 - 命中时读文件
@@ -165,7 +185,7 @@
 子块的写法和普通容器一样，只是名字由父容器解释。父容器决定它收哪些子块、子块上哪些属性有效。
 
 ````markdown
-:::columns {tracks="2fr 1fr" gap="2ch"}
+:::columns {columns="2fr 1fr" gap="2ch"}
 :::col
 左边这一栏是普通 Markdown。
 :::
@@ -183,25 +203,33 @@
 
 ### 3.3 属性
 
-八种类型。前七种是通用类型，`surface` 和 `accent` 是两套固定的语义词表。
+七种类型。所有容器都从这一张表里挑。
 
 | 类型 | 写法 | 含义 | 非法示例 |
 | --- | --- | --- | --- |
 | `string` | `title="缓存命中"` | 文本。含空格就加双引号，引号里的 `\"` 是转义 | `title=缓存 命中` |
 | `number` | `start=2` | 整数或小数，可带负号 | `start=two` |
-| `bool` | `open=true` | 只认 `true` 和 `false` | `open=yes` |
+| `boolean` | `open=true` | 只认 `true` 和 `false` | `open=yes` |
 | `length` | `gap="2ch"` | 数字加单位：`ch`、`lh`、`px`、`%` | `gap=2` |
-| `surface` | `surface=panel` | 底：`none`、`panel`、`quote`、`sunken`、`page` | `surface="#24262a"` |
-| `accent` | `accent=warn` | 强调：`neutral`、`info`、`ok`、`warn`、`danger`、`important` | `accent=urgent` |
-| `enum` | `items=center` | 定义里列出的词之一 | `items=middle` |
-| `regex` | `id="^[a-z]+$"` | 值要匹配这个模式 | `id="A-1"` |
+| `surface` | `surface=raised` | 底色：`none`、`page`、`raised`、`sunken`、`quote` | `surface="#24262a"` |
+| `accent` | `accent=warning` | 强调：`neutral`、`primary`、`success`、`warning`、`danger`、`important` | `accent=urgent` |
+| `enum` | `align-items=center` | 定义里列出的词之一 | `align-items=middle` |
+
+字符串还有两个可选修饰，写法和 `:type` 并列。
+
+| 修饰 | 含义 | 例子 |
+| --- | --- | --- |
+| `:pattern` | 值要匹配这个正则 | `(id :type string :pattern "^[a-z]+$" :doc "锚点")` |
+
+要固定几个词就用 `enum`，不要给 `string` 加 `:one-of`。
 
 四条约定。
 
 - **属性名共享。** `title` 在卡片、提示块、折叠、演示窗口里是同一个意思。容器只挑选词汇表里的名字，不发明 `heading`、`caption` 这类同义词。
-- **一个名字一个类型。** `cols` 永远是数字（等宽几栏），要写比例就用 `tracks`。同一个名字在不同容器里换类型是禁止的。
+- **一个名字一个类型。** `columns` 永远是「几栏」或「一串轨道」，不会是别的。同一个名字在不同容器里换类型是禁止的。
 - **没有单位就没有长度。** `gap=2` 是错的，`gap="2ch"` 是对的。一个数字可能是字符、可能是行、可能是像素，猜错一次就排错一次。
 - **布尔只认 `true` 和 `false`。** 不认 `yes`、`1`、`on`。三种写法意味着三条解析分支。
+- **联合类型只允许一个。** `columns` 写 `number 或 string`，因为「几栏」和「一套轨道」是同一个概念的两个形态，拆成两个名字会逼作者记两个词。别处不许出现联合类型。
 
 同一个属性写两次是错误，不取后者。理由：重复通常意味着作者改了一半，静默取一个会把问题藏起来。
 
@@ -210,7 +238,7 @@
 | 类别 | 谁说了算 | 例子 |
 | --- | --- | --- |
 | 内容属性 | 文档。读者改不了 | `title`、`label`、`href` |
-| 外观属性 | 文档给默认，读者的样式表可以盖掉 | `surface`、`accent`、`align` |
+| 外观属性 | 文档给默认，读者的样式表可以盖掉 | `surface`、`accent`、`text-align` |
 
 外观属性在定义里写 `:appearance t`，见 10.2。这样「哪些是外观」只有一处记录，不靠一张单独的名单。
 
@@ -227,8 +255,8 @@
 ````
 
 ```
-line 42: card 不收 "colour"，它收 title、description、surface、accent、href、align、width
-line 42: card 的 surface 是 "#24262a"，它只认 none、panel、quote、sunken、page
+line 42: card 不收 "colour"，它收 title、description、surface、accent、href、text-align、width
+line 42: card 的 surface 是 "#24262a"，它只认 none、page、raised、sunken、quote
 line 44: 第 9 层嵌套超过上限 8 层
 ```
 
@@ -274,22 +302,22 @@ line 44: 第 9 层嵌套超过上限 8 层
 
 ### 4.1 底色与强调
 
-外观只有两个属性：`surface` 管底色，`accent` 管强调色。两套词分开，因为它们是两件事。`accent` 的取值里没有 `accent`，`info` 才是「用强调色」那一个；属性名和令牌名是两套名字，不要混。
+外观只有两个属性：`surface` 管底色，`accent` 管强调色。两套词分开，因为它们是两件事。两个属性的值和令牌一一对应，没有例外，见附录 B。
 
-| `surface` | 底色 | 用在哪 |
+| `surface` | 落到哪个令牌 | 用在哪 |
 | --- | --- | --- |
 | `none` | 不画底 | 默认。正文里的卡片、并排的块 |
-| `panel` | `panel` 令牌 | 代码块、需要边界的卡片 |
-| `quote` | `quote-bg` 令牌 | 引用性质的块 |
-| `sunken` | `panel2` 令牌 | 表头、次要信息 |
-| `page` | `bg` 令牌 | 需要和正文拉开的地方 |
+| `page` | `background` | 需要和正文拉开的地方 |
+| `raised` | `surface-raised` | 代码块、需要边界的卡片 |
+| `sunken` | `surface-sunken` | 表头、条纹、次要信息 |
+| `quote` | `quote` | 引用性质的块 |
 
 | `accent` | 前景 | 浅底 | 语义 |
 | --- | --- | --- | --- |
-| `neutral` | `ink` | `panel` | 没有强调 |
-| `info` | `accent` | `accent-soft` | 说明、提示 |
-| `ok` | `ok` | `ok-soft` | 成功、建议 |
-| `warn` | `warn` | `warn-soft` | 注意 |
+| `neutral` | `foreground` | `surface-raised` | 没有强调 |
+| `primary` | `primary` | `primary-soft` | 说明、提示、链接 |
+| `success` | `success` | `success-soft` | 成功、建议 |
+| `warning` | `warning` | `warning-soft` | 注意 |
 | `danger` | `danger` | `danger-soft` | 危险 |
 | `important` | `important` | `important-soft` | 重要 |
 
@@ -297,22 +325,25 @@ line 44: 第 9 层嵌套超过上限 8 层
 
 ### 4.2 令牌
 
-令牌是渲染器内部的名词。文档里写 `surface=panel`，不写 `panel` 令牌，更不写色值。
+令牌是渲染器内部的名词。文档里写 `surface=raised`，不写 `surface-raised` 令牌，更不写色值。名字取 shadcn/ui 那一套，因为它是现在最通行的语义令牌。
 
 | 令牌 | 用途 |
 | --- | --- |
-| `bg` | 页面底色 |
-| `ink` | 正文 |
+| `background` | 页面底色 |
+| `foreground` | 正文 |
 | `muted` | 次要文字、说明 |
 | `faint` | 最弱的一层，序号、分隔 |
-| `accent` / `accent-soft` | 信息类 |
-| `panel` / `panel2` | 面 |
 | `border` | 边框、分隔线 |
-| `quote-bg` / `quote-bar` | 引用 |
-| `table-header` / `table-stripe` | 表格 |
+| `surface-raised` | 抬起的面：卡片、代码块 |
+| `surface-sunken` | 下沉的面：表头、条纹 |
+| `quote` | 引用块底 |
+| `quote-bar` | 引用块左侧竖条 |
+| `table-header` | 表格头 |
+| `table-stripe` | 表格条纹 |
 | `heading` | 标题 |
-| `ok` / `ok-soft` | 成功 |
-| `warn` / `warn-soft` | 注意 |
+| `primary` / `primary-soft` | 信息类 |
+| `success` / `success-soft` | 成功 |
+| `warning` / `warning-soft` | 注意 |
 | `danger` / `danger-soft` | 危险 |
 | `important` / `important-soft` | 重要 |
 
@@ -322,38 +353,40 @@ line 44: 第 9 层嵌套超过上限 8 层
 
 ### 4.3 样式表
 
-样式表是读者改外观的地方。一张表，按节点类型给键值。
+样式表是读者改外观的地方。一张表，按节点类型给键值，键名就是 CSS 属性名。
 
 ```elisp
 (setq etaf-md-styles
-      '((heading . ((:weight bold :color heading)        ; 所有级别
-                    (:level 1 :color accent :scale 2.0 :prefix "◆ ")
+      '((heading . ((:font-weight bold :color heading)      ; 所有级别
+                    (:level 1 :color primary :scale 2.0 :prefix "◆ ")
                     (:level 2 :prefix "◇ ")
-                    (:level 6 :weight normal :color muted)))
-        (quote   . ((:surface quote-bg :accent neutral :bar-width "3px" :slant italic)))
-        (code    . ((:surface panel :tag-color muted)))
-        (table   . ((:header-surface table-header :stripe-surface table-stripe)))
-        (strong  . ((:weight bold)))
-        (em      . ((:slant italic)))
-        (link    . ((:color accent :underline t)))
-        (callout . ((:accent-colors ((neutral . ink) (info . accent)
-                                   (ok . ok) (warn . warn)
-                                   (danger . danger) (important . important)))))))
+                    (:level 6 :font-weight normal :color muted)))
+        (quote   . ((:background quote :accent neutral
+                     :border-left-width "3px" :font-style italic)))
+        (code    . ((:background surface-raised :label-color muted)))
+        (table   . ((:header-background table-header
+                     :stripe-background table-stripe)))
+        (strong  . ((:font-weight bold)))
+        (em      . ((:font-style italic)))
+        (link    . ((:color primary :text-decoration underline)))
+        (callout . ((:accent-map ((neutral . foreground) (primary . primary)
+                                  (success . success) (warning . warning)
+                                  (danger . danger) (important . important)))))))
 ```
 
 颜色只有两个名字，加一条命名规矩。
 
 | 键 | 类型 | 说明 |
 | --- | --- | --- |
-| `surface` | 面，或色值 | 底色 |
+| `background` | 面，或色值 | 底色 |
 | `color` | 令牌，或色值 | 字色 |
-| `<部件>-surface` | 面，或色值 | 某个部件的底色，例如 `header-surface` |
-| `<部件>-color` | 令牌，或色值 | 某个部件的字色，例如 `tag-color` |
+| `<部件>-background` | 面，或色值 | 某个部件的底色，例如 `header-background` |
+| `<部件>-color` | 令牌，或色值 | 某个部件的字色，例如 `label-color` |
 
 四条规则。
 
 - **省略是继承，`nil` 是关闭，`:default` 是回落内置。** 三句话回答「怎么改回来」。`(:level 1 :prefix nil)` 是去掉一级的前缀；把 `:prefix` 整个删掉，就是从节点级继承；`:color :default` 是回到内置颜色，不管节点级写了什么。
-- **先匹配节点级，再匹配级别。** `heading` 的 `:level 1` 盖在节点级上，最终是 `:weight bold :color accent :scale 2.0 :prefix "◆ "`。
+- **先匹配节点级，再匹配级别。** `heading` 的 `:level 1` 盖在节点级上，最终是 `:font-weight bold :color primary :scale 2.0 :prefix "◆ "`。
 - **每个键的类型固定。** 未知键加载时报错，这类型回退内置，页面照常渲染。
 - **内置样式也写在这张表里。** 代码里没有字面颜色值，所以你改的和你看的是同一套东西。
 
@@ -365,7 +398,7 @@ line 44: 第 9 层嵌套超过上限 8 层
 
 | 谁 | 能写什么 | 为什么 |
 | --- | --- | --- |
-| 文档 | 语义词，例如 `surface=panel`、`accent=warn` | 文档要能在任何主题、任何机器上读 |
+| 文档 | 语义词，例如 `surface=raised`、`accent=warning` | 文档要能在任何主题、任何机器上读 |
 | 读者样式 | 面或令牌的名字，或字面值 `"#ff0000"` | 读者拥有自己的页面 |
 
 写字面值有一个代价：它不跟随主题切换。暗色页上选的蓝，换到纸色页可能读不清。所以文档里永远不写字面值，这条是硬规矩。
@@ -396,19 +429,18 @@ line 44: 第 9 层嵌套超过上限 8 层
 
 ### 5.1 一个结构容器
 
-多栏只有一种写法，`columns`。原来分开的 `layout`、`flex`、`card-grid` 合并成它一个，因为它们的差别只是默认值。
+多栏只有一种写法，`columns`。原来分开的 `layout`、`flex`、`card-grid` 合并成它一个，因为它们的差别只是默认值。`columns` 一个属性收两种形态：给一个数字就是等宽几栏，给一串轨道就是按比例分。
 
 | 属性 | 类型 | 默认 | 说明 |
 | --- | --- | --- | --- |
-| `cols` | number | 无 | 等宽几栏。写了 `tracks` 就忽略它 |
-| `tracks` | string | 无 | 一串轨道，空格分隔，单位 `fr`、`ch`、`%` |
+| `columns` | number 或 string | 无 | 数字表示等宽几栏；字符串是一串轨道，空格分隔，单位 `fr`、`ch`、`%` |
 | `gap` | length | `"2ch"` | 栏间距 |
-| `pad` | length | 无 | 内边距，四边同值 |
-| `min` | length | `"24ch"` | 每栏最小宽度，放不下就叠成一栏 |
-| `items` | enum | `stretch` | 子块在交叉轴的对齐：`start`、`center`、`end`、`stretch` |
-| `justify` | enum | `start` | 主轴：`start`、`center`、`end`、`between` |
-| `wrap` | bool | `false` | 放不下时换行，不叠栏 |
-| `align` | enum | `start` | 容器自身在父级里的水平位置：`start`、`center`、`end` |
+| `padding` | length | 无 | 内边距，四边同值 |
+| `min-width` | length | `"24ch"` | 每栏最小宽度，放不下就叠成一栏 |
+| `align-items` | enum | `stretch` | 子块在交叉轴的对齐：`start`、`center`、`end`、`stretch` |
+| `justify-content` | enum | `start` | 主轴：`start`、`center`、`end`、`between` |
+| `wrap` | boolean | `false` | 放不下时换行，不叠栏 |
+| `align-self` | enum | `start` | 容器自身在父级里的水平位置：`start`、`center`、`end` |
 
 子块是 `col`，收一个属性。
 
@@ -417,7 +449,7 @@ line 44: 第 9 层嵌套超过上限 8 层
 | `grow` | number | `1` | 分到剩余宽度的份数 |
 
 ````markdown
-:::columns {tracks="2fr 1fr" gap="2ch"}
+:::columns {columns="2fr 1fr" gap="2ch"}
 :::col
 ## 一次命中
 
@@ -432,7 +464,7 @@ line 44: 第 9 层嵌套超过上限 8 层
 三张卡片并排，就是 `columns` 里放三个 `card`。
 
 ````markdown
-:::columns {cols=3}
+:::columns {columns=3}
 :::card {title="解析"}
 文本到语义树。
 :::
@@ -447,19 +479,19 @@ line 44: 第 9 层嵌套超过上限 8 层
 
 ### 5.2 轨道、间距、内边距
 
-- `cols` 是等宽轨道。`cols=3` 就是三条 `1fr`。
-- `tracks` 是显式轨道，按 Ebox 的写法：`(fr 2)` 写成 `2fr`，固定宽写 `20ch`，百分比写 `30%`。
-- `gap` 只加在块与块之间，不加在外面。外面那一圈归 `pad`。
-- `pad` 只收一个长度，四个方向同值。不做 `pad-x`、`pad-y`，两个轴分开给会让同一页出现两种内边距。
+- `columns=3` 就是三条 `1fr`。
+- `columns="2fr 1fr"` 是显式轨道，按 Ebox 的写法：`(fr 2)` 写成 `2fr`，固定宽写 `20ch`，百分比写 `30%`。
+- `gap` 只加在块与块之间，不加在外面。外面那一圈归 `padding`。
+- `padding` 只收一个长度，四个方向同值。不做 `padding-x`、`padding-y`，两个轴分开给会让同一页出现两种内边距。
 - 垂直间距用 `lh` 的整数倍。用像素会让行距和行高对不上，边框压在字上。
 
 ### 5.3 窄窗降级
 
 放不下并排的栏时，按顺序降级，不做横向滚动。
 
-1. **减栏。** `cols=3` 先降到 2，再降到 1，每栏不小于 `min`。
-2. **叠栏。** 用了 `tracks` 的，每栏小于 `min` 时整块叠成一栏，栏与栏之间留一个空行。
-3. **收边距。** `pad` 从 2ch 收到 1ch，`gap` 从 2ch 收到 1ch，外框保留。
+1. **减栏。** `columns=3` 先降到 2，再降到 1，每栏不小于 `min-width`。
+2. **叠栏。** 用了轨道的，每栏小于 `min-width` 时整块叠成一栏，栏与栏之间留一个空行。
+3. **收边距。** `padding` 从 2ch 收到 1ch，`gap` 从 2ch 收到 1ch，外框保留。
 4. **保持字号。** 无论降到哪一档，字号不变，行高不变。
 
 `wrap=true` 时先换行，换到一行只剩一栏还放不下，才叠。
@@ -485,7 +517,7 @@ line 44: 第 9 层嵌套超过上限 8 层
 | 结构 | `columns`、`card`、`box` | 只决定摆放和边界，不解释内容 |
 | 提示 | `note`、`tip`、`important`、`warning`、`caution` | 一种定义，五个固定的强调值 |
 | 集合 | `steps`、`timeline`、`stats`、`field`、`file-tree`、`chat` | 子块带标签，按顺序或按名字排 |
-| 交互 | `tabs`、`code-tabs`、`collapse`、`collapse-group` | 有状态，可按键切换 |
+| 交互 | `tabs`、`code-tabs`、`collapse`、`accordion` | 有状态，可按键切换 |
 | 文稿 | `table`、`window` | 包住别的东西，换一种呈现 |
 
 ### 6.2 提示块
@@ -501,9 +533,9 @@ line 44: 第 9 层嵌套超过上限 8 层
 
 | 属性 | 类型 | 默认 | 说明 |
 | --- | --- | --- | --- |
-| `title` | string | 这个强调值的固定标题 | 换掉标题文字 |
-| `collapsible` | bool | `false` | 允许收起 |
-| `open` | bool | `true` | 收起时默认展开 |
+| `title` | string | 该强调值的固定标题 | 换掉标题文字 |
+| `collapsible` | boolean | `false` | 允许收起 |
+| `open` | boolean | `true` | 收起时默认展开 |
 
 ```markdown
 :::warning {title="兼容性" collapsible=true}
@@ -511,7 +543,7 @@ line 44: 第 9 层嵌套超过上限 8 层
 :::
 ```
 
-两个写法渲染成同一个东西，都在同一张定义上。强调值的映射是固定的：`note` 对 `info`，`tip` 对 `ok`，`important` 对 `important`，`warning` 对 `warn`，`caution` 对 `danger`。
+两个写法渲染成同一个东西，都在同一张定义上。名字到强调值的映射是固定的：`note` 对 `primary`，`tip` 对 `success`，`important` 对 `important`，`warning` 对 `warning`，`caution` 对 `danger`。
 
 为什么两条路都留。GitHub 上的文档粘贴过来就能用，这是最常见的入口；写长文档时容器写法能和别的容器对齐，也能带属性。
 
@@ -521,10 +553,10 @@ line 44: 第 9 层嵌套超过上限 8 层
 | --- | --- | --- | --- |
 | `title` | string | 无 | 标题，省略就不画标题行 |
 | `description` | string | 无 | 标题下一行灰色摘要 |
-| `surface` | enum | `panel` | 见 4.1 |
-| `accent` | enum | `neutral` | 见 4.1 |
+| `surface` | surface | `raised` | 见 4.1 |
+| `accent` | accent | `neutral` | 见 4.1 |
 | `href` | string | 无 | 整张卡片可点，跳到这个地址 |
-| `align` | enum | `start` | 内容水平位置 |
+| `text-align` | enum | `start` | 内容水平位置 |
 | `width` | length | `stretch` | 自身宽度 |
 
 解决的场景：一组并列材料需要一个共同边界。用标题分节会把材料抬到节标题同级，用列表会把图压成一项。
@@ -535,16 +567,16 @@ line 44: 第 9 层嵌套超过上限 8 层
 
 | 属性 | 类型 | 默认 | 说明 |
 | --- | --- | --- | --- |
-| `surface` | enum | `none` | 见 4.1 |
-| `accent` | enum | `neutral` | 见 4.1 |
-| `pad` | length | 无 | 内边距 |
-| `align` | enum | `start` | 内容水平位置 |
+| `surface` | surface | `none` | 见 4.1 |
+| `accent` | accent | `neutral` | 见 4.1 |
+| `padding` | length | 无 | 内边距 |
+| `text-align` | enum | `start` | 内容水平位置 |
 | `width` | length | `stretch` | 自身宽度 |
 
 盒子是卡片的无标题形式。居中一张图就是它。
 
 ```markdown
-:::box {align=center pad="1lh"}
+:::box {text-align=center padding="1lh"}
 ![示意图](figures/hit.png)
 :::
 ```
@@ -554,7 +586,7 @@ line 44: 第 9 层嵌套超过上限 8 层
 | 属性 | 类型 | 默认 | 说明 |
 | --- | --- | --- | --- |
 | `start` | number | `1` | 起始编号 |
-| `marker` | enum | `number` | `number` 用数字，`dot` 用圆点 |
+| `list-style` | enum | `decimal` | `decimal` 用数字，`bullet` 用圆点 |
 
 子块是 `step`，属性 `title` 必填。
 
@@ -577,7 +609,7 @@ line 44: 第 9 层嵌套超过上限 8 层
 
 | 属性 | 类型 | 默认 | 说明 |
 | --- | --- | --- | --- |
-| `marker` | enum | `dot` | `dot`、`number`、`none` |
+| `list-style` | enum | `bullet` | `bullet`、`decimal`、`none` |
 
 子块是 `event`，属性 `title` 必填，`time` 可选。
 
@@ -603,7 +635,7 @@ line 44: 第 9 层嵌套超过上限 8 层
 | `label-width` | length | 自动 | 名称列宽度，省略时按最长的名称算 |
 | `separator` | enum | `colon` | `colon` 用冒号，`none` 只留间距 |
 
-内容是列表，每项第一个冒号前是名称。
+内容是列表，每项第一个冒号前是名称。对应 HTML 的描述列表 `<dl>`。
 
 ```markdown
 :::field
@@ -619,7 +651,7 @@ line 44: 第 9 层嵌套超过上限 8 层
 
 | 属性 | 类型 | 默认 | 说明 |
 | --- | --- | --- | --- |
-| `cols` | number | `3` | 一行放几个，窄窗减少 |
+| `columns` | number | `3` | 一行放几个，窄窗减少 |
 
 子块是 `stat`，属性 `title` 必填（说明文字），`value` 必填（数字文本）。子块没有内容，也要写关闭行。
 
@@ -634,14 +666,14 @@ line 44: 第 9 层嵌套超过上限 8 层
 :::
 ````
 
-数字用 `ink` 加粗，说明用 `muted`。超过一行换行，不缩字号。组件：`etaf-statistic`。
+数字用 `foreground` 加粗，说明用 `muted`。超过一行换行，不缩字号。组件：`etaf-statistic`。
 
 ### 6.9 文件树
 
 | 属性 | 类型 | 默认 | 说明 |
 | --- | --- | --- | --- |
 | `title` | string | 无 | 树上方一行标题 |
-| `marker` | enum | `ascii` | `ascii` 画树线，`none` 只缩进 |
+| `list-style` | enum | `tree` | `tree` 画树线，`none` 只缩进 |
 
 内容是缩进列表，一层一个 `-`。
 
@@ -660,16 +692,16 @@ line 44: 第 9 层嵌套超过上限 8 层
 
 | 属性 | 类型 | 默认 | 说明 |
 | --- | --- | --- | --- |
-| `me` | enum | `left` | 自己说的话放哪边：`left`、`right` |
+| `self` | enum | `left` | 自己说的话放哪边：`left`、`right` |
 
-子块是 `said`，属性 `from` 必填（发送者），`time` 可选。
+子块是 `message`，属性 `from` 必填（发送者），`time` 可选。
 
 ````markdown
 :::chat
-:::said {from="问" time="14:20"}
+:::message {from="问" time="14:20"}
 预览为什么不刷新？
 :::
-:::said {from="答" time="14:21"}
+:::message {from="答" time="14:21"}
 保存之后才刷新，改到一半不重排。
 :::
 :::
@@ -681,7 +713,7 @@ line 44: 第 9 层嵌套超过上限 8 层
 
 | 属性 | 类型 | 默认 | 说明 |
 | --- | --- | --- | --- |
-| `active` | string | 第一个 | 默认显示哪个标签，写标签文字 |
+| `selected` | string | 第一个 | 默认显示哪个标签，写标签文字 |
 
 子块是 `tab`，属性 `label` 必填。
 
@@ -728,19 +760,19 @@ print("hi")
 | 属性 | 类型 | 默认 | 说明 |
 | --- | --- | --- | --- |
 | `title` | string | 必填 | 收起时显示的标题 |
-| `open` | bool | `false` | 默认展开 |
+| `open` | boolean | `false` | 默认展开 |
 
-分组。
-
-| 属性 | 类型 | 默认 | 说明 |
-| --- | --- | --- | --- |
-| `accordion` | bool | `false` | 同组里同时只开一块 |
+分组用 `:::accordion`，子块是 `collapse`，同时只开一块。
 
 ````markdown
-:::collapse {title="完整报错"}
+:::accordion
+:::collapse {title="完整的报错"}
 ```
 后面的长文本放这里。
 ```
+:::
+:::collapse {title="版本差异"}
+:::
 :::
 ````
 
@@ -755,11 +787,11 @@ print("hi")
 | 属性 | 类型 | 默认 | 说明 |
 | --- | --- | --- | --- |
 | `title` | string | 无 | 表格上方一行标题 |
-| `hl-rows` | string | 无 | 高亮的行，例如 `warn:2,3` |
-| `hl-cols` | string | 无 | 高亮的列，例如 `accent:1` |
+| `highlight-rows` | string | 无 | 高亮的行，例如 `warning:2,3` |
+| `highlight-columns` | string | 无 | 高亮的列，例如 `primary:1` |
 
 ```markdown
-:::table {title="打开耗时" hl-rows="warn:3"}
+:::table {title="打开耗时" highlight-rows="warning:3"}
 | 版本 | 耗时 |
 | --- | --- |
 | 0.1.9 | 5.4 s |
@@ -798,10 +830,10 @@ print("hi")
 | `stats` + `stat` | 集合 | 计划中 |
 | `field` | 集合 | 计划中 |
 | `file-tree` | 集合 | 计划中 |
-| `chat` + `said` | 集合 | 计划中 |
+| `chat` + `message` | 集合 | 计划中 |
 | `tabs` + `tab` | 交互 | 计划中 |
 | `code-tabs` + `tab` | 交互 | 计划中 |
-| `collapse`、`collapse-group` | 交互 | 计划中 |
+| `collapse`、`accordion` | 交互 | 计划中 |
 | `table` | 文稿 | 计划中 |
 | `window` | 文稿 | 计划中 |
 
@@ -826,7 +858,7 @@ print("hi")
 - 状态存在容器自己身上，不存在文档上，也不存到磁盘。
 - 重排、换主题、改窗口宽度不丢状态。重新加载文档回到默认状态。
 - 状态变化只重画这一块，不重建整页。
-- 默认状态由属性决定，`active`、`open` 两个属性就够。
+- 默认状态由属性决定，`selected`、`open` 两个属性就够。
 
 ### 7.4 搜索、复制、导出
 
@@ -902,18 +934,18 @@ print("hi")
 ```elisp
 (etaf-md-define-container 'card
   :kind 'block
-  :attrs '((title :type string :doc "卡片标题")
+  :attrs '((title  :type string :doc "卡片标题")
            (accent :type accent :default neutral :appearance t :doc "强调"))
   :body (lambda (attrs body env)
           (etaf-card :title (plist-get attrs :title)
                      :variant (pcase (plist-get attrs :accent)
-                                ('warn 'warning)
-                                ('ok 'success)
+                                ('warning 'warning)
+                                ('success 'success)
                                 (level level))
                      body)))
 ```
 
-定义里没有一行画边框、写内边距。那些在 `etaf-card` 里。定义只把文档的词翻成组件的参数。
+定义里没有一行画边框、写内边距。那些在 `etaf-card` 里。定义只把文档的词翻成组件的参数。`variant` 的取值由 `etaf-ui` 定，这里只是示意映射。
 
 一条硬约束：**组件没有的参数，定义不能变出来。** 想让 `:::card` 收 `surface`，就得先让 `etaf-card` 接受一个面参数，那是组件侧的改动，见 9.5。绕过去只有一个办法，就是在定义里自己画一层壳，而那正好是 9.4 要禁的事。
 
@@ -969,13 +1001,13 @@ print("hi")
  'card
  :kind 'block
  :summary "一张带标题的卡片"
- :attrs '((title :type string :doc "卡片标题")
+ :attrs '((title  :type string :doc "卡片标题")
           (accent :type accent :default neutral :appearance t :doc "强调"))
  :body (lambda (attrs body env)
          (etaf-card :title (plist-get attrs :title)
                     :variant (pcase (plist-get attrs :accent)
-                               ('warn 'warning)
-                               ('ok 'success)
+                               ('warning 'warning)
+                               ('success 'success)
                                (level level))
                     body)))
 ```
@@ -999,18 +1031,18 @@ print("hi")
 
 | 能力 | 用法 | 给谁用 |
 | --- | --- | --- |
-| 令牌 | `(etaf-md-token env 'info)` | 所有容器 |
+| 令牌 | `(etaf-md-token env 'muted)` | 所有容器 |
 | 行高 | `(etaf-md-token env 'lh)` | 所有容器 |
-| 面 | `(etaf-md-surface env 'panel)` 把面换成底色，`none` 返回 `nil` | 所有容器 |
-| 强调 | `(etaf-md-accent env 'warn)` 把强调值换成颜色 | 提示块、卡片 |
+| 面 | `(etaf-md-surface env 'raised)` 把面换成底色，`none` 返回 `nil` | 所有容器 |
+| 强调 | `(etaf-md-accent env 'warning)` 把强调值换成颜色 | 提示块、卡片 |
 | 子块 | `(etaf-md-children env)` 按顺序给 `(:name :attrs :view)` | 父容器 |
 | 块树 | `(etaf-md-content env)` 给解析好的块，不是视图 | `field`、`code-tabs`、`table` |
 | 画子块 | `(etaf-md-render env blocks &rest options)` | `field`、`chat`、`table` |
-| 打开目标 | `(etaf-md-open env href)` | `card` 的 `href` |
-| 本块状态 | `(etaf-md-state env :active)` | `tabs`、`collapse` |
-| 度量 | `(etaf-md-measure env)` | `columns` 的降级判断 |
+| 打开链接 | `(etaf-md-follow-link env href)` | `card` 的 `href` |
+| 本块状态 | `(etaf-md-state env :selected)` | `tabs`、`collapse` |
+| 可用宽度 | `(etaf-md-available-width env)` | `columns` 的降级判断 |
 
-状态那一行是关键。目录里的 `etaf-tabs` 是受控组件，`active` 和 `on-change` 都由调用方给；定义本身没有地方存状态，所以每个块要有一个自己的状态格子，由渲染器创建，按块隔离。
+状态那一行是关键。目录里的 `etaf-tabs` 是受控组件，`selected` 和 `on-change` 都由调用方给；定义本身没有地方存状态，所以每个块要有一个自己的状态格子，由渲染器创建，按块隔离。
 
 `etaf-md-render` 带 `&rest options`，是为了包装容器。`table` 要在包住的那张表上打开行高亮，它不需要改表怎么画，只需要把选项递下去。
 
@@ -1024,10 +1056,10 @@ print("hi")
 
 - 定义只能引用共享属性表里的名字，或者自己声明的专有属性。专有属性要在 `:summary` 里说清只能和它一起用。
 - 每一项只有一个位置：第一个元素是名字，它是这一项的键。后面全是具名字段，和 `:children '((col ...))` 一个形状。
-- `:type` 必写，取值是 `string`、`number`、`bool`、`length`、`surface`、`accent`、`enum`、`regex`。枚举写 `:type enum :one-of (...)`，正则写 `:type regex :pattern "..."`。类型只有一种写法，不再有「关键字还是列表」两种形状。
+- `:type` 必写，取值是 `string`、`number`、`boolean`、`length`、`surface`、`accent`、`enum`。`string` 可以再加 `:pattern`；`enum` 必须写 `:one-of (...)`。
 - `:default` 不写就是 `nil`，所以 `nil` 默认值一个字都不用写。
 - 必填写 `:required t`，例如 `(label :type string :required t :doc "标签文字")`。此时不许写 `:default`，两个都写是加载错误。必填只用于文档侧属性，读者侧的键一律可选。
-- 外观属性写 `:appearance t`。它表示「读者可以盖掉文档给的值」，见 4.4。只能标在 `surface`、`accent`、`align` 这类外观类型上，标在 `string` 上是加载错误。
+- 外观属性写 `:appearance t`。它表示「读者可以盖掉文档给的值」，见 4.4。只能标在 `surface`、`accent`、`text-align` 这类外观类型上，标在 `string` 上是加载错误。
 - `:doc` 可选，但建议写。它出现在帮助和报错里。
 - `:kind` 是 `child` 的定义不写 `:children`。
 - 定义不能自己读文件、发网络请求、起定时器。它只能拿到 `attrs`、`body`、`env`，其余从 `env` 具名取。
@@ -1039,7 +1071,7 @@ print("hi")
 
 ```elisp
 (etaf-md-define-style 'heading
-  '((:weight bold)
+  '((:font-weight bold)
     (:level 1 :prefix "◆ ")
     (:level 2 :prefix "◇ ")
     (:level 3 :prefix "· ")))
@@ -1064,23 +1096,24 @@ print("hi")
 ```elisp
 (etaf-md-define-render 'heading
   :extends t
-  :keys '((surface :type surface :doc "标题底色"))
+  :keys '((background :type surface :doc "标题底色"))
   (lambda (node env)
     (etaf-node 'box
                (list :width 'stretch
-                     :background-color (etaf-md-surface env (etaf-md-style env :surface)))
-               (list (etaf-md-style-default 'heading node env)))))
+                     :background-color (etaf-md-surface env
+                                                        (etaf-md-style env :background)))
+               (list (etaf-md-default-view 'heading node env)))))
 ```
 
 | 拿到什么 | 说明 |
 | --- | --- |
 | `node` | 类型、属性、子节点。`heading` 带 `:level` 和 `:children` |
-| `env` | 令牌、度量、派生数据。`(etaf-md-style env :surface)` 读本块的样式值，`(etaf-md-derived env :number)` 读编号 |
+| `env` | 令牌、度量、派生数据。`(etaf-md-style env :background)` 读本块的样式值，`(etaf-md-number env)` 读编号 |
 | `:extends t` | 保留内置的键和画法，只往上加 |
 | `:keys` | 新键，写法同 10.2。只能在函数里声明 |
-| `etaf-md-style-default` | 内置画法。包一层，或改一处，或完全不用。标题多收一个 `:label`，用来接编号 |
+| `etaf-md-default-view` | 内置画法。包一层，或改一处，或完全不用。标题多收一个 `:label`，用来接编号 |
 
-同一个名字可以出现在多个类型上：这里是给 `heading` 加一个它原本没有的 `surface`。
+一个名字可以出现在多个类型上：这里是给 `heading` 加一个它原本没有的 `background`。
 
 三条规则。
 
@@ -1094,11 +1127,11 @@ print("hi")
 (etaf-md-define-render 'heading
   :extends t
   (lambda (node env)
-    (etaf-md-style-default 'heading node env
-                           :label (etaf-md-roman (etaf-md-derived env :number)))))
+    (etaf-md-default-view 'heading node env
+                          :label (etaf-md-format-number (etaf-md-number env) 'lower-roman))))
 ```
 
-`:label` 是标题专用关键字，接派生阶段算好的编号；其它类型不认这个关键字。
+`:label` 是标题专用关键字，接派生阶段算好的编号；其它类型不认这个关键字。`etaf-md-format-number` 的第二个参数取 CSS `list-style-type` 的词：`decimal`、`lower-roman`、`upper-alpha`。
 
 ### 10.5 覆盖一个内置定义
 
@@ -1151,7 +1184,7 @@ print("hi")
 | 1 | 渲染路径：解析、派生、样式表、失败目录，并把 `box`、`columns`、`card` 用定义写 | 12 种失败各有一条断言；三层嵌套与超限；窄窗三档截图；用户定义能替掉内置的 `card`；每个内置节点至少一个样式键生效；改样式表不重新解析 |
 | 2 | 提示容器：五个名字，和 GitHub 写法共用一张定义 | 两种写法渲染成同一个 buffer 文本；强调值映射正确 |
 | 3 | 集合：`steps`、`timeline`、`stats`、`field`、`file-tree`、`chat` | 每个容器有正例、反例、三种配色截图 |
-| 4 | 交互：`tabs`、`code-tabs`、`collapse`、`collapse-group` | 按键走命令循环；状态经重排与换主题不丢；扁平化输出不缺内容 |
+| 4 | 交互：`tabs`、`code-tabs`、`collapse`、`accordion` | 按键走命令循环；状态经重排与换主题不丢；扁平化输出不缺内容 |
 | 5 | 文稿：`table`、`window` | 表格高亮按行列生效；窗口只画标题栏 |
 | 6 | 注册表与用户定义 | 示例定义能装能卸；给内置类型加一个键并生效；覆盖后 `:default` 仍回内置；契约版本不符有提示；`doctor` 报数量与覆盖链 |
 
@@ -1168,12 +1201,12 @@ print("hi")
 | 窄窗 | 宽、中、窄三档，内容不少，字号不变 |
 | 样式 | 一个样式键改变了它的外观；一个未知键报错并回退内置 |
 
-渲染路径另有三条断言，跟容器无关。
+渲染路径另有四条断言，跟容器无关。
 
 - 同一份文档，改样式前后解析次数不变。
 - 标题加了前缀，锚点不变。
 - 关了编号，派生阶段跳过。
-- 覆盖了 `heading` 的渲染后，`etaf-md-style-default` 仍是内置画法。
+- 覆盖了 `heading` 的渲染后，`etaf-md-default-view` 仍是内置画法。
 
 ### 11.3 完成判据
 
@@ -1181,7 +1214,7 @@ print("hi")
 
 1. `make check` 通过，包括结构检查、编译、测试、接口核对。
 2. 受影响的示例在真实 GUI 里跑过一遍，截图看过。
-3. 附录 A 的属性表、附录 C 的样式表和附录 D 的对照表同步更新。
+3. 附录 A 的属性表、附录 C 的样式表、附录 D 的对照表、附录 E 的词汇表同步更新。
 
 ## 12. 不做的事
 
@@ -1192,7 +1225,7 @@ print("hi")
 - 不做圆角、阴影、渐变、动画。
 - 不做 markdown 之外的第二种文档格式。
 - 不做页面、路由、导航、发布。那是上层应用的事，见 1.2。
-- 不做 `justify`。字符网格里没有字间距可以拉，只能填空格，中文段落行尾会出洞。
+- 不做 `justify` 文本两端对齐。字符网格里没有字间距可以拉，只能填空格，中文段落行尾会出洞。
 
 ## 附录 A：属性参考
 
@@ -1203,102 +1236,233 @@ print("hi")
 | `title` | string | 标题文字 | 提示块、card、steps、timeline、file-tree、collapse、table、window、stat |
 | `label` | string | 短标签 | tab、stat |
 | `description` | string | 标题下的摘要 | card |
-| `surface` | surface | 底色角色 | box、card |
+| `surface` | surface | 底色 | box、card |
 | `accent` | accent | 强调 | box、card |
-| `align` | enum | 内容水平位置 | box、card、columns |
+| `text-align` | enum | 内容水平位置 | box、card |
+| `align-self` | enum | 自身在父级里的位置 | columns |
+| `align-items` | enum | 子块的交叉轴对齐 | columns |
+| `justify-content` | enum | 子块的主轴对齐 | columns |
 | `width` | length | 自身宽度 | box、card |
-| `pad` | length | 内边距 | box、columns |
+| `height` | length | 内容区高度 | window |
+| `padding` | length | 内边距 | box、columns |
 | `gap` | length | 块间距 | columns |
-| `cols` | number | 等宽栏数 | columns、stats |
-| `tracks` | string | 显式轨道 | columns |
-| `min` | length | 最小栏宽 | columns |
-| `items` | enum | 交叉轴对齐 | columns |
-| `justify` | enum | 主轴对齐 | columns |
-| `wrap` | bool | 放不下时换行 | columns |
+| `columns` | number 或 string | 栏数或轨道 | columns、stats |
+| `min-width` | length | 最小栏宽 | columns |
+| `wrap` | boolean | 放不下时换行 | columns |
 | `grow` | number | 宽度份数 | col |
-| `marker` | enum | 记号风格 | steps、timeline、file-tree |
-| `open` | bool | 默认展开 | 提示块、collapse |
-| `collapsible` | bool | 允许收起 | 提示块 |
-| `accordion` | bool | 同组只开一块 | collapse-group |
-| `active` | string | 默认选中 | tabs |
+| `list-style` | enum | 列表记号 | steps、timeline、file-tree |
+| `open` | boolean | 默认展开 | 提示块、collapse |
+| `collapsible` | boolean | 允许收起 | 提示块 |
+| `selected` | string | 默认选中 | tabs |
 | `href` | string | 跳转地址 | card |
 | `start` | number | 起始编号 | steps |
 | `separator` | enum | 名称与值的分隔 | field |
 | `label-width` | length | 名称列宽 | field |
-| `me` | enum | 自己一侧 | chat |
-| `from` | string | 发送者 | said |
-| `time` | string | 时间 | event、said |
+| `self` | enum | 自己一侧 | chat |
+| `from` | string | 发送者 | message |
+| `time` | string | 时间 | event、message |
 | `value` | string | 数字文本 | stat |
-| `height` | length | 内容区高度 | window |
-| `hl-rows` | string | 高亮行 | table |
-| `hl-cols` | string | 高亮列 | table |
+| `highlight-rows` | string | 高亮行 | table |
+| `highlight-columns` | string | 高亮列 | table |
 | `id` | string | 稳定锚点 | 所有块 |
 
 ## 附录 B：底色、强调与令牌
 
-| 属性值 | 落到哪个令牌 | 说明 |
-| --- | --- | --- |
-| `surface=none` | 无 | 不画底 |
-| `surface=panel` | `panel` | 代码块、卡片 |
-| `surface=quote` | `quote-bg` | 引用性质 |
-| `surface=sunken` | `panel2` | 次要信息 |
-| `surface=page` | `bg` | 与正文拉开 |
-| `accent=neutral` | `ink` / `panel` | 无强调 |
-| `accent=info` | `accent` / `accent-soft` | 说明 |
-| `accent=ok` | `ok` / `ok-soft` | 成功 |
-| `accent=warn` | `warn` / `warn-soft` | 注意 |
-| `accent=danger` | `danger` / `danger-soft` | 危险 |
-| `accent=important` | `important` / `important-soft` | 重要 |
+`surface` 的每个值对应一个令牌，`accent` 的每个值对应一对。
 
-提示块的五个名字到强调的映射固定：`note` 对 `info`，`tip` 对 `ok`，`important` 对 `important`，`warning` 对 `warn`，`caution` 对 `danger`。
+| 属性值 | 前景 | 底色 | 说明 |
+| --- | --- | --- | --- |
+| `surface=none` | — | 无 | 不画底 |
+| `surface=page` | — | `background` | 与正文拉开 |
+| `surface=raised` | — | `surface-raised` | 代码块、卡片 |
+| `surface=sunken` | — | `surface-sunken` | 表头、次要信息 |
+| `surface=quote` | — | `quote` | 引用性质 |
+| `accent=neutral` | `foreground` | `surface-raised` | 无强调 |
+| `accent=primary` | `primary` | `primary-soft` | 说明、链接 |
+| `accent=success` | `success` | `success-soft` | 成功 |
+| `accent=warning` | `warning` | `warning-soft` | 注意 |
+| `accent=danger` | `danger` | `danger-soft` | 危险 |
+| `accent=important` | `important` | `important-soft` | 重要 |
+
+提示块的五个名字到强调值的映射固定：`note` 对 `primary`，`tip` 对 `success`，`important` 对 `important`，`warning` 对 `warning`，`caution` 对 `danger`。
 
 ## 附录 C：样式键参考
 
-样式表能写的键。类型一列里，面是 4.1 的五个词，颜色是令牌名，两者都可以写字面值。值写 `:default` 表示回落内置。这张表是包自带的词汇，用户可以用 `:keys` 给某个类型加键，见 10.4。
+样式表能写的键，键名就是 CSS 属性名。类型一列里，面是 4.1 的五个词，颜色是令牌名，两者都可以写字面值。值写 `:default` 表示回落内置。这张表是包自带的词汇，用户可以用 `:keys` 给某个类型加键，见 10.4。
 
 | 键 | 类型 | 用在 | 含义 |
 | --- | --- | --- | --- |
-| `surface` | 面或颜色 | quote、code、table、callout | 底色 |
+| `background` | 面或颜色 | quote、code、table、callout | 底色 |
 | `color` | 颜色 | heading、strong、em、link、code | 字色 |
-| `accent` | 强调 | quote、callout | 强调色与浅底 |
-| `weight` | `normal` / `bold` | heading、strong | 字重 |
-| `slant` | `normal` / `italic` | em、quote | 倾斜 |
-| `underline` | bool | link、strong | 下划线 |
+| `accent` | accent | quote、callout | 强调色与浅底 |
+| `font-weight` | `normal` / `bold` | heading、strong | 字重 |
+| `font-style` | `normal` / `italic` | em、quote | 倾斜 |
+| `text-decoration` | `none` / `underline` | link、strong | 装饰线 |
+| `text-align` | `left` / `center` / `right` | table | 单元格对齐 |
 | `prefix` | string | heading | 显示前缀，不影响锚点 |
 | `suffix` | string | heading | 显示后缀 |
-| `numbering` | `none` / `arabic` / `roman` | heading、table | 由派生阶段编号 |
+| `numbering` | `none` / `decimal` / `lower-roman` | heading、table | 由派生阶段编号 |
 | `scale` | number | heading | 基准字号的倍数 |
-| `gap-before` / `gap-after` | 长度 | heading、quote、code、table | 上下间距 |
-| `bar-width` | 长度 | quote、callout | 左侧竖条宽度 |
-| `marker` | string | list | 列表记号字符，只用 4.6 允许的字符 |
-| `tag-color` | 颜色 | code | 围栏语言标签 |
-| `header-surface` | 面或颜色 | table | 表头底色 |
-| `stripe-surface` | 面或颜色 | table | 条纹底色 |
-| `accent-colors` | alist | callout | 强调值到颜色的映射 |
-| `align` | `left` / `center` / `right` | table | 单元格对齐 |
+| `margin-top` / `margin-bottom` | 长度 | heading、quote、code、table | 上下间距 |
+| `border-left-width` | 长度 | quote、callout | 左侧竖条宽度 |
+| `list-style` | enum 或字符 | list | 列表记号，字符只用 4.6 允许的 |
+| `label-color` | 颜色 | code | 围栏语言标签 |
+| `header-background` | 面或颜色 | table | 表头底色 |
+| `stripe-background` | 面或颜色 | table | 条纹底色 |
+| `accent-map` | alist | callout | 强调值到颜色的映射 |
 
 ## 附录 D：plume 对照
 
 | plume | 我们的决定 | 说明 |
 | --- | --- | --- |
-| `align` | 并入 `box` 的 `align` 属性 | 不为一种对齐加一个容器 |
+| `align` | 并入 `box` 的 `text-align` 属性 | 不为一种对齐加一个容器 |
 | `flex` | 并入 `columns` | 一个容器管横向、换行、比例 |
 | `card` | 吸收，`card` | 圆角阴影改成一圈边框加面 |
-| `card-grid` | 并入 `columns {cols=N}` | 卡片并排就是栏里放卡片 |
+| `card-grid` | 并入 `columns {columns=N}` | 卡片并排就是栏里放卡片 |
 | `card-masonry` | 不吸收 | 行高固定，瀑布流装出来就是网格 |
 | `steps` | 吸收，`steps` + `step` | 编号加标题 |
 | `tabs` | 吸收，`tabs` + `tab` | 键盘可达，切换只重画一块 |
 | `code-tabs` | 吸收为 `tabs` 的默认行为 | 标签文字取围栏语言 |
-| `collapse` | 吸收，`collapse` 与 `collapse-group` | 加 `accordion`，加搜索自动展开 |
+| `collapse` | 吸收，`collapse` 与 `accordion` | 加同时只开一块，加搜索自动展开 |
 | `field` | 吸收，`field` | 名称列自动对齐 |
 | `timeline` | 吸收，`timeline` + `event` | 记号可选 |
 | `table` | 部分吸收 | 标题与行列高亮 |
 | `file-tree` | 吸收，`file-tree` | 记号只用允许的字符 |
 | `code-tree` | 不吸收 | 和 `code-tabs` 加 `file-tree` 重合 |
-| `chat` | 吸收，`chat` + `said` | 左右对齐加缩进，不画气泡 |
+| `chat` | 吸收，`chat` + `message` | 左右对齐加缩进，不画气泡 |
 | `window` | 变形吸收，`window` | 只画标题栏 |
 | `encrypt` | 不吸收 | 保密文档不该进预览 |
 | `npm-to`、`lang-repl` | 不吸收 | 要包管理器和解释器 |
 | `plot`、`qrcode`、`pdf` | 不吸收 | 要绘图和图像生成 |
 | `annotation`、`abbreviation` | 不吸收 | 要图上标注和悬停浮层 |
 | `code-pen`、`code-sandbox`、`repl`、`caniuse` | 不吸收 | 要浏览器和网络 |
+
+## 附录 E：词汇表
+
+这张表是命名的依据。新名字先在这里查；查不到就从「权威」那一列借一个，再补进这张表。
+
+### E.1 文档属性
+
+| 名字 | 出处 | 含义 | 不要写成 |
+| --- | --- | --- | --- |
+| `title` | HTML | 标题文字 | `heading`、`caption` |
+| `label` | 表单控件的通用 prop | 短标签 | `name`、`tag` |
+| `description` | Ant、Primer | 标题下的摘要 | `summary`、`subtitle` |
+| `surface` | Material、Polaris | 底色角色 | `background`、`fill`、`panel` |
+| `accent` | shadcn/ui | 强调值 | `tone`、`variant`、`type`、`intent` |
+| `text-align` | CSS | 内容水平位置 | `align`、`position` |
+| `align-self` | CSS | 自身在父级里的位置 | `self-align`、`align` |
+| `align-items` | CSS | 子块的交叉轴对齐 | `items`、`cross-align` |
+| `justify-content` | CSS | 子块的主轴对齐 | `justify` |
+| `width` | CSS | 自身宽度 | `w` |
+| `height` | CSS | 内容区高度 | `h` |
+| `padding` | CSS | 内边距 | `pad`、`inset` |
+| `gap` | CSS | 块间距 | `spacing`、`space` |
+| `columns` | Bootstrap 栅格、CSS | 栏数或轨道 | `cols`、`tracks`、`grid` |
+| `min-width` | CSS | 最小栏宽 | `min`、`threshold` |
+| `wrap` | CSS `flex-wrap`、Ant | 放不下时换行 | `flex-wrap`、`nowrap` |
+| `grow` | Tailwind | 宽度份数 | `flex`、`ratio`、`weight` |
+| `list-style` | CSS `list-style-type` | 列表记号 | `marker`、`bullet` |
+| `open` | HTML `<details open>` | 默认展开 | `expanded`、`visible` |
+| `collapsible` | Bootstrap、Primer | 允许收起 | `foldable`、`toggle` |
+| `selected` | HTML `<option selected>` | 默认选中 | `active`、`current` |
+| `href` | HTML | 跳转地址 | `url`、`link`、`to` |
+| `start` | HTML `<ol start>` | 起始编号 | `begin`、`from` |
+| `separator` | 通用 | 名称与值的分隔 | `divider` |
+| `label-width` | CSS 风格组合 | 名称列宽 | `label-w`、`width` |
+| `self` | 聊天界面通用 | 自己一侧 | `me`、`own` |
+| `from` | 邮件、聊天 | 发送者 | `sender`、`author` |
+| `time` | HTML `<time>` | 时间 | `date`、`at` |
+| `value` | HTML `<input value>` | 数字文本 | `number`、`figure` |
+| `highlight-rows` | 通用 | 高亮行 | `hl-rows`、`mark` |
+| `highlight-columns` | 通用 | 高亮列 | `hl-cols`、`mark` |
+| `id` | HTML | 稳定锚点 | `anchor`、`slug` |
+
+### E.2 类型
+
+| 名字 | 出处 | 含义 | 不要写成 |
+| --- | --- | --- | --- |
+| `string` | JSON Schema | 文本 | `str`、`text` |
+| `number` | JSON Schema | 整数或小数 | `int`、`float`、`num` |
+| `boolean` | JSON Schema | `true` 或 `false` | `bool`、`flag` |
+| `length` | CSS 值类型 | 数字加单位 | `size`、`dimension` |
+| `enum` | JSON Schema | 定义列出的词之一 | `one-of`、`choice` |
+| `surface` | Material、Polaris | 五个面值之一 | `background`、`fill` |
+| `accent` | shadcn/ui | 六个强调值之一 | `tone`、`variant` |
+
+### E.3 令牌
+
+| 名字 | 出处 | 含义 | 不要写成 |
+| --- | --- | --- | --- |
+| `background` | shadcn/ui | 页面底色 | `bg`、`page` |
+| `foreground` | shadcn/ui | 正文 | `ink`、`text` |
+| `muted` | shadcn/ui | 次要文字 | `secondary`、`dim` |
+| `faint` | 通用 | 最弱的一层 | `subtle`、`ghost` |
+| `border` | shadcn/ui | 边框 | `line`、`stroke` |
+| `surface-raised` | Material 分层命名 | 抬起的面 | `panel`、`card-bg` |
+| `surface-sunken` | Material 分层命名 | 下沉的面 | `panel2`、`inset` |
+| `quote` | 通用 | 引用底 | `quote-bg`、`blockquote` |
+| `quote-bar` | 通用 | 引用竖条 | `bar`、`accent-bar` |
+| `table-header` | 通用 | 表头底 | `th`、`header` |
+| `table-stripe` | 通用 | 条纹底 | `stripe`、`zebra` |
+| `heading` | HTML | 标题色 | `title`、`h` |
+| `primary` | shadcn/ui | 主要强调 | `accent`、`brand`、`info` |
+| `primary-soft` | shadcn 的 `-foreground` 风格 | 主要强调的浅底 | `accent-soft` |
+| `success` | Bootstrap、shadcn | 成功 | `ok`、`positive`、`green` |
+| `success-soft` | 同上 | 成功的浅底 | `ok-soft` |
+| `warning` | Bootstrap、shadcn | 注意 | `warn`、`caution` |
+| `warning-soft` | 同上 | 注意的浅底 | `warn-soft` |
+| `danger` | Bootstrap、shadcn | 危险 | `error`、`red`、`critical` |
+| `danger-soft` | 同上 | 危险的浅底 | `error-soft` |
+| `important` | GitHub 提示块 | 重要 | `note`、`emphasis` |
+| `important-soft` | 同上 | 重要的浅底 | — |
+
+### E.4 样式键
+
+键名就是 CSS 属性名。CSS 里没有对应属性的，只有四个，单独列出并说明为什么留下。
+
+| 名字 | 出处 | 含义 | 不要写成 |
+| --- | --- | --- | --- |
+| `background` | CSS | 底色 | `surface`、`bg`、`fill` |
+| `color` | CSS | 字色 | `ink`、`fg`、`text-color` |
+| `accent` | shadcn/ui | 强调色 | `tone`、`variant` |
+| `font-weight` | CSS | 字重 | `weight`、`bold` |
+| `font-style` | CSS | 倾斜 | `slant`、`italic` |
+| `text-decoration` | CSS | 装饰线 | `underline`、`decoration` |
+| `text-align` | CSS | 对齐 | `align` |
+| `margin-top` / `margin-bottom` | CSS | 上下间距 | `gap-before`、`gap-after` |
+| `border-left-width` | CSS | 左侧竖条宽度 | `bar-width` |
+| `header-background` | 本表命名规矩 | 表头底色 | `header-surface` |
+| `stripe-background` | 本表命名规矩 | 条纹底色 | `stripe-surface` |
+| `label-color` | 本表命名规矩 | 围栏语言标签色 | `tag-color` |
+| `list-style` | CSS | 列表记号 | `marker` |
+| `prefix` | 无 CSS 对应 | 标题前缀，只改显示 | — |
+| `suffix` | 无 CSS 对应 | 标题后缀，只改显示 | — |
+| `numbering` | CSS `list-style-type` 的值 | 编号格式 | `number` |
+| `scale` | 无 CSS 对应 | 基准字号倍数 | `font-size`、`size` |
+| `accent-map` | 无 CSS 对应 | 强调值到颜色的表 | `tone-colors` |
+
+`scale`、`prefix`、`suffix`、`accent-map` 没有 CSS 对应，原因是它们描述的是「这个节点额外多出来的东西」，不是布局或上色。它们仍然只在这里出现：`prefix`、`suffix`、`numbering`、`scale` 只对 `heading` 有效。
+
+### E.5 函数
+
+| 名字 | 含义 |
+| --- | --- |
+| `etaf-md-token` | 按令牌名取颜色或行高 |
+| `etaf-md-surface` | 把面换成底色，`none` 返回 `nil` |
+| `etaf-md-accent` | 把强调值换成颜色 |
+| `etaf-md-children` | 取子块的 `(:name :attrs :view)` |
+| `etaf-md-content` | 取解析好的块树，不是视图 |
+| `etaf-md-render` | 画一串块，可传选项给下层 |
+| `etaf-md-follow-link` | 打开一个目标 |
+| `etaf-md-state` | 读写本块的状态 |
+| `etaf-md-available-width` | 本块可用的宽度，用于降级判断 |
+| `etaf-md-style` | 读本块的样式值 |
+| `etaf-md-number` | 读派生阶段算好的编号 |
+| `etaf-md-format-number` | 按 `list-style-type` 的词格式化编号 |
+| `etaf-md-default-view` | 取某个类型的**内置**画法 |
+| `etaf-md-define-container` | 注册一个容器 |
+| `etaf-md-define-style` | 往样式表里写一条 |
+| `etaf-md-define-render` | 换一个类型的渲染函数 |
+
+四个 `etaf-md-` 之外的名字：`etaf-card`、`etaf-tabs`、`etaf-accordion`、`etaf-steps`、`etaf-timeline`、`etaf-statistic` 属于 `etaf-ui` 的组件目录，本包只调用，不改名。
