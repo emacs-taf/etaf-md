@@ -74,8 +74,7 @@ document with front matter opens on a page-like header instead of raw text."
                       (when (and value (not (string-empty-p value)))
                         (format "%s %s" (cdr (assoc key etaf-md-preview--meta-labels)) value))))
                   '("author" "date" "version" "license" "status")
-                  "  ·  "))
-         (base (etaf-md-preview--base-pixels)))
+                  "  ·  ")))
     (when title
       (etaf-node 'column
                  (list :width 'stretch :item-gap '(lh 1))
@@ -83,7 +82,7 @@ document with front matter opens on a page-like header instead of raw text."
                   (list
                    (etaf-node 'text
                               (list :font-weight 'bold
-                                    :font-size (round (* base 1.9))
+                                    :font-size 1.9
                                     :color (etaf-md-preview--env-color env :heading))
                               (list title)))
                   (when tags
@@ -405,7 +404,7 @@ as a bordered placeholder that opens in the browser."
                                          (list (format "🖼 %s" caption)))
                               (etaf-node 'text
                                          (list :color (etaf-md-preview--env-color env :faint)
-                                               :font-size (round (* (etaf-md-preview--base-pixels) 0.85)))
+                                               :font-size 0.85)
                                          (list (format "  %s" url)))))
                   (etaf-md-preview--caption-view caption env)))))))
 
@@ -413,7 +412,7 @@ as a bordered placeholder that opens in the browser."
   "Return a caption View for TEXT in ENV."
   (etaf-node 'text
              (list :color (etaf-md-preview--env-color env :muted)
-                   :font-size (round (* (etaf-md-preview--base-pixels) 0.85)))
+                   :font-size 0.85)
              (list text)))
 
 ;;; ---------------------------------------------------------------------------
@@ -453,7 +452,7 @@ stay."
          ((etaf-md-preview--block-empty-p block text)
           (etaf-node 'text
                      (list :color (etaf-md-preview--env-color env :muted)
-                           :font-family (face-attribute 'fixed-pitch :family nil t))
+                           :font-family (etaf-theme-token :font-mono nil))
                      (list (etaf-md-preview--block-marker block))))
          (t (etaf-ui-markdown-view-block block env))))))
 

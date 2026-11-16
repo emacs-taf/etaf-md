@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+### Changed
+
+- The page asks for sizes as ratios of the body size: the front-matter title
+  is 1.9 times the body text and a caption 0.85.  The two copies of the
+  pixel-size helper are gone, so the preview follows the reader's default font
+  the same way the shared markdown components do.
+
 ### Added
 
 - Opening a preview of a file accepts typing at once: there is no mode to

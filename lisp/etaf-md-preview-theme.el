@@ -230,13 +230,6 @@ Signal `etaf-md-preview-error' when either is unknown."
                 (list (format "Unknown markdown preview color: %S" key))))
       color)))
 
-(defun etaf-md-preview--base-pixels ()
-  "Return the frame's default font size in CSS reference pixels."
-  (let ((height (face-attribute 'default :height nil t)))
-    (if (numberp height)
-        (max 8 (round (/ (* height 4.0) 30.0)))
-      16.0)))
-
 (defun etaf-md-preview-theme-tokens (theme &optional palette)
   "Return the ETAF UI token plist for palette THEME.
 PALETTE, when given, supplies the colors instead of THEME's named palette
