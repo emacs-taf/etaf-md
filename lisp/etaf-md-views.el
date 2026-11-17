@@ -93,7 +93,7 @@ document with front matter opens on a page-like header instead of raw text."
                               (list :font-weight 'bold
                                     ;; The page title is the document's first
                                     ;; level and reads above a body heading.
-                                    :font-size (round (* (etaf-md--base-pixels) 2.2))
+                                    :font-size 2.2
                                     :color (etaf-md--env-color env :heading))
                               (list title)))
                   (when tags
