@@ -24,7 +24,9 @@
 - The page header starts on the body's column: the header and the body read
   one width now, and prose fills the measured column instead of capping itself
   again inside it.  The page title reads above an H1 again rather than at body
-  size.
+  size, at 2.2 times the body size given as a ratio: Ebox reads `:font-size`
+  that way now, so the title follows the reader's default font on any platform
+  instead of a height measured from the frame.
 
 - `examples/all-syntax.markdown` is the union of the former galleries in one
   classified page: the full basic-syntax section, every container section, the
