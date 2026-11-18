@@ -506,7 +506,9 @@ SESSION defaults to a new session over an empty document; pass a session from
   (etaf-view (etaf-md-app
               :session (or session (etaf-md-create :text "")))))
 
-;;;###autoload
+;;; `etaf-md' autoloads this command from the entry file, which loads the
+;;; typesetter too; a second cookie here would skip it and leave a code block
+;;; calling an undefined renderer.
 (defun etaf-md-open (&optional source)
   "Open a markdown preview and return its buffer.
 SOURCE is a file path, a session from `etaf-md-create', or nil to
@@ -531,7 +533,7 @@ themselves."
           (switch-to-buffer existing)
         (etaf-md--display (etaf-md-create :file file) name)))))
 
-;;;###autoload
+;;; Autoloaded from `etaf-md' for the same reason as `etaf-md-open'.
 (defun etaf-md-preview (&optional source)
   "Show SOURCE's preview beside its source: source on the left, preview right.
 SOURCE is a file path.  Interactively it is the current buffer's Markdown
