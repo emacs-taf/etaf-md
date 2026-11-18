@@ -349,7 +349,7 @@ Signal `user-error' when no preview shows the current buffer."
                   (> (prefix-numeric-value arg) 0)
                 (not (plist-get session :follow-scroll)))))
       (plist-put session :follow-scroll (and on t))
-      (plist-put session :follow-scroll-start nil)
+      (plist-put session :follow-scroll-line nil)
       (when on
         (etaf-md--follow-scroll-sync session))
       (message "Preview follows the source scroll: %s" (if on "on" "off"))
@@ -377,8 +377,13 @@ preview is not on screen, or when the window already starts there."
          (window (and (buffer-live-p buffer) (get-buffer-window buffer t)))
          (start (and source-window (window-start source-window))))
     (when (and start window (eq (window-buffer window) buffer))
-      (unless (eql (plist-get session :follow-scroll-start) start)
-        (plist-put session :follow-scroll-start start)
+      ;; The window's start moves whenever text is inserted above it, so a
+      ;; position says "scrolled" on every keystroke near the top: the page
+      ;; jumped, repainted, and the reader's typing stalled for the repaint.
+      ;; The line the window starts on is what a scroll actually changes.
+      (let ((line (with-current-buffer source (line-number-at-pos start))))
+        (unless (eql (plist-get session :follow-scroll-line) line)
+          (plist-put session :follow-scroll-line line)
         (let ((ref (etaf-md--block-ref-at session start)))
           (cond
            ((eq ref 'top)
@@ -392,7 +397,7 @@ preview is not on screen, or when the window already starts there."
             (when-let* ((runtime (etaf-runtime-for-buffer buffer))
                         (position (etaf-host-ref-position runtime ref)))
               (set-window-start window position)
-              position))))))))
+              position)))))))))
 
 (defun etaf-md--block-ref-at (session position)
   "Return what SESSION's page shows at source POSITION.

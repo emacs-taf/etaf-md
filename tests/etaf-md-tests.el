@@ -586,6 +586,56 @@ window switching, and closing the preview gives the window back."
       (when (buffer-live-p source) (kill-buffer source))
       (delete-file file))))
 
+(ert-deftest etaf-md-tests-typing-keeps-the-followed-page-in-place ()
+  "Typing near the top of the source does not move the page with it.
+A window's start moves whenever text is inserted above it, so a follow that
+compared positions scrolled the page on every keystroke and paid a repaint for
+it.  The page moves only when the source window starts on another line."
+  (let* ((file (make-temp-file "etaf-md-typing-" nil ".md"))
+         (source nil)
+         (preview nil)
+         (top-line (lambda (window)
+                     (with-current-buffer (window-buffer window)
+                       (buffer-substring-no-properties
+                        (window-start window)
+                        (save-excursion
+                          (goto-char (window-start window))
+                          (line-end-position)))))))
+    (unwind-protect
+        (progn
+          (with-temp-file file
+            (insert "---\ntitle: 打字测试\n---\n\n")
+            (dotimes (index 40)
+              (insert (format "第 %d 段：一段用来测量跟随滚动的正文。\n\n" index))))
+          (setq source (find-file-noselect file))
+          (setq preview (etaf-md-open file))
+          (let* ((source-window (selected-window))
+                 (preview-window (split-window source-window)))
+            (set-window-buffer source-window source)
+            (set-window-buffer preview-window preview)
+            (select-window source-window)
+            (sit-for 0.2)
+            (etaf-runtime-flush (etaf-runtime-for-buffer preview))
+            (with-current-buffer source
+              (should (etaf-md-follow-scroll 1))
+              (goto-char (point-min))
+              (search-forward "第 20 段")
+              (set-window-start source-window (line-beginning-position))
+              (run-hooks 'post-command-hook))
+            (etaf-runtime-flush (etaf-runtime-for-buffer preview))
+            (let ((before (funcall top-line preview-window)))
+              (with-current-buffer source
+                (goto-char (point-min))
+                (insert "第一行打的一行字\n")
+                (run-hooks 'post-command-hook))
+              (etaf-runtime-flush (etaf-runtime-for-buffer preview))
+              (should (equal (funcall top-line preview-window) before)))))
+      (when (buffer-live-p preview) (kill-buffer preview))
+      (when (buffer-live-p source)
+        (with-current-buffer source (set-buffer-modified-p nil))
+        (kill-buffer source))
+      (delete-file file))))
+
 (ert-deftest etaf-md-tests-follow-scroll-shows-the-source-top ()
   "The scroll follow puts the block at the source window's top at the page's top.
 The preview is read-only and the source is edited in its own window, so a
