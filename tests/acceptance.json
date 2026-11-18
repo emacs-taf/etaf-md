@@ -11,6 +11,11 @@
   "support": [],
   "cases": [
     {
+      "name": "etaf-md-tests-a-fence-keeps-its-body-and-a-heading-its-text",
+      "file": "tests/etaf-md-tests.el",
+      "purpose": "A fenced block paints its code and a heading paints its words rather than the fence line or the heading marker alone, because both keep their text in the block's own fields instead of inline children."
+    },
+    {
       "name": "etaf-md-tests-heading-color-separates-from-flat-themed-ink",
       "file": "tests/etaf-md-tests.el",
       "purpose": "A theme whose outline color is its body color still renders headings in a hue derived from the accent, instead of headings that read as plain text."

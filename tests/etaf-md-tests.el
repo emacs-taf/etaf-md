@@ -1991,6 +1991,18 @@ the kill ring as tab separated text, which is what a spreadsheet pastes."
          :type 'etaf-md-error))
     (etaf-md-undefine-node 'marker-probe)))
 
+(ert-deftest etaf-md-tests-a-fence-keeps-its-body-and-a-heading-its-text ()
+  "A fence paints its code and a heading paints its words.
+Both keep their content in the block's own fields, and a walk that asked the
+inline children of a block read nothing there: the page showed the fence line
+alone and the heading's marker alone."
+  (etaf-md-tests--with-preview-source
+      "# 标题文字\n\n```elisp\n(+ 1 2)\n```\n"
+    (with-current-buffer preview
+      (should (string-match-p "标题文字" (buffer-string)))
+      (should (string-match-p (regexp-quote "(+ 1 2)") (buffer-string)))
+      (should-not (string-match-p "```elisp" (buffer-string))))))
+
 (ert-deftest etaf-md-tests-code-tabs-name-pages-by-fence-language ()
   (etaf-md-tests--with-preview-source
       ":::code-tabs\n@tab\n```elisp\n(open)\n```\n\

@@ -524,19 +524,24 @@ as a bordered placeholder that opens in the browser."
 (declare-function etaf-md--session-text "etaf-md-model" (session))
 (declare-function etaf-md--card-env "etaf-md-model" (session env scope))
 
-(defun etaf-md--inline-text (inlines)
-  "Return INLINES as the plain text they spell."
+(defun etaf-md--inlines-text (inlines)
+  "Return INLINES as the plain text they spell.
+This walks one list of inline nodes; `etaf-md--inline-text' in the model walks
+whatever shape it is handed.  They answer different questions, and sharing one
+name meant whichever file loaded last decided how a heading's own block was
+read: the list walker found no text in a block and the page painted the
+heading's marker alone."
   (mapconcat
    (lambda (inline)
      (or (plist-get inline :text)
-         (etaf-md--inline-text (plist-get inline :children))
+         (etaf-md--inlines-text (plist-get inline :children))
          ""))
    inlines ""))
 
 (defun etaf-md--block-text (block)
   "Return BLOCK's plain text."
   (or (plist-get block :text)
-      (etaf-md--inline-text (plist-get block :children))
+      (etaf-md--inlines-text (plist-get block :children))
       ""))
 
 (defun etaf-md--item-text (item)
@@ -548,7 +553,7 @@ while the block's own :text keeps the source' backticks and asterisks."
          (seq-find (lambda (child) (eq (plist-get child :type) 'paragraph))
                    (plist-get item :children))))
     (if paragraph
-        (or (etaf-md--inline-text (plist-get paragraph :children))
+        (or (etaf-md--inlines-text (plist-get paragraph :children))
             (etaf-md--block-text paragraph))
       "")))
 
@@ -586,10 +591,10 @@ ALIGNS gives each cell of a row its alignment."
      for align in aligns
      collect (etaf-md-node-create
               :type 'cell
-              :attrs (list :text (etaf-md--inline-text cells)
+              :attrs (list :text (etaf-md--inlines-text cells)
                            :align align)
               :block (list :type 'paragraph :children cells
-                           :text (etaf-md--inline-text cells)))))))
+                           :text (etaf-md--inlines-text cells)))))))
 
 (defun etaf-md--node-for-block (block)
   "Return BLOCK as a node, or nil for a block that paints no content.
