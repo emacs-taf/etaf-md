@@ -48,6 +48,17 @@
   `etaf-md-preview-theme` is now `etaf-md-theme`, and the error
   `etaf-md-preview-error` is now `etaf-md-error`.  No aliases are kept.
 
+- The drawing script runs on Windows.  It found `mmdc` with `command -v`
+  through `sh`, walked from that launcher to the package with a POSIX symlink
+  layout, and started a headless shell build of Chromium that a machine with
+  Chrome never downloaded.  It now asks `where` on Windows, finds the package
+  by walking up to `node_modules`, and draws with an installed Chrome or the
+  browser named by `ETAF_MD_CHROME`, keeping the shell build as the fallback.
+  A KaTeX stylesheet also loaded from a `file:` URL that Windows could not read,
+  and an element screenshot hung forever once a second page was open, so the
+  formula is clipped from the page and the browser runs without its GPU
+  compositor.
+
 - A page with many diagrams opens and rescales quickly.  A vector used to be
   rasterised just to learn its size, and again whenever a text scale changed the
   grid it sits in: on a page of twenty-three diagrams that meant five seconds to

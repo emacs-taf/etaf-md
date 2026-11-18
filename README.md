@@ -64,7 +64,24 @@ scrolling, isearch and window splitting keep working.
 | Emacs 29.1 or newer | the ETAF runtime and Ebox | `emacs --version` |
 | ETAF, ETAF UI, Ebox and ECSS on `load-path` | rendering and the component catalog | see Installation |
 | ffmpeg (optional) | video playback and terminal image conversion | `ffmpeg -version` |
+| Node.js 18 or newer | runs the drawing script mermaid-cli provides | `node --version` |
 | mermaid-cli (optional) | mermaid diagrams and typeset display formulas | `mmdc --version` |
+| Chrome, Chromium or Edge (optional) | the browser mermaid-cli draws with | `ETAF_MD_CHROME` or a default install path |
+
+Diagrams and formulas need Node plus mermaid-cli.  mermaid-cli launches a
+browser itself, and a machine that already has Chrome does not need to download
+a second Chromium: the drawing script uses `ETAF_MD_CHROME` when it is set, then
+the default install paths of Chrome on Windows and macOS, then a Chromium
+mermaid-cli brought itself.  Without these the page keeps a diagram's source and
+falls back to Unicode for a formula, which is what the preview shows on a
+machine that has only Emacs.
+
+Install the drawing tools with the package manager already on such a machine:
+
+```sh
+npm install -g @mermaid-js/mermaid-cli
+```
+
 
 ## Installation
 

@@ -38,17 +38,58 @@ const WIDEST = 1200
 
 // mermaid and KaTeX are taken from the installation `mmdc` comes from: the app
 // has no package of its own, and a machine with diagram support has that one.
-const mmdc = execFileSync('sh', ['-c', 'command -v mmdc'], { encoding: 'utf8' }).trim()
-const cliDir = path.dirname(path.dirname(fs.realpathSync(mmdc)))
+// `sh' and `command -v' are not on every machine this runs on: Windows has
+// `where', and the checkout is used there too.
+const isWindows = process.platform === 'win32'
+const locate = (command) =>
+  isWindows
+    ? execFileSync('where', [command], { encoding: 'utf8' }).split(/\r?\n/)[0].trim()
+    : execFileSync('sh', ['-c', `command -v ${command}`], { encoding: 'utf8' }).trim()
+const mmdc = locate('mmdc')
+
+// A package manager's `mmdc' is a launcher, not the package: on Windows it is a
+// .cmd beside `node_modules', and on POSIX a symlink into it.  Walking up from
+// either finds the package the same way, and the symlink layout stays the
+// fallback for a launcher that sits somewhere else.
+function cliDirectory(bin) {
+  let dir = path.dirname(bin)
+  for (let step = 0; step < 8; step += 1) {
+    const candidate = path.join(dir, 'node_modules', '@mermaid-js', 'mermaid-cli')
+    if (fs.existsSync(candidate)) return candidate
+    const parent = path.dirname(dir)
+    if (parent === dir) break
+    dir = parent
+  }
+  return path.dirname(path.dirname(fs.realpathSync(bin)))
+}
+
+const cliDir = cliDirectory(mmdc)
 const require = createRequire(path.join(cliDir, 'package.json'))
 const puppeteer = require('puppeteer')
 const katex = require('katex')
 const katexDir = path.dirname(require.resolve('katex/package.json'))
 const mermaidESM = path.join(cliDir, 'node_modules/mermaid/dist/mermaid.esm.mjs')
 
+// A reader with Chrome installed needs no second Chromium: new headless drives
+// the browser already there, while `shell' wants puppeteer's own
+// chrome-headless-shell build.
+const chromeCandidates = [
+  process.env.ETAF_MD_CHROME,
+  'C:/Program Files/Google/Chrome/Application/chrome.exe',
+  'C:/Program Files (x86)/Google/Chrome/Application/chrome.exe',
+  process.env.LOCALAPPDATA &&
+    path.join(process.env.LOCALAPPDATA, 'Google/Chrome/Application/chrome.exe'),
+  '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+  '/usr/bin/google-chrome',
+].filter(Boolean)
+const chrome = chromeCandidates.find((candidate) => fs.existsSync(candidate))
+
 const browser = await puppeteer.launch({
-  headless: 'shell',
-  args: ['--allow-file-access-from-files'],
+  headless: chrome ? true : 'shell',
+  ...(chrome ? { executablePath: chrome } : {}),
+  // A headless browser on Windows can hang an element screenshot forever the
+  // moment a second page is open; without the GPU compositor it returns.
+  args: ['--allow-file-access-from-files', '--disable-gpu'],
 })
 
 // A page draws one picture at a time, so the workers hand pages around: a
@@ -296,7 +337,7 @@ async function drawFormula(request) {
   const pixels = Math.max(8, Number(request.pixels) || 16)
   const row = Math.max(1, Number(request.cell) || 16)
   const html = `<!doctype html><html><head><meta charset="utf-8">
-<base href="file://${path.join(katexDir, 'dist')}/">
+<base href="${pathToFileURL(path.join(katexDir, 'dist')).href}/">
 <style>${css}</style><style>
   html, body { margin: 0; background: transparent; }
   #formula { display: inline-block; padding: 1px 2px; color: ${request.ink || '#000000'};
@@ -318,8 +359,24 @@ async function drawFormula(request) {
     },
     { width: size.width, height: size.height, row },
   )
-  const element = await formulaPage.$('#frame')
-  await element.screenshot({ path: request.out, omitBackground: true })
+  // Clip the page instead of shooting the element: an element screenshot
+  // waits for its box to stop moving, and the box was just resized above, so
+  // the wait never ends on a browser that keeps re-laying the flex frame out.
+  const frame = await formulaPage.evaluate(() => {
+    const box = document.getElementById('frame').getBoundingClientRect()
+    return { x: box.x, y: box.y, width: box.width, height: box.height }
+  })
+  await formulaPage.screenshot({
+    path: request.out,
+    omitBackground: true,
+    clip: {
+      x: frame.x,
+      y: frame.y,
+      width: Math.max(1, Math.ceil(frame.width)),
+      height: Math.max(1, Math.ceil(frame.height)),
+    },
+    captureBeyondViewport: false,
+  })
   return null
 }
 
