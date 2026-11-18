@@ -111,7 +111,10 @@ the formula is KaTeX on the Chromium mmdc brings."
        (or (and (executable-find "mmdc")
                 (executable-find "node")
                 (etaf-md-typeset--renderer-script))
-           (setq etaf-md-typeset--missing t))))
+           ;; Answer nil the first time too: the fallback used to return the
+           ;; setq's value, so the page asked for a render on a machine that
+           ;; has no renderer and then waited on programs that never help.
+           (progn (setq etaf-md-typeset--missing t) nil))))
 
 (defun etaf-md--typeset-colors (env)
   "Return (PALETTE . INK) drawn for ENV's page.
