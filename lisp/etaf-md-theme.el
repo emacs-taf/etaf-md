@@ -288,7 +288,7 @@ placed a picture renders again when the scale settles."
               (max 1 (or (plist-get metrics :line-height) 1)))
       ;; A batch run or a first build has no mounted Runtime, and the frame's
       ;; own font is what the page will be painted with.
-      (cons (max 1 (or (ignore-errors (frame-char-width)) 8))
+      (cons (max 1 (or (ignore-errors (frame-char-width)) 8)) ; frame metric
             (max 1 (or (ignore-errors (frame-char-height)) 16))))))
 
 (defun etaf-md--base-pixels ()

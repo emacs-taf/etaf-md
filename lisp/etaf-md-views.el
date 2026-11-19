@@ -752,12 +752,13 @@ is padding, so it survives that case, and it also keeps a table's right
 border off the window's last column, where the renderer would extend its
 paint into the sub-cell remainder.")
 
-(defun etaf-md--measured-view (width view)
+(defun etaf-md--measured-view (width cell-width view)
   "Return VIEW laid out in a reading column WIDTH cells wide.
-The width is stated rather than left to stretch and a maximum: the header and
-the body are two children of the page's centring column, and a stretched child
-with a max width settled on a different left edge from the other."
-  (etaf-node 'box (list :width (list 'px (* width (frame-char-width))))
+CELL-WIDTH is the canvas cell those columns resolve against.  The width is
+stated rather than left to stretch and a maximum: the header and the body are
+two children of the page's centring column, and a stretched child with a max
+width settled on a different left edge from the other."
+  (etaf-node 'box (list :width (list 'px (* width cell-width)))
              (list view)))
 
 (defun etaf-md--view-document (session document env)
@@ -777,7 +778,11 @@ Emacs theme's own background."
                       session (etaf-md--read session :width))))
          (background (plist-get env :background))
          (hero (etaf-md--meta-node document env))
-         (measured (lambda (view) (etaf-md--measured-view width view)))
+         ;; One read for the whole page: the reading column and the picture
+         ;; cells both state pixels, and both must use the canvas's own cell.
+         (cell-width (or (plist-get (ignore-errors (etaf-display-metrics)) :char-width)
+                         (frame-char-width)))
+         (measured (lambda (view) (etaf-md--measured-view width cell-width view)))
          (entries (if hero
                       (cons (list :view (etaf-node 'box
                                                    (list :width 'stretch)
