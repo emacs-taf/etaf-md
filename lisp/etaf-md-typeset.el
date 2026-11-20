@@ -149,15 +149,36 @@ Raised when the renderer's own output changes - the size a picture is drawn
 at, or the part of the drawing it is cut from - so a picture drawn the old way
 is drawn again instead of being reused as if it were the new one.")
 
+(defun etaf-md--typeset-page (env)
+  "Return ENV's page constants for a picture key: (COLORS . CONFIG-HASH).
+The configuration of a diagram is generated from the page's colours and type
+size, which is the same answer for every block of that page and costs more
+than the rest of a publish.  It is built once and reused while those inputs
+hold; the signature is compared rather than assumed, because a page can be
+published again after the reader changed the frame's font."
+  (let ((signature (list (plist-get env :theme)
+                         (plist-get env :background)
+                         (plist-get env :ink)
+                         (etaf-md--base-pixels))))
+    (let ((cached (plist-get env :typeset-page)))
+      (if (and cached (equal (car cached) signature))
+          (cdr cached)
+        (let ((page (cons (etaf-md--typeset-colors env)
+                          (secure-hash 'sha1 (etaf-md--mermaid-config env)))))
+          (plist-put env :typeset-page (cons signature page))
+          page)))))
+
 (defun etaf-md--typeset-key (kind source env)
   "Return the cache key of KIND drawn from SOURCE for ENV's surface.
 The key holds what the picture depends on, so a theme switch draws a new one
 instead of reusing the colours of the old surface."
-  (secure-hash 'sha1
+  (let* ((page (etaf-md--typeset-page env))
+         (colors (car page)))
+    (secure-hash 'sha1
                (format "%s\n%d\n%s\n%s\n%s\n%s"
                        kind etaf-md-typeset--picture-version source
-                       (car (etaf-md--typeset-colors env))
-                       (cdr (etaf-md--typeset-colors env))
+                       (car colors)
+                       (cdr colors)
                        ;; A formula drawn for another body size is another
                        ;; picture, not a cache hit.
                        ;; A formula depends on the size it is set at, and a
@@ -170,7 +191,7 @@ instead of reusing the colours of the old surface."
                            (format "%d/%d"
                                    (etaf-md--typeset-pixels)
                                    (cdr (etaf-md--cell-metrics)))
-                         (secure-hash 'sha1 (etaf-md--mermaid-config env))))))
+                         (cdr page))))))
 
 (defun etaf-md--typeset-path (key)
   "Return the PNG path of KEY."

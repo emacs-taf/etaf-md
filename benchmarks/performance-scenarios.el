@@ -11,6 +11,10 @@
 ;;   python3 scripts/performance.py run --mode batch \
 ;;     --scenario-file etaf-md/benchmarks/performance-scenarios.el \
 ;;     --scenario md-preview.refit.width --diagnose
+;;
+;; `md-preview.republish.diagrams` guards the picture path: a page's generated
+;; mermaid configuration is a per-page constant, and building it once per
+;; diagram cost every republish five seconds.
 
 ;;; Code:
 
@@ -99,6 +103,56 @@
            ((not (string-match-p "ETAF Markdown Preview 用户手册"
                                 (buffer-substring-no-properties (point-min) (point-max))))
             "The mounted manual has no title")
+           (t t))))
+      :observe (lambda (observer)
+                 (setq sink observer)
+                 (lambda () (setq sink nil)))
+      :cleanup (lambda ()
+                 (when (buffer-live-p buffer) (kill-buffer buffer)))))))
+
+(defconst etaf-md-benchmark--diagram-file
+  (expand-file-name "../examples/all-syntax.markdown"
+                    (file-name-directory (or load-file-name buffer-file-name)))
+  "The page that writes every diagram kind, used by the picture workload.")
+
+(taf-benchmark-register
+ "md-preview.republish.diagrams" :version 1 :modes '(batch gui) :budget-ms 500
+ :impact 'local
+ :description "Republish the page that holds thirty-four diagrams after an edit"
+ :setup
+ (lambda (mode)
+   ;; The page is mounted once, the way a reader opens it; the samples are the
+   ;; republish a keystroke in the source costs.  Drawing is answered as
+   ;; unavailable so the run never starts a browser: reading the cache and
+   ;; keying every picture block is the part that regressed, and it is what
+   ;; stays measured.
+   (let* ((buffer (generate-new-buffer " *TAF md-preview diagrams*"))
+          (session (cl-letf (((symbol-function 'etaf-md-typeset-available-p)
+                              (lambda () nil)))
+                     (etaf-md-create :file etaf-md-benchmark--diagram-file)))
+          (sink nil))
+     (etaf-mount
+      buffer (etaf-md-view session)
+      (append
+       (when (eq mode 'batch) '(:viewport-width 900 :viewport-height 50))
+       (list :observer
+             (lambda (observed-report)
+               (when sink (funcall sink buffer observed-report))))))
+     (list
+      :buffer buffer
+      :invoke
+      (lambda (_sample)
+        (cl-letf (((symbol-function 'etaf-md-typeset-available-p)
+                   (lambda () nil)))
+          (etaf-md-refresh session)))
+      :verify
+      (lambda ()
+        (with-current-buffer buffer
+          (cond
+           ((not (etaf-runtime-for-buffer buffer)) "The diagram page did not mount")
+           ((not (string-match-p "Markdown 语法总览"
+                                 (buffer-substring-no-properties (point-min) (point-max))))
+            "The mounted page has no title")
            (t t))))
       :observe (lambda (observer)
                  (setq sink observer)
