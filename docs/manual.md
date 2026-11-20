@@ -10,7 +10,6 @@ of repeating signatures.
 | --- | --- |
 | `n` / `p` | Move to the next / previous heading of the document |
 | `C-c j` | Choose a heading from a completion list |
-| `e` | Edit the block under point as its markdown source |
 | `RET`, mouse-1 | Activate the link or image under point; play or pause a video |
 | `r` | Re-read the file and repaint |
 | `t` | Cycle the palette (dark, light, sepia) |
@@ -50,6 +49,15 @@ preview needs:
 - YAML front matter is removed from the body; its `title` becomes the document
   title and its author, date, version, license and status keys render in a
   title area at the top of the document.
+
+Emoji short codes such as `:smile:` are drawn as their character.
+
+Beside markdown, a document may write containers: `:::name {attrs}` around a
+block of markdown, and `@tab` markers inside a container that owns them.  A
+container is a documentation shape — a callout, a card, a set of tabs, a
+timeline, a file tree, a table with highlighted rows — and the vocabulary,
+its attributes and how to add your own are in
+[the extension syntax](extensions.md).
 
 `etaf-md-create` selects the dialect with its `:flavor` argument:
 `gfm` (the default) enables the GitHub extensions and front matter,
@@ -110,28 +118,6 @@ Component, keyed by its type and source text, so a repaint renders the block
 that changed and keeps every other block's rendered output, video handles and
 reading position. Inserting or removing a block re-renders the blocks after
 it, because their position changed; typing inside a block never does.
-
-## Editing a block in place
-
-`e` edits the block under point without leaving the preview. The block swaps
-its render for the text it was parsed from, on a slightly darker panel with an
-accent bar down its left edge, and a native edit session opens on that text:
-the caret, motion, selection, kill ring, undo and input methods are the
-buffer's own, IME included. Every change goes into the source buffer as it is
-typed, so the file, its buffer and the preview never disagree; the source
-buffer keeps one undo step per visit.
-
-`ESC`, a click outside the block or closing the preview ends the session and
-renders the block again from the text as it now stands. That is also how a
-block changes kind: delete a heading's marker and its paragraph appears
-without it, add a blank line inside a paragraph and the two halves become
-separate blocks. An outside change to the file ends the session before the
-document is published again, so the preview never drops what was typed.
-
-While a block is edited its own text is the source of truth: the rest of the
-document keeps the render from the last parse until the session ends. Tables,
-code fences, quotes and list items are all edited as their markdown text,
-which is how their notation can be changed at all.
 
 ## Customization
 

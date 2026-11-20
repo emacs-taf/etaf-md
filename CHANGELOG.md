@@ -4,6 +4,19 @@
 
 ### Added
 
+- A page that holds many diagrams no longer pays for its generated mermaid
+  configuration once per diagram.  The configuration is a property of the
+  page — its colours and its type size — so publishing builds it once: a 47k
+  character page with thirty-four diagrams opens in 274 ms instead of 4.8 s,
+  and a repaint after an edit costs 12 ms instead of 5.4 s.
+
+- `etaf-md-doctor` reports `qrencode` beside ffmpeg and mermaid-cli, so a
+  `qrcode` block that kept its text has a stated reason.
+
+- Following a link to another markdown document opens that document's
+  preview, and a `#fragment` after it selects the heading; `mailto:` and
+  `tel:` links reach the browser instead of being read as local file names.
+
 - A fenced code block takes plume's options: `title=`, `:line-numbers[=N]`,
   `{1,4-7}` and the `[!code ...]` row markers, with a copy action in its
   header.  The options and the guard that keeps every row readable live in the
@@ -19,7 +32,44 @@
   grid, and the caption and the copy line stay above it instead of sitting
   inside a page-wide box.
 
+- Every container in the extension contract is implemented: `steps`,
+  `timeline`, `stats`, `field`, `file-tree`, `chat`, `code-tabs`,
+  `accordion`, `table` and `window`, beside the structure, callout and `tabs`
+  parts.  A container translates its attributes to the `etaf-ui` component
+  that owns the shape; the table reads a parsed table block and the field and
+  file-tree read list items.
+
+- `tabs` and `code-tabs` write one `@tab` per page.  A definition declares its
+  child syntax, so `@tab` is a marker only inside the container that owns it:
+  inside a note it is plain text and inside a fence it is code.  Prose before
+  the first marker, a `:::tab` child and a mismatched marker are reported
+  instead of silently dropping content.  The strip and the page share one
+  panel, the selected tab is filled, and the strip is one Tab stop where Left
+  and Right move focus and RET opens the page.
+
+- The `table` container can highlight rows and columns, choose its surfaces
+  and title, and set cell alignment and spacing.  `table-header` and
+  `table-stripe` join the surface words a document may write.
+
+- The `window` container draws the catalog's Mac-style title bar, so the
+  traffic lights are the same control the desktop applications use instead of
+  three look-alike glyphs.
+
+- A diagram is drawn from its vector copy rather than a bitmap.  The renderer
+  writes the drawing's own SVG beside the raster, and the page places that: the
+  text stays sharp at whatever size the reading measure gives it, a wide
+  diagram narrows without resampling its labels, and no two-times bitmap of the
+  drawing is held in memory.  The raster stays as the fallback, and a diagram
+  whose labels mermaid writes as HTML - a journey's - keeps using it, because
+  no renderer outside a browser can draw one, and that raster is cut to the
+  drawing so a journey no longer carries rows of empty picture under it.
+
 ### Changed
+
+- The `r`, `[`, `]` and `C-c j` keys run commands that are now part of the
+  supported API: `etaf-md-reload`, `etaf-md-wider`, `etaf-md-narrower` and
+  `etaf-md-goto-heading`, so a consumer can bind them without reaching for an
+  internal symbol.
 
 - The page header starts on the body's column: the header and the body read
   one width now, and prose fills the measured column instead of capping itself
@@ -68,33 +118,6 @@
   opens in a third of a second and rescales in a fifth, holding less than half
   the memory.
 
-### Added
-
-- Every container in the extension contract is implemented: `steps`,
-  `timeline`, `stats`, `field`, `file-tree`, `chat`, `code-tabs`,
-  `accordion`, `table` and `window`, beside the structure, callout and `tabs`
-  parts.  A container translates its attributes to the `etaf-ui` component
-  that owns the shape; the table reads a parsed table block and the field and
-  file-tree read list items.
-
-- `tabs` and `code-tabs` write one `@tab` per page.  A definition declares its
-  child syntax, so `@tab` is a marker only inside the container that owns it:
-  inside a note it is plain text and inside a fence it is code.  Prose before
-  the first marker, a `:::tab` child and a mismatched marker are reported
-  instead of silently dropping content.  The strip and the page share one
-  panel, the selected tab is filled, and the strip is one Tab stop where Left
-  and Right move focus and RET opens the page.
-
-- The `table` container can highlight rows and columns, choose its surfaces
-  and title, and set cell alignment and spacing.  `table-header` and
-  `table-stripe` join the surface words a document may write.
-
-- The `window` container draws the catalog's Mac-style title bar, so the
-  traffic lights are the same control the desktop applications use instead of
-  three look-alike glyphs.
-
-### Changed
-
 - A `tabs` or `code-tabs` container no longer accepts `:::tab` children; the
   spelling is `@tab Title` or `@tab {attrs}`.  Migration: replace each
   `:::tab {title="X"}` block and its closing `:::` with one `@tab X` (or
@@ -121,6 +144,22 @@ pixels below itself.  A picture now takes the size of the page it sits on.
   same diagram differed.  The renderer now lays the stack out once and waits
   for the page's fonts before it draws.  `make mermaid-check` asks for every
   fixture twice and refuses a second drawing that disagrees with the first.
+
+- A preview no longer accepts typing on the painted page.  The markdown is
+  edited in its own buffer with the reader's own commands, and the page shows
+  the result; the commands that typed through the page
+  (`etaf-md-edit-document`, `etaf-md-insert`,
+  `etaf-md-delete-char`, `etaf-md-editing-p`) are gone with
+  them.
+
+### Removed
+
+- Editing a block inside the rendered page is gone, and so is the projection
+  that carried a painted position back to a source offset:
+  `etaf-md-projection` no longer exists, the page no longer takes an `e` key,
+  and `etaf-md-after-repaint-functions` went with the edit session that used
+  it.  Migration: edit the markdown in its own buffer — the preview follows
+  that buffer and repaints the block under the caret on the next frame.
 
 ### Fixed
 
@@ -212,8 +251,6 @@ pixels below itself.  A picture now takes the size of the page it sits on.
   heading colour, a mixed surface or a diagram fill now comes out the same in a
   headless run as in a window.
 
-### Fixed
-
 - A diagram follows text scaling.  A picture is placed in cells, and the cells
   were measured from the frame's default font, which does not follow a buffer's
   text scale: after `C-x C-+` the page's lines grew and the slices drawn for the
@@ -222,19 +259,6 @@ pixels below itself.  A picture now takes the size of the page it sits on.
   size a diagram is typeset at now come from the page's own metrics, which the
   framework republishes when the scale settles, so the picture is placed and
   drawn again at the new size.
-
-### Added
-
-- A diagram is drawn from its vector copy rather than a bitmap.  The renderer
-  writes the drawing's own SVG beside the raster, and the page places that: the
-  text stays sharp at whatever size the reading measure gives it, a wide
-  diagram narrows without resampling its labels, and no two-times bitmap of the
-  drawing is held in memory.  The raster stays as the fallback, and a diagram
-  whose labels mermaid writes as HTML - a journey's - keeps using it, because
-  no renderer outside a browser can draw one, and that raster is cut to the
-  drawing so a journey no longer carries rows of empty picture under it.
-
-### Fixed
 
 - A label mermaid wraps in HTML is text again.  Every diagram kind drew its
   labels inside the SVG's `foreignObject`, which only a browser can paint, so
@@ -248,7 +272,6 @@ pixels below itself.  A picture now takes the size of the page it sits on.
   from the encoded values, which understated what a dark colour gives; two dark
   surfaces were called far more different than they look, so the generator
   believed a fill stood off the page when it did not.
-
 
 - `etaf-md-follow-scroll` makes the page move with the source window:
   the block at the top of the markdown buffer becomes the first row of the
@@ -326,7 +349,6 @@ pixels below itself.  A picture now takes the size of the page it sits on.
 - A picture's cache key carries every setting it was drawn with: a diagram
   keys on the renderer's whole configuration, so changing its font, margins or
   colours draws a new picture instead of handing back the one drawn before.
-### Fixed
 
 - A soft line break folds into a space, as CommonMark reads it: the paragraph
   flows and wraps at the page's own width.  A two-space or backslash break is
@@ -361,17 +383,6 @@ pixels below itself.  A picture now takes the size of the page it sits on.
   as a link reference definition or an abbreviation definition, is painted
   again: the preview kept the file's own spacing instead of pulling the next
   block up against the previous one.
-
-### Changed
-
-- A preview no longer accepts typing on the painted page.  The markdown is
-  edited in its own buffer with the reader's own commands, and the page shows
-  the result; the commands that typed through the page
-  (`etaf-md-edit-document`, `etaf-md-insert`,
-  `etaf-md-delete-char`, `etaf-md-editing-p`) are gone with
-  them.
-
-### Fixed
 
 - A card's surface, a muted label and a bar track take their colours from the
   page's theme palette again: the lookup read a plist while a theme palette is

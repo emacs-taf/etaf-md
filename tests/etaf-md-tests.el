@@ -2063,3 +2063,66 @@ alone and the heading's marker alone."
       (should (string-match-p "python" (buffer-string)))
       (should (string-match-p "(open)" (buffer-string)))
       (should-not (string-match-p "print(1)" (buffer-string))))))
+
+;;;; Opening what a link names
+
+(ert-deftest etaf-md-tests-doctor-names-each-optional-program ()
+  "Every program a block may need is reported with a remedy.
+A reader whose diagram or code block kept its source text asks `doctor' why,
+so a program the page can use but never names is a blind spot."
+  (let ((optional (plist-get (etaf-md-doctor) :optional)))
+    (should (equal (mapcar #'car optional) '("ffmpeg" "mmdc" "qrencode")))
+    (dolist (entry optional)
+      (should (= 3 (length entry)))
+      (should (stringp (nth 2 entry))))))
+
+(ert-deftest etaf-md-tests-a-mailto-link-goes-to-the-browser ()
+  "A link with a scheme is handed to the browser, not read as a file name.
+`mailto:' carries no `//', so a test for one treated it as a relative path and
+the preview reported a file that did not exist."
+  (let ((session (etaf-md-create :text "[写信](mailto:someone@example.com)\n")))
+    (etaf-md-tests--with-mount session
+      (goto-char (point-min))
+      (should (search-forward "写信" nil t))
+      (goto-char (match-beginning 0))
+      (let ((opened nil))
+        (cl-letf (((symbol-function 'browse-url)
+                   (lambda (url &rest _) (push url opened))))
+          (call-interactively (key-binding (kbd "RET"))))
+        (should (equal opened '("mailto:someone@example.com")))))))
+
+(ert-deftest etaf-md-tests-a-link-to-a-document-opens-its-preview ()
+  "A relative link to a markdown file opens that document as a preview.
+The reader follows a link inside a page, so landing in the file's raw source
+would lose the rendering the link was written for; a fragment names the
+heading to start at."
+  (let* ((dir (make-temp-file "etaf-md-doc-link" t))
+         (other (expand-file-name "other.md" dir))
+         (source (expand-file-name "source.md" dir)))
+    (unwind-protect
+        (progn
+          (with-temp-file other
+            (insert "# 第一节\n\n正文\n\n## 第二节\n\n内容\n"))
+          (with-temp-file source
+            (insert "[别的文档](other.md#第二节)\n"))
+          (let ((session (etaf-md-create :file source)))
+            (etaf-md-tests--with-mount session
+              (goto-char (point-min))
+              (should (search-forward "别的文档" nil t))
+              (goto-char (match-beginning 0))
+              (call-interactively (key-binding (kbd "RET")))
+              ;; The heading is applied once the new page has been painted,
+              ;; which this preview reaches after the command returns.
+              (sit-for 0.1)
+              (let ((preview (get-buffer "*ETAF Markdown: other.md*")))
+                (unwind-protect
+                    (progn
+                      (should preview)
+                      (with-current-buffer preview
+                        (should (etaf-app-state))
+                        (should (string-match-p
+                                 "第二节"
+                                 (buffer-substring-no-properties
+                                  (line-beginning-position) (line-end-position))))))
+                  (when (buffer-live-p preview) (kill-buffer preview)))))))
+      (delete-directory dir t))))

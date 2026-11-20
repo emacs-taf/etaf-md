@@ -31,11 +31,6 @@
   "Return the preview buffer name for FILE."
   (format "*ETAF Markdown: %s*" (file-name-nondirectory file)))
 
-(defvar etaf-md-after-repaint-functions nil
-  "Functions called with each session whose document was just republished.
-An in-place edit uses it to put the caret back on the repainted page; the hook
-runs after the publication, so a handler reads the new document.")
-
 (declare-function etaf-md--live-refresh "etaf-md-live" (session text))
 
 (defconst etaf-md--keys
@@ -452,8 +447,7 @@ pending, and that spins instead of settling."
           ;; A repaint already made from the same text leaves nothing to draw:
           ;; the page shows what the source now holds.
           (unless (equal text (plist-get session :live-text))
-            (etaf-md--live-refresh session text)
-            (run-hook-with-args 'etaf-md-after-repaint-functions session)))
+            (etaf-md--live-refresh session text)))
       (etaf-md-error
        (message "Preview kept its last render: %s"
                 (error-message-string error))))))
@@ -526,7 +520,7 @@ themselves."
    (list (read-file-name
           "Markdown file: " nil nil t
           (when (and buffer-file-name
-                     (string-match-p "\\.\\(md\\|markdown\\|mdown\\|mkd\\)\\'" buffer-file-name))
+                     (string-match-p etaf-md--markdown-file-regexp buffer-file-name))
             (file-relative-name buffer-file-name default-directory)))))
   (if (and (listp source) (etaf-ref-p (plist-get source :document)))
       (etaf-md--display source
@@ -547,7 +541,7 @@ window layout gives way to those two panes, the point stays in the source, and
 `etaf-md-close' gives the layout back to the source alone."
   (interactive
    (list (or (and buffer-file-name
-                  (string-match-p "\\.\\(md\\|markdown\\|mdown\\|mkd\\)\\'"
+                  (string-match-p etaf-md--markdown-file-regexp
                                   buffer-file-name)
                   (expand-file-name buffer-file-name))
              (expand-file-name

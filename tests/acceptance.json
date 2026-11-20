@@ -454,6 +454,21 @@
       "name": "etaf-md-tests-a-table-copies-itself-when-asked",
       "file": "tests/etaf-md-tests.el",
       "purpose": "A table with copy=true paints a copy line; activating it puts the header and rows on the kill ring as tab separated text."
+    },
+    {
+      "name": "etaf-md-tests-doctor-names-each-optional-program",
+      "file": "tests/etaf-md-tests.el",
+      "purpose": "`etaf-md-doctor` names every program a block can use — ffmpeg, mermaid-cli and qrencode — with a remedy, so a reader whose block kept its source text learns why."
+    },
+    {
+      "name": "etaf-md-tests-a-mailto-link-goes-to-the-browser",
+      "file": "tests/etaf-md-tests.el",
+      "purpose": "A link whose scheme is not followed by `//`, such as `mailto:`, opens in the browser instead of being resolved against the document's directory and reported missing."
+    },
+    {
+      "name": "etaf-md-tests-a-link-to-a-document-opens-its-preview",
+      "file": "tests/etaf-md-tests.el",
+      "purpose": "A relative link to another markdown file opens that file's preview at the heading its fragment names, instead of showing the document's raw source in a buffer."
     }
   ]
 }

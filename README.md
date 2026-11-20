@@ -9,6 +9,13 @@ breaks, numbered footnotes, clickable links, and local image and video cards.
 The whole document publishes into one ordinary Emacs buffer, so native
 scrolling, isearch and window splitting keep working.
 
+A document may also write **containers** — a `:::name {attrs}` block around
+markdown — which turn it into a documentation page: callouts, cards, columns,
+steps, a timeline, a file tree, tabs, a table with highlighted rows, a window
+frame, a QR code.  The shipped vocabulary is
+[specified in full](docs/extensions.md), and a reader may add a node type of
+their own with `etaf-md-define-node`.
+
 ![The previewer at a wide frame](examples/etaf-md-preview-wide.png)
 
 ## Capabilities
@@ -20,6 +27,13 @@ scrolling, isearch and window splitting keep working.
 - GitHub extensions: pipe tables with alignment, task list items, bare URL
   autolinks and numbered footnotes.
 - GitHub alerts (`> [!NOTE]` and friends) render as titled callout blocks.
+- Containers: `:::name {attrs}` blocks with the shipped documentation
+  vocabulary, `@tab` markers inside `tabs` and `code-tabs`, style rules that
+  restyle a type, and a definition API for adding a type of your own.  See
+  [the extension syntax](docs/extensions.md).
+- Fenced code blocks take plume's options — `title=`, `:line-numbers[=N]`,
+  `{1,4-7}` and `[!code ...]` row markers — and carry a copy action.
+- A `qrcode` block draws its text as a scannable code through `qrencode`.
 - With [mermaid-cli](https://github.com/mermaid-js/mermaid-cli) installed, a
   `mermaid` fence is drawn as a diagram and a `$$` display formula is typeset
   by KaTeX in the same Chromium.  Pictures render in the background and are
@@ -46,10 +60,11 @@ scrolling, isearch and window splitting keep working.
   measure keeps a two-cell gutter on each side, so even a window narrower than
   the measure starts its text off the edge. A window resize reflows through
   the framework's viewport update without rebuilding the view.
-- A preview opened from a file follows that file: an unsaved edit in its
-  buffer repaints the document once the typing pauses, and saving it or
-  changing it on disk from another program repaints it too, so an editor and
-  its preview sit side by side. `r` still reloads from disk on demand.
+- A preview opened from a file follows that file: an edit in its buffer
+  repaints the document on the next frame, block by block, so the block under
+  the caret is the only one rendered again; saving it or changing it on disk
+  from another program repaints it too. `r` still reloads from disk on demand.
+  The page itself is read-only — the markdown is edited in its own buffer.
 - `etaf-md-preview` splits the current window, opens the
   preview beside the source and leaves the point in the source, so one command
   from a Markdown buffer sets up editing with a live preview; `q` closes the
@@ -66,6 +81,7 @@ scrolling, isearch and window splitting keep working.
 | ffmpeg (optional) | video playback and terminal image conversion | `ffmpeg -version` |
 | Node.js 18 or newer | runs the drawing script mermaid-cli provides | `node --version` |
 | mermaid-cli (optional) | mermaid diagrams and typeset display formulas | `mmdc --version` |
+| qrencode (optional) | a `qrcode` block | `qrencode -V` |
 | Chrome, Chromium or Edge (optional) | the browser mermaid-cli draws with | `ETAF_MD_CHROME` or a default install path |
 
 Diagrams and formulas need Node plus mermaid-cli.  mermaid-cli launches a
@@ -145,8 +161,8 @@ make mermaid-check    # draw every mermaid fixture in each page palette
 ```
 
 See [docs/manual.md](docs/manual.md) for workflows, the supported syntax and
-scripting, and [docs/architecture.md](docs/architecture.md) for the module
-layout and the rendering decisions.  The extension syntax the package plans to
-support is specified in [docs/extensions.md](docs/extensions.md), with a
-Chinese version in [docs/extensions.zh-CN.md](docs/extensions.zh-CN.md);
-GitHub alerts are what a page renders today.
+scripting, [docs/extensions.md](docs/extensions.md) for the container
+vocabulary and the definition API (Chinese version in
+[docs/extensions.zh-CN.md](docs/extensions.zh-CN.md)), and
+[docs/architecture.md](docs/architecture.md) for the module layout and the
+rendering decisions.

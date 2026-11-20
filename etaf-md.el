@@ -23,6 +23,15 @@
 ;; document publishes into one buffer with native Emacs scrolling, isearch
 ;; and window splitting, so no pane owns a private scrolling model.
 ;;
+;; A document may also write containers: a `:::name {attrs}' block around
+;; markdown, with `@tab' markers inside the containers that own them.  The
+;; shipped vocabulary turns a document into a documentation page — callouts,
+;; cards, columns, steps, a timeline, a file tree, tabs, a table with
+;; highlighted rows, a window frame, a QR code — and every type is a
+;; definition of attributes, accepted children and a paint, so a reader may
+;; add a type of their own or replace a shipped paint with the functions
+;; below.  docs/extensions.md is the contract for that vocabulary.
+;;
 ;; A session is the unit of state.  `etaf-md-create' builds one from a
 ;; file or from text, `etaf-md-open' displays it in its own buffer,
 ;; the navigation and display functions below drive it, and
@@ -113,9 +122,9 @@
 ;;   The columns ENV's block may occupy.
 ;;
 ;; Function: etaf-md-doctor ()
-;; Return capability facts for reading Markdown.  The shape matches
-;; `etaf-install-doctor'; ffmpeg is optional and only affects video cards and
-;; terminal image conversion.
+;; Return capability facts for reading a document.  The shape matches
+;; `etaf-install-doctor'; every program is optional, and a missing one leaves
+;; the blocks that need it as their source text.
 ;; Function: etaf-md-preview (&optional source)
 ;;;###autoload (autoload 'etaf-md-preview "etaf-md" nil t)
 ;; Open SOURCE's preview in a window beside the current one.
@@ -155,14 +164,6 @@
 ;; The current window goes away when the frame has another window, so a preview
 ;; opened beside its source closes back onto the source.  Signals `user-error'
 ;; when the current buffer is not a preview.
-;;
-;; Function: etaf-md-projection (session)
-;;;###autoload (autoload 'etaf-md-projection "etaf-md" nil nil)
-;; Return SESSION's painted page as a source projection, or nil when unmounted.
-;; The result is the framework's run vector: each run maps a painted span to
-;; the markdown range it renders, so `etaf-projection-source-offset' turns a
-;; caret position into a source offset and `etaf-projection-position' turns a
-;; source offset back into a painted one.
 ;;
 ;; Function: etaf-md-view (&optional session)
 ;;;###autoload (autoload 'etaf-md-view "etaf-md" nil t)
@@ -211,6 +212,13 @@
 ;; Function: etaf-md-outline (session)
 ;; Return SESSION's outline as a list of (LEVEL TEXT ID), in document order.
 ;;
+;; Function: etaf-md-goto-heading ()
+;;;###autoload (autoload 'etaf-md-goto-heading "etaf-md" nil t)
+;; Choose an outline heading of the current preview and move to it.
+;; The candidate list is the document's own outline, indented by level and
+;; prefixed with its hash marks.  Signals `user-error' when the current buffer
+;; is not a preview.
+;;
 ;; Function: etaf-md-next-heading ()
 ;;;###autoload (autoload 'etaf-md-next-heading "etaf-md" nil t)
 ;; Move point to the next outline heading of the current preview.
@@ -235,6 +243,25 @@
 ;; Run it from the markdown buffer or from its preview.  ARG sets the state
 ;; instead of toggling: a positive prefix argument turns it on and anything
 ;; else turns it off.  A buffer that no preview shows signals `user-error'.
+;;
+;; Function: etaf-md-reload ()
+;;;###autoload (autoload 'etaf-md-reload "etaf-md" nil t)
+;; Re-read the file behind the current preview and repaint it.
+;; The same as `etaf-md-refresh' on the preview's session, for a reader pressing
+;; the page's own key.  Signals `user-error' when the current buffer is not a
+;; preview.
+;;
+;; Function: etaf-md-wider ()
+;;;###autoload (autoload 'etaf-md-wider "etaf-md" nil t)
+;; Widen the current preview's reading measure by four cells.
+;; Reports the effective width and the maximum.  Signals `user-error' when the
+;; current buffer is not a preview.
+;;
+;; Function: etaf-md-narrower ()
+;;;###autoload (autoload 'etaf-md-narrower "etaf-md" nil t)
+;; Narrow the current preview's reading measure by four cells, down to
+;; `etaf-md-width-min'.  Signals `user-error' when the current buffer is not a
+;; preview.
 ;;
 ;; Function: etaf-md-locate (session index)
 ;; Move point to SESSION's outline heading INDEX and recenter.
@@ -326,15 +353,18 @@
 (require 'etaf-md-qrcode)
 
 (defun etaf-md-doctor ()
-  "Return capability facts for reading Markdown in ETAF.
+  "Return capability facts for reading a document.
 The shape matches `etaf-install-doctor': :required and :optional lists of
-(LABEL AVAILABLE REMEDY).  Reading text needs no external program."
+(LABEL AVAILABLE REMEDY).  Reading text needs no external program; each entry
+tells which block keeps its source text without it."
   (list :required nil
         :optional
         (list (list "ffmpeg" (and (executable-find "ffmpeg") t)
                     "Optional: install ffmpeg to play video cards and convert terminal images.")
               (list "mmdc" (etaf-md-typeset-available-p)
-                    "Optional: install mermaid-cli to draw mermaid diagrams and display formulas."))))
+                    "Optional: install mermaid-cli to draw mermaid diagrams and display formulas.")
+              (list "qrencode" (and (executable-find "qrencode") t)
+                    "Optional: install qrencode to draw a qrcode block."))))
 
 
 (provide 'etaf-md)

@@ -5,11 +5,20 @@
 | File | Responsibility |
 | --- | --- |
 | `etaf-md.el` | Package entry: the public API inventory, the feature closure and the `lisp/` load-path bootstrap. |
-| `lisp/etaf-md-parser.el` | Pure Elisp markdown parser: text to a semantic block/inline tree. |
+| `lisp/etaf-md-node.el` | The document model: one definition per node type (attributes, derivations, accepted children, child syntax) and the registry behind it. |
+| `lisp/etaf-md-nodes.el` | The shipped definitions of the container vocabulary, written the way a reader writes one. |
+| `lisp/etaf-md-components.el` | The site half of that catalogue: cards, code panes, link cards, tables, forms and the other shapes a documentation page writes. |
+| `lisp/etaf-md-qrcode.el` | A `qrcode` block: reads a picture from the cache, requests one from `qrencode` in the background. |
+| `lisp/etaf-md-env.el` | The paint environment each definition receives: node, session, palette, measure, and the helpers a paint may call. |
 | `lisp/etaf-md-theme.el` | Palettes, semantic color lookup, typography helpers and the ETAF UI token plist. |
-| `lisp/etaf-md-model.el` | Session state, source reading, refresh, reading measure, outline navigation and target opening. |
-| `lisp/etaf-md-views.el` | Presentation: markdown tree plus environment to ETAF views. |
-| `lisp/etaf-md-app.el` | The Component, the buffer, the keymap and the interactive commands. |
+| `lisp/etaf-md-model.el` | Session state, source reading, the container pre-parse, refresh, reading measure, outline navigation, link opening and publishing. |
+| `lisp/etaf-md-views.el` | Presentation of a markdown block: the reading column, the page header, inline runs and the media layer. |
+| `lisp/etaf-md-app.el` | The Component, the buffer, the keymap, the interactive commands and the follow machinery. |
+| `lisp/etaf-md-live.el` | Repainting a mounted page from its source buffer, block by block. |
+| `lisp/etaf-md-typeset.el` | Diagram and formula pictures: cache keys, the background renderer and its process. |
+
+Markdown itself is parsed by `etaf-ui-markdown`; this package parses the
+`:::name` container syntax around it and owns what each node type paints.
 
 Only ETAF and ETAF UI public interfaces are used by the application; the
 buffer is an ordinary Emacs buffer rendered by Ebox through ETAF. The
@@ -23,10 +32,12 @@ file or text → parser → document plist → session refs → views → ETAF m
                           theme / width / errors (reactive refs)
 ```
 
-- **Parser.** `etaf-md--parse` is a pure function over a string. It
-  strips YAML front matter, reads block structure line by line, collects link
-  reference and footnote definitions, then parses inline content. The output
-  carries no presentation facts.
+- **Parser.** `etaf-md--parse` is a pure function over a string. A document
+  that writes `:::name {attrs}` containers goes through this package's own
+  pre-parse, which reads the fences, nests them and parses each block's body;
+  everything inside a block, and every document without containers, is handed
+  to `etaf-ui-markdown-parse`, so the markdown grammar is written once for
+  every viewer in the ecosystem. The output carries no presentation facts.
 - **Model.** A session is a plist of `etaf-ref`s: document, title, theme,
   reading measure and error text. Every displayed value is read through
   `etaf-md--read` while rendering, so a refresh, a theme change or a
@@ -151,33 +162,25 @@ and stands off the page, the vector exists and holds its words as text, and a
 renderer that is not a browser - `rsvg-convert`, the engine Emacs draws SVG
 with - paints the same extent and a similar amount of ink.
 
-**Typing edits the source, never the page.** In-place editing is driven by
-`etaf-md-projection`, which turns the published blocks into
-`etaf-projection` entries, one `(REF . (BEGIN . END))` per block. A block's
-range ends before its trailing newline, because the paint draws no break; a
-heading starts after the `#` markers the render folds away; a bullet or quote
-keeps its marker, because the paint draws an equal-width replacement glyph in
-its place.
+**The page is a paint; the source is where text is written.** A preview
+listens to the buffer visiting its file and republishes the page from the
+edited text on the next frame, so a reader who edits above the preview sees it
+change without leaving the text.  Motion, paging, the wheel, isearch and all
+scrolling belong to the buffer: one cell is one painted character, so Emacs
+owns them.  There is no editing session on the page and no projection back to
+the source; the markdown is edited in its own buffer with the commands the
+reader already has.
 
-The canvas is read-only: it is a paint of the document and never receives
-text. Every key it gets is translated to a source offset through the
-projection, the same command runs in the markdown buffer at that offset, and
-the new source offset places the caret after the repaint. Keys split by what
-they mean: motion, paging and the wheel stay native to the canvas, where one
-cell is one painted character, while document semantics (`C-e`, `C-a`, `M-f`,
-`M-b`, `M-<`, `M->`) run against the source, which is why `C-e` stops at the
-end of a paragraph instead of the end of the padded screen line.
-
-A system input method needs no emulation. macOS composes the keystroke before
-Emacs sees it, so the finished character arrives as `last-command-event` in
-`self-insert-command`, which is remapped to the forwarding command. Nothing
-here drives `quail-input-method`: run outside an interactive session it blocks
-waiting for its candidate window and spins at 100% CPU, which reads as a frozen
-Emacs. An edit repaints synchronously — publish, flush, then place the caret
-from the new projection — because an anchor cached across frames would leave a
-window in which the caret still points at the previous page's offset. The
-source is written with `set-buffer-modified-p nil` and saved once when the
-editing session ends, so no keystroke asks about saving.
+A repaint is a parse plus a publish, and both are keyed by block.  The parse
+re-uses the blocks an edit left alone and re-reads only the block under the
+edit and its neighbours, because deleting one blank line can merge two blocks
+into one.  The publish names each top-level block by its type and a digest of
+its own source, so an unchanged block keeps its published Component instance,
+its video handles and its reading position, and only the edited block renders
+again.  The page's picture constants — the mermaid configuration generated
+from its colours and type size — are built once per page instead of once per
+diagram, which is what keeps a keystroke cheap on a document that holds many
+diagrams.
 
 **Session as the only state.** There is no second copy of the outline, theme
 or document. Navigation recomputes heading positions from the live buffer on
@@ -187,17 +190,25 @@ document plus the environment.
 
 ## Performance envelope
 
-`benchmarks/performance-scenarios.el` registers this application's two
-accepted budgets with the workspace performance driver:
+`benchmarks/performance-scenarios.el` registers this application's accepted
+budgets with the workspace performance driver:
 
-- `md-preview.mount.manual` parses and mounts the maintained manual from a
-  fresh session into a fresh buffer: 100 ms.
+- `md-preview.mount.manual` parses and mounts `examples/sample.markdown`:
+  100 ms.
+- `md-preview.republish.diagrams` republishes `examples/all-syntax.markdown`
+  (47k characters, thirty-four diagrams) after an edit: 500 ms.  It guards the
+  picture path: a page's generated mermaid configuration is a per-page
+  constant, and building it once per diagram made a republish cost 2.4 s.
 - `md-preview.refit.width` cycles the reading measure through several widths
-  on a mounted manual: 10 ms.
+  on a mounted page: 10 ms.
 
-Both scenarios run in batch and GUI modes. Three batch sets of 10 samples on
-the shared development machine (Emacs 31.1, aarch64) measure mount p50 41.7 ms
-(p95 57.1 ms) and refit p50 5.6 ms (p95 7.3 ms).
+All scenarios run in batch and GUI modes. Three batch sets of 10 samples on the
+shared development machine (Emacs 31.1, aarch64) measure sample mount p50
+41.7 ms (p95 57.1 ms) and refit p50 5.6 ms (p95 7.3 ms); the diagram
+republish costs p50 93 ms.  Parsing and publishing the diagram page from
+nothing — `etaf-md-create` — costs 274 ms; mounting it is a separate 1.4 s
+of layout for three thousand painted lines, which is the renderer's cost
+rather than the previewer's.
 
 A mount builds the retained Ebox tree once and writes the buffer once. A refit
 keeps that tree: Ebox relays out only the width-dependent paragraphs and

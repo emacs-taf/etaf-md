@@ -22,6 +22,9 @@
 (require 'etaf-md-views)
 
 (declare-function etaf-md--child-syntax "etaf-md-node" (type))
+(declare-function etaf-md-open "etaf-md-app" (&optional source))
+(declare-function etaf-md--current-session "etaf-md-app" ())
+(declare-function url-unhex-string "url-util" (string))
 
 (define-error 'etaf-md-error "Markdown preview error")
 
@@ -106,9 +109,14 @@ re-renders on every write."
 ;;; Source helpers
 ;;; ---------------------------------------------------------------------------
 
+(defconst etaf-md--markdown-file-regexp "\\.\\(md\\|markdown\\|mdown\\|mkd\\)\\'"
+  "File names this package reads as a markdown document.")
+
 (defun etaf-md--remote-url-p (url)
-  "Return non-nil when URL points to a remote resource."
-  (string-match-p "\\`[a-zA-Z][a-zA-Z0-9+.-]*://" url))
+  "Return non-nil when URL names a remote resource.
+A scheme longer than one letter is a URL, so `mailto:' and `tel:' reach the
+browser; a single letter is a Windows drive, and `C:/notes' is a file."
+  (string-match-p "\\`[a-zA-Z][a-zA-Z0-9+.-]+:" url))
 
 (defun etaf-md--read-source (file)
   "Return FILE's text, signaling `etaf-md-error' on failure."
@@ -1138,26 +1146,58 @@ or nil when there is no heading left in that direction."
 ;;; Opening targets
 ;;; ---------------------------------------------------------------------------
 
+(defun etaf-md--locate-anchor (session anchor)
+  "Move point to SESSION's heading whose anchor is ANCHOR.
+ANCHOR may be written the way a document writes it and the way a browser
+encodes it, so `#使用 手册' and `#%E4%BD%BF%E7%94%A8' reach the same heading."
+  (let ((names (delq nil (list anchor (ignore-errors (url-unhex-string anchor))))))
+    (cl-loop for entry in (etaf-md-outline session)
+             for index from 0
+             when (member (nth 2 entry) names)
+             return (etaf-md-locate session index)
+             finally (message "No heading matches #%s" anchor))))
+
+(defun etaf-md--locate-pending (buffer anchor)
+  "Move point in BUFFER to ANCHOR once its page is painted.
+A preview opened from inside a command has not written its page yet, so the
+lookup runs after that command: a flush here publishes what the mount built,
+and the heading is searched in the text a reader sees."
+  (when (buffer-live-p buffer)
+    (with-current-buffer buffer
+      (when-let* ((session (ignore-errors (etaf-md--current-session))))
+        (when-let* ((runtime (etaf-runtime-for-buffer buffer)))
+          (etaf-runtime-flush runtime))
+        (etaf-md--locate-anchor session anchor)))))
+
 (defun etaf-md--open-url (session url)
   "Open URL referenced by SESSION's document.
-In-document anchors jump to the matching heading; remote targets use the
-browser; local paths open in Emacs."
-  (cond
-   ((string-prefix-p "#" url)
-    (let ((anchor (substring url 1)))
-      (cl-loop for entry in (etaf-md-outline session)
-               for index from 0
-               when (equal (nth 2 entry) anchor)
-               return (etaf-md-locate session index)
-               finally (message "No heading matches #%s" anchor))))
-   ((etaf-md--remote-url-p url)
-    (browse-url url))
-   (t
-    (let ((path (expand-file-name url (or (plist-get session :dir)
-                                          default-directory))))
-      (if (file-exists-p path)
-          (find-file-other-window path)
-        (message "File not found: %s" path))))))
+An in-document anchor jumps to the matching heading, a URL with a scheme goes
+to the browser, and a local path opens in Emacs: a markdown document opens as
+its preview, anything else as a file.  A `#fragment' after a local path selects
+that heading in the opened preview."
+  (let* ((fragment nil)
+         (target (if (string-match "\\`\\([^#]*\\)#\\(.+\\)\\'" url)
+                     (prog1 (match-string 1 url)
+                       (setq fragment (match-string 2 url)))
+                   url)))
+    (cond
+     ((string-empty-p target)
+      (when fragment (etaf-md--locate-anchor session fragment)))
+     ((etaf-md--remote-url-p target) (browse-url target))
+     (t
+      (let ((path (expand-file-name target (or (plist-get session :dir)
+                                               default-directory))))
+        (cond
+         ((and (string-match-p etaf-md--markdown-file-regexp path)
+               (file-readable-p path))
+          (let ((buffer (etaf-md-open path)))
+            ;; The heading is found in the painted page, and the paint of a
+            ;; page mounted inside a command belongs to the redisplay that
+            ;; follows it, so the fragment is applied once that paint is done.
+            (when (and fragment (buffer-live-p buffer))
+              (run-at-time 0 nil #'etaf-md--locate-pending buffer fragment))))
+         ((file-exists-p path) (find-file-other-window path))
+         (t (message "File not found: %s" path))))))))
 
 (defun etaf-md--open-file (path)
   "Open PATH with the operating system's default application.
